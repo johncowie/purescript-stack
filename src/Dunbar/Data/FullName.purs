@@ -1,4 +1,4 @@
-module Dunbar.Utils.FullName where
+module Dunbar.Data.FullName where
 
 import Prelude
 import Data.Lens (lens, Lens')

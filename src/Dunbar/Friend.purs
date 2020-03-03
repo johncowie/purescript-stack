@@ -6,9 +6,9 @@ module Dunbar.Friend
 )
 where
 
-import Dunbar.Utils.DateTime (DateTime)
-import Dunbar.Utils.Birthday (Birthday)
-import Dunbar.Utils.FullName (FullName, fullName)
+import Dunbar.Data.Birthday (Birthday)
+import Dunbar.Data.FullName (FullName, fullName)
+import Data.DateTime (DateTime)
 import Data.Maybe (Maybe(..))
 import Data.Lens (Lens', lens)
 

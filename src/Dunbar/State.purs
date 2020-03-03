@@ -2,75 +2,55 @@ module Dunbar.State where
 
 import Prelude
 import Dunbar.Friend (Friend, newFriend, lastSeenL)
-import Dunbar.Utils.DateTime (DateTime)
-import Data.Map as M
-import Data.Map (Map)
-import Data.Foldable (maximum)
-import Data.Maybe (fromMaybe, Maybe(..))
+import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple)
 import Data.Lens as L
-import Data.Argonaut.Core (jsonEmptyObject)
-import Data.Argonaut.Decode (class DecodeJson, decodeJson, (.?))
-import Data.Argonaut.Encode (class EncodeJson, (:=), (~>))
+import Data.Symbol (SProxy(..))
+import Data.Newtype (unwrap)
+import Data.Argonaut.Decode (class DecodeJson, decodeJson, (.:))
+import Data.Argonaut.Encode (class EncodeJson, encodeJson)
 import Data.Either (Either(..))
+import Record as Record
+import Utils.JsonDateTime (JsonDateTime)
+import Utils.IdMap as IdMap
 
-type Friendships = Map Int Friend
+type Friendships = IdMap.IdMap Friend
 
 data StateEvent =
-  AddFriend String String
-  | JustSeen {id :: Int, timeSeen :: DateTime}
-  | DeleteFriend Int
+  AddFriend {firstName :: String, lastName :: String}
+  | JustSeen {id :: IdMap.Id, timeSeen :: JsonDateTime}
+  | DeleteFriend {id :: IdMap.Id}
+
+type_ = SProxy :: SProxy "type"
+
+dateStrFormat :: String
+dateStrFormat = "YYYY/MM/DD HH:mm:ss.SSS"
 
 instance decodeJsonEvent :: DecodeJson StateEvent where
   decodeJson json = do
     obj <- decodeJson json
-    eventType <- obj .? "type"
+    eventType <- obj .: "type"
     case eventType of
-      "addFriend" -> do
-        firstName <- obj .? "firstName"
-        lastName <- obj .? "lastName"
-        pure $ AddFriend firstName lastName
-      --"justSeen" -> do
+      "addFriend" -> AddFriend <$> decodeJson json
+      "justSeen" -> JustSeen <$> decodeJson json
+      "deleteFriend" -> DeleteFriend <$> decodeJson json
       other -> (Left "Uknown event type")
 
 instance encodeJsonEvent :: EncodeJson StateEvent where
-  encodeJson (AddFriend firstName lastName) = do
-    "firstName" := firstName
-    ~> "lastName" := lastName
-    ~> "type" := "addFriend"
-    ~> jsonEmptyObject
-  encodeJson (JustSeen r) = do
-    "id" := r.id
-    ~> "timeSeen" := r.timeSeen
-    ~> "type" := "justSeen"
-    ~> jsonEmptyObject
-  encodeJson (DeleteFriend id) = do
-    "id" := id
-    ~> "type" := "deleteFriend"
-    ~> jsonEmptyObject
+  encodeJson (AddFriend r) = encodeJson (Record.insert type_ "addFriend" r)
+  encodeJson (JustSeen r) = encodeJson (Record.insert type_ "justSeen" r)
+  encodeJson (DeleteFriend r) = encodeJson (Record.insert type_ "deleteFriend" r)
 
 newFriendList :: Friendships
-newFriendList = M.empty
-
-createId :: Friendships -> Int
-createId = (+) 1 <<< fromMaybe (-1) <<< maximum <<< M.keys
-
-addFriend :: Friend -> Friendships -> Friendships
-addFriend f m = M.insert (createId m) f m
-
-updateFriend :: Int -> (Friend -> Friend) -> Friendships -> Friendships
-updateFriend id fn = M.update (Just <<< fn) id
-
-deleteFriend :: Int -> Friendships -> Friendships
-deleteFriend id = M.update (const Nothing) id
+newFriendList = IdMap.new
 
 updateState :: StateEvent -> Friendships -> Friendships
-updateState (AddFriend fn ln) = addFriend (newFriend fn ln)
-updateState (JustSeen r) = updateFriend r.id (L.set lastSeenL (Just r.timeSeen))
-updateState (DeleteFriend id) = deleteFriend id
+updateState (AddFriend r) = IdMap.add (newFriend r.firstName r.lastName)
+updateState (JustSeen r) = IdMap.update r.id (L.set lastSeenL (Just (unwrap r.timeSeen)))
+updateState (DeleteFriend r) = IdMap.delete r.id
 
-friendList :: Friendships -> Array (Tuple Int Friend)
-friendList = M.toUnfoldable
+friendList :: Friendships -> Array (Tuple IdMap.Id Friend)
+friendList = IdMap.toList
 
 -- playEvents :: Array StateEvent -> Friendships
 

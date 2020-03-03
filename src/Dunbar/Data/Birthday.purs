@@ -1,4 +1,4 @@
-module Dunbar.Utils.Birthday
+module Dunbar.Data.Birthday
 (Birthday, birthday, monthL, dayL)
 where
 
