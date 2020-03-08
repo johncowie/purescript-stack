@@ -9,3 +9,6 @@
 /.psa*
 /.spago
 index.js
+.DS_Store
+/.cache
+/dist

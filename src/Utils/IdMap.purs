@@ -6,7 +6,7 @@ import Data.Map as M
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Newtype (class Newtype, wrap, unwrap)
 import Data.Foldable (maximum)
-import Data.Tuple (Tuple, fst)
+import Data.Tuple (Tuple(..), fst)
 import Data.Argonaut.Decode (class DecodeJson, decodeJson)
 import Data.Argonaut.Encode (class EncodeJson, encodeJson)
 
@@ -43,3 +43,6 @@ toList = M.toUnfoldable
 
 keys :: forall v. IdMap v -> Array Id
 keys = (map fst) <<< toList
+
+rightJoinMap :: forall k v w. (Ord k) => Map k v -> Map k w -> Map k (Tuple v (Maybe w))
+rightJoinMap m1 m2 = M.mapMaybeWithKey (\k v -> Just(Tuple v (M.lookup k m2))) m1

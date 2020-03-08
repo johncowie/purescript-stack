@@ -1,0 +1,24 @@
+body {
+  font-family: courier, sans-serif;
+}
+
+.goalLabel {
+  width: 200px;
+  display: inline-block;
+}
+
+.amountInput {
+  width: 100px;
+  display: inline-block;
+}
+
+.amountDone {
+  display: inline-block;
+  padding-right: 10px;
+}
+
+.progressBar {
+  border: solid #000 1px;
+  display: inline-block;
+  white-space: pre;
+}
