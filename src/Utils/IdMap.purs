@@ -17,6 +17,9 @@ derive instance newtypeId :: Newtype Id _
 derive instance eqId :: Eq Id
 derive instance ordId :: Ord Id
 
+instance showId :: Show Id where
+  show = show <<< unwrap
+
 instance decodeJsonId :: DecodeJson Id where
   decodeJson json = wrap <$> decodeJson json
 
@@ -34,6 +37,12 @@ add v m = M.insert (createId m) v m
 
 update :: forall v. Id -> (v -> v) -> IdMap v -> IdMap v
 update id f = M.update (Just <<< f) id
+
+upsert :: forall v. Id -> v -> IdMap v -> IdMap v
+upsert id v = M.insert id v
+
+get :: forall v. Id -> IdMap v -> Maybe v
+get = M.lookup
 
 delete :: forall v. Id -> IdMap v -> IdMap v
 delete id = M.update (const Nothing) id
