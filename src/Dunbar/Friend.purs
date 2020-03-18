@@ -10,7 +10,7 @@ import Dunbar.Data.Birthday (Birthday)
 import Dunbar.Data.FullName (FullName, fullName)
 import Data.DateTime (DateTime)
 import Data.Maybe (Maybe(..))
-import Data.Lens (Lens', lens)
+import Utils.Lens (Lens', lens)
 
 type Friend = {
   name :: FullName,

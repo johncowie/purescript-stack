@@ -4,7 +4,7 @@ import Prelude
 import Dunbar.Friend (Friend, newFriend, lastSeenL)
 import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple)
-import Data.Lens as L
+import Utils.Lens as L
 import Data.Symbol (SProxy(..))
 import Data.Newtype (unwrap)
 import Data.Argonaut.Decode (class DecodeJson, decodeJson, (.:))

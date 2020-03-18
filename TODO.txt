@@ -1,0 +1,23 @@
+[X] Render goal form
+[X] Support submitting goal form
+[ ] Show ID next to goal
+[ ] Cap required to 0
+[ ] When constructing input field, define parser (make special piece of model state for inputs)
+[ ] Better error handling
+[ ] Wipe form when submitting
+[ ] Render goals in a table
+[X] Calculate stat for how much is required for a goal to be on track
+[ ] Calculate percentage for how on track goal is (i.e. done-up-to-now / required-up-to-now * 100) - capped to 100%
+[ ] Calculate overall percentage on track (i.e. across all goals)
+[ ] Order goals from least on-track to most-on-track
+[ ] Colour progress bar green if on track
+[ ] Colour progress bar red if not on track
+
+
+Ideas
+- Growth rate for goal target to grow over time
+- Can edit goal
+- Can delete goal
+- Can undo state event
+- Timestamp all events
+- Rolling over goals with new targets

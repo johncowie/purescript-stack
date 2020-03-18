@@ -2,7 +2,7 @@ module Dunbar.Data.Birthday
 (Birthday, birthday, monthL, dayL)
 where
 
-import Data.Lens (Lens', lens)
+import Utils.Lens (Lens', lens)
 
 type Birthday = {
   month :: Int,

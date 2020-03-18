@@ -2,11 +2,13 @@ module Goals.App where
 
 import Prelude
 import Effect (Effect)
-import Data.Lens as L
+import Utils.Lens as L
+import Data.List (List(..), (:))
 import Goals.Data.Goal as Goal
 import Goals.Data.State (GoalState, newGoalState, processEvent)
 import Goals.Data.Stats (Stats, GoalStats, calculateStats)
 import Goals.Data.Event (Event, addGoalEvent, addProgressEvent)
+import Data.DateTime (DateTime)
 import Data.DateTime.Instant (Instant)
 import Effect.Now (now)
 import Spork.App as App
@@ -15,42 +17,155 @@ import Spork.Html.Elements.Keyed as Keyed
 import Spork.Html.Properties as P
 import Spork.Html.Events as E
 import Data.Maybe (Maybe(..), fromMaybe)
+import Data.Either (Either(..), either)
+import Data.Foldable (foldr)
 import Spork.Interpreter (merge, basicEffect)
 import Utils.Spork.TimerSubscription (runSubscriptions, tickSub, Sub)
-import Utils.DateTime (newDateTime)
+import Utils.DateTime (parseDate)
 import Utils.IdMap as IdMap
 import Data.Tuple (Tuple(..))
 import Data.Int (fromString, toNumber, floor)
+import Effect.Exception.Unsafe (unsafeThrow)
+import Data.Symbol (SProxy(..))
+-- Webstorage stuff
+import Utils.LocalJsonStorage (load, store) as JsonStorage
 
 data Msg = Tick Instant |
-           UpdateAmount IdMap.Id String |
-           LogAmount IdMap.Id (Maybe Instant) Int
+           UpdateStringInput (L.Lens' Model String) String |
+           LogAmount IdMap.Id (Maybe Instant) |
+           AddGoal (Maybe Instant) |
+           DoNothing
+
+type GoalForm = {
+  goalName :: String,
+  target :: String,
+  startDate :: String,
+  endDate :: String
+}
 
 type Model = {
   state :: GoalState,
   stats :: Stats,
-  amountInputs :: IdMap.IdMap String
+  amountInputs :: IdMap.IdMap String,
+  goalForm :: GoalForm
+  -- inputs :: M.Map String StringInputState
 }
 
+-- could use the Data.Default abstraction
+emptyModel :: Model
+emptyModel = {
+  state: newGoalState,
+  stats: IdMap.new,
+  amountInputs: IdMap.new,
+  goalForm: {
+    goalName: "",
+    target: "",
+    startDate: "",
+    endDate: ""
+  }
+}
+
+
+type StringInputState = {
+  val :: String,
+  error :: Maybe String
+}
+
+-- todo abstract out model
+type StringInput a = {
+  validator :: String -> Either String a,
+  inputLabel :: String,
+  inputId :: String,
+  lens :: L.Lens' Model String,
+  placeholder :: String
+}
+
+parseInt :: String -> Either String Int
+parseInt s = case fromString s of
+  Nothing -> Left "Not a valid integer"
+  (Just i) -> Right i
+
+nonEmptyString :: String -> Either String String
+nonEmptyString "" = Left "Can't be empty"
+nonEmptyString s = Right s
+
+stringInput :: forall a. String -> (String -> Either String a) -> L.Lens' Model String -> StringInput a
+stringInput placeholder validator lens = {
+  validator: validator,
+  inputLabel: "unused",
+  lens: lens,
+  placeholder: placeholder,
+  inputId: "inputId" -- TODO use this as basis of lens
+}
+
+goalNameInput :: StringInput String
+goalNameInput = stringInput "goal name" nonEmptyString (goalFormL >>> goalNameL)
+
+goalTargetInput :: StringInput Int
+goalTargetInput = stringInput "target" parseInt (goalFormL >>> goalTargetL)
+
+goalStartInput :: StringInput DateTime
+goalStartInput = stringInput "start date" parseDate (goalFormL >>> goalStartDateL)
+
+goalEndInput :: StringInput DateTime
+goalEndInput = stringInput "end date" parseDate (goalFormL >>> goalEndDateL)
+
+amountInput :: IdMap.Id -> StringInput Int
+amountInput id = stringInput "amount" parseInt (modelAmountInputL id)
+
+-- todo abstract out msg
+renderStringInput :: forall a. StringInput a -> Model -> H.Html Msg
+renderStringInput input model =
+  H.div
+  []
+  [H.input [P.placeholder input.placeholder,
+            P.type_ P.InputText,
+            P.value (L.view lens model),
+            E.onValueInput (E.always (UpdateStringInput lens))]]
+  where lens = (input.lens :: L.Lens' Model String)
+
+parseStringInputUnsafe :: forall a. StringInput a -> Model -> a
+parseStringInputUnsafe input model = either unsafeThrow identity $ input.validator $ L.view input.lens model
+
+--- composing these inputs together could construct lens for SubmitForm action to take parsed vals from model
+
 statsL :: L.Lens' Model Stats
-statsL = L.lens _.stats (_ {stats = _})
+statsL = L.prop (SProxy :: SProxy "stats")
 
 stateL :: L.Lens' Model GoalState
-stateL = L.lens _.state (_ {state = _})
+stateL = L.prop (SProxy :: SProxy "state")
 
 amountInputsL :: L.Lens' Model (IdMap.IdMap String)
-amountInputsL = L.lens _.amountInputs (_ {amountInputs = _})
+amountInputsL = L.prop (SProxy :: SProxy "amountInputs")
 
-testGoalState :: GoalState
-testGoalState = processEvent (addGoalEvent "A Goal" (newDateTime 2020 1 1) (newDateTime 2020 4 1) 100)
-                $ processEvent (addGoalEvent "Another silly Goal" (newDateTime 2020 1 2) (newDateTime 2020 5 1) 200)
-                $ newGoalState
+idMapValL :: forall a. a -> IdMap.Id -> L.Lens' (IdMap.IdMap a) a
+idMapValL default id = L.lens get set
+  where get m = fromMaybe default $ IdMap.get id m
+        set m v = IdMap.upsert id v m
+
+modelAmountInputL :: IdMap.Id -> L.Lens' Model String
+modelAmountInputL id = amountInputsL >>> (idMapValL "" id)
+
+goalFormL :: L.Lens' Model GoalForm
+goalFormL = L.prop (SProxy :: SProxy "goalForm")
+
+goalNameL :: L.Lens' GoalForm String
+goalNameL = L.prop (SProxy :: SProxy "goalName")
+
+goalTargetL :: L.Lens' GoalForm String
+goalTargetL = L.prop (SProxy :: SProxy "target")
+
+goalStartDateL :: L.Lens' GoalForm String
+goalStartDateL = L.prop (SProxy :: SProxy "startDate")
+
+goalEndDateL :: L.Lens' GoalForm String
+goalEndDateL = L.prop (SProxy :: SProxy "endDate")
 
 -- TODO load initial state from localstorage events (events and date passed in as arg)
 -- TODO can do this without passing in as args, if an event is fired off to recalculate stats..
-init :: Array Event -> Instant -> App.Transition Effect Model Msg
-init _events dt = App.purely {state: state, stats: stats, amountInputs: IdMap.new}
-  where state = testGoalState
+init :: List Event -> Instant -> App.Transition Effect Model Msg
+init events dt = App.purely (emptyModel {state = state,stats = stats})
+  where state = foldr processEvent newGoalState events
         stats = calculateStats dt state
 
 wrapWithClass :: forall a. String -> H.Html a -> H.Html a
@@ -61,7 +176,6 @@ repeatString n s = case n of
                   x' | x' <= 0 -> ""
                   x' -> s <> repeatString (x' - 1) s
 
--- TODO implement
 progressString :: Maybe GoalStats -> String
 progressString statsM = (repeatString nX "X") <> repeatString nSpace " "
   where nX = progressScaled
@@ -70,63 +184,106 @@ progressString statsM = (repeatString nX "X") <> repeatString nSpace " "
         progressScaled = floor $ progress * (toNumber progressLength / 100.0)
         progressLength = 20
 
+renderOnTrackRequired :: forall a. Maybe GoalStats -> H.Html a
+renderOnTrackRequired = H.text <<< show <<< fromMaybe 0 <<< map _.onTrackRequired
+
 amountDoneString :: Goal.Goal -> String
 amountDoneString goal = show (L.view Goal.amountDoneL goal) <> "/" <> show (L.view Goal.targetL goal)
 
 fromStringOrZero :: String -> Int
 fromStringOrZero s = fromMaybe 0 (fromString s)
 
+submitButton :: forall m. String -> m -> H.Html m
+submitButton label msg = H.button [E.onClick (E.always_ msg)] [H.text label]
+
 renderRow :: Model -> Tuple IdMap.Id Goal.Goal -> Tuple String (H.Html Msg)
 renderRow model (Tuple id goal) =
   Tuple (show id) $ H.div [] [wrapWithClass "goalLabel" (H.text (L.view Goal.titleL goal)),
             wrapWithClass "amountDone" (H.text $ amountDoneString goal),
+            wrapWithClass "onTrackRequired" $ renderOnTrackRequired statsM,
             wrapWithClass "progressBar" (H.text $ progressString statsM),
-            wrapWithClass "amountInput" (H.input [P.placeholder "amount",
-                                                  P.type_ P.InputText,
-                                                  P.value inputStr,
-                                                  E.onValueInput (E.always (UpdateAmount id))
-                                                  ]),
-            H.button
-              [E.onClick (E.always_ (LogAmount id Nothing inputVal))]
-              [H.text "Log"]
+            wrapWithClass "amountInput" $ renderStringInput (amountInput id) model,
+            submitButton "Log" (LogAmount id Nothing)
             ]
-    where inputStr = fromMaybe "1" $ IdMap.get id $ L.view amountInputsL model
-          inputVal = fromStringOrZero inputStr
-          statsM = IdMap.get id $ L.view statsL model
+    where statsM = IdMap.get id $ L.view statsL model
+
+renderGoalList :: Model -> H.Html Msg
+renderGoalList model = Keyed.div [] $ map (renderRow model) $ IdMap.toList model.state
+
+renderGoalForm :: Model -> H.Html Msg
+renderGoalForm m = H.div [] [
+  H.h3 [] [H.text "Add Goal"],
+  inputRow "Goal name: " $ renderStringInput goalNameInput m,
+  inputRow "Target: " $ renderStringInput goalTargetInput m,
+  inputRow "Start Date: " $ renderStringInput goalStartInput m,
+  inputRow "End Date: " $ renderStringInput goalEndInput m,
+  submitButton "Add Goal" (AddGoal Nothing)
+] where inputRow label input = H.div [] [H.label [] [(H.text label)], input]
 
 render :: Model -> H.Html Msg
-render model = Keyed.div [] $ map (renderRow model) $ IdMap.toList model.state
+render model = H.div [] [renderGoalList model,
+                         renderGoalForm model]
+
+storageKey :: String
+storageKey = "goals"
+
+loadEvents :: Effect (List Event)
+loadEvents = do
+  eventsE <- JsonStorage.load storageKey
+  let eventsM = either unsafeThrow identity eventsE
+  pure $ fromMaybe Nil eventsM
+
+storeEvents :: List Event -> Effect Unit
+storeEvents = JsonStorage.store storageKey
+
+storeEvent :: Event -> Effect Unit
+storeEvent event = do
+  events <- loadEvents
+  storeEvents $ event : events
+
+fireStateEvent :: Instant -> Model -> Event -> App.Transition Effect Model Msg
+fireStateEvent now model event = {effects, model: updatedModel}
+  where effects = App.lift $ do
+          storeEvent event
+          pure $ DoNothing
+        updatedModel = L.set stateL updatedState $ L.set statsL (calculateStats now updatedState) model
+        updatedState = processEvent event model.state
+-- store event in local storage, fire event to update model and stats
 
 update :: Model → Msg → App.Transition Effect Model Msg
 update model (Tick instant) =  App.purely $ L.set statsL (calculateStats instant model.state) model
-update model (LogAmount id Nothing amount) = {effects, model}
+update model (LogAmount id Nothing) = {effects, model}
   where effects = App.lift $ do
           nowInst <- now
-          pure $ LogAmount id (Just nowInst) amount
-update model (LogAmount id (Just now) amount) =
-  App.purely $ L.set stateL updatedState $ L.set statsL (calculateStats now updatedState) model
-  where updatedState = processEvent (addProgressEvent id now amount) model.state
-update model (UpdateAmount id v) = App.purely $ L.over amountInputsL (IdMap.upsert id v) model
+          pure $ LogAmount id (Just nowInst)
+update model (AddGoal Nothing) = {effects, model}
+  where effects = App.lift $ do
+          nowInst <- now
+          pure $ AddGoal (Just nowInst)
+update model (LogAmount id (Just now)) = fireStateEvent now model (addProgressEvent id now amount)
+  where amount = parseStringInputUnsafe (amountInput id) model
+update model (AddGoal (Just now)) = fireStateEvent now model (addGoalEvent title startDate endDate target)
+  where title = parseStringInputUnsafe goalNameInput model
+        startDate = parseStringInputUnsafe goalStartInput model
+        endDate = parseStringInputUnsafe goalEndInput model
+        target = parseStringInputUnsafe goalTargetInput model
+update model (DoNothing) = App.purely model
+update model (UpdateStringInput stringL input) = App.purely $ L.set stringL input model
 
 subs :: Model -> App.Batch Sub Msg
 subs model = App.lift (tickSub Tick)
 
-app :: Instant -> App.App Effect Sub Model Msg
-app now = {
+app :: List Event -> Instant -> App.App Effect Sub Model Msg
+app events now = {
     render
   , update
   , subs: subs
-  , init: init [] now
+  , init: init events now
 }
 
 runApp :: Effect Unit
 runApp = do
+  events <- loadEvents
   currentTime <- now
-  inst <- App.makeWithSelector (basicEffect `merge` runSubscriptions) (app currentTime) "#app"
+  inst <- App.makeWithSelector (basicEffect `merge` runSubscriptions) (app events currentTime) "#app"
   inst.run
-
--- TODO
--- all apps ultimately need
---  function for loading state from State events
---  rendering of state
---  update function

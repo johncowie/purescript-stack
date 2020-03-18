@@ -13,6 +13,7 @@ body {
 }
 
 .amountDone {
+  width: 100px;
   display: inline-block;
   padding-right: 10px;
 }
@@ -21,4 +22,10 @@ body {
   border: solid #000 1px;
   display: inline-block;
   white-space: pre;
+  margin-right: 5px;
+}
+
+.onTrackRequired {
+  width: 30px;
+  display: inline-block;
 }

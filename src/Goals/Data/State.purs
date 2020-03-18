@@ -3,7 +3,7 @@ module Goals.Data.State where
 import Prelude
 import Data.Newtype (unwrap)
 import Data.DateTime (DateTime)
-import Data.Lens as L
+import Utils.Lens as L
 import Utils.IdMap as IdMap
 import Utils.JsonDateTime (JsonDateTime)
 import Goals.Data.Goal (Goal, newUnitGoal)

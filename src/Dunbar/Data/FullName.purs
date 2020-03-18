@@ -1,7 +1,7 @@
 module Dunbar.Data.FullName where
 
 import Prelude
-import Data.Lens (lens, Lens')
+import Utils.Lens (lens, Lens')
 
 type FullName = {
   firstName :: String,

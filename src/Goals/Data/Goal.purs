@@ -1,7 +1,7 @@
 module Goals.Data.Goal where
 
 import Data.DateTime (DateTime)
-import Data.Lens (Lens', lens)
+import Utils.Lens (Lens', lens)
 
 type Goal = {
   start :: DateTime,
