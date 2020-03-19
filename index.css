@@ -35,6 +35,10 @@ body {
   color: #33BB33;
 }
 
+.progress-grey {
+  color: #AAAAAA;
+}
+
 .onTrackRequired {
   width: 30px;
   display: inline-block;

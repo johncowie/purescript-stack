@@ -186,19 +186,21 @@ repeatString n s = case n of
                   x' | x' <= 0 -> ""
                   x' -> s <> repeatString (x' - 1) s
 
-progressScaled :: Int -> Maybe GoalStats -> Int
-progressScaled points statsM = floor $ progress * (toNumber points / 100.0)
-  where progress = fromMaybe 0.0 $ _.progressPercentage <$> statsM
+scalePercentage :: Int -> Number -> Int
+scalePercentage points percentage = floor $ percentage * (toNumber points / 100.0)
 
 isOnTrack :: GoalStats -> Boolean
 isOnTrack  = (>=) 0  <<< _.onTrackRequired
 
 progressBar :: forall a. Maybe GoalStats -> H.Html a
 progressBar statsM = H.div [P.classes ["progress-bar"]]
-                           [H.span [P.classes [statusClass]] [(H.text (repeatString nX "X"))],
+                           [H.span [P.classes [statusClass]] [H.text (repeatString nX "X")],
+                            H.span [P.classes ["progress-grey"]] [H.text (repeatString nXRem "X")],
                             H.span [] [(H.text (repeatString nSpace " "))]]
-  where nX = progressScaled charLength statsM
-        nSpace = charLength - nX
+  where nX = fromMaybe 0 $ scalePercentage charLength <$> _.progressPercentage <$> statsM
+        nXRequired = fromMaybe 0 $ scalePercentage charLength <$> _.timeElapsedPercentage <$> statsM
+        nXRem = max (nXRequired - nX) 0
+        nSpace = charLength - (nX + nXRem)
         charLength = 50
         statusClass = case isOnTrack <$> statsM of
           Nothing -> ""
@@ -220,13 +222,13 @@ submitButton label msg = H.button [E.onClick (E.always_ msg)] [H.text label]
 -- TODO move towards each component using a lens
 renderRow :: Model -> Tuple IdMap.Id Goal.Goal -> Tuple String (H.Html Msg)
 renderRow model (Tuple id goal) =
-  Tuple (show id) $ H.div [] [wrapWithClass "goalLabel" (H.text (L.view Goal.titleL goal)),
-            wrapWithClass "amountDone" (H.text $ amountDoneString goal),
-            wrapWithClass "onTrackRequired" $ renderOnTrackRequired statsM,
-            progressBar statsM,
-            wrapWithClass "amountInput" $ renderStringInput (amountInput id) model,
-            submitButton "Log" (LogAmount id Nothing)
-            ]
+  Tuple (show id) $ H.div [] [wrapWithClass "goalLabel" $ H.text (show id <> ": " <> L.view Goal.titleL goal),
+                              wrapWithClass "amountDone" $ (H.text $ amountDoneString goal),
+                              wrapWithClass "onTrackRequired" $ renderOnTrackRequired statsM,
+                              progressBar statsM,
+                              wrapWithClass "amountInput" $ renderStringInput (amountInput id) model,
+                              submitButton "Log" (LogAmount id Nothing)
+                              ]
     where statsM = IdMap.get id $ L.view statsL model
 
 renderGoalList :: Model -> H.Html Msg
