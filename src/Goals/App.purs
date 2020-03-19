@@ -25,6 +25,7 @@ import Utils.DateTime (parseDate)
 import Utils.IdMap as IdMap
 import Data.Tuple (Tuple(..))
 import Data.Int (fromString, toNumber, floor)
+import Data.Map as M
 import Effect.Exception.Unsafe (unsafeThrow)
 import Data.Symbol (SProxy(..))
 -- Webstorage stuff
@@ -47,7 +48,8 @@ type Model = {
   state :: GoalState,
   stats :: Stats,
   amountInputs :: IdMap.IdMap String,
-  goalForm :: GoalForm
+  goalForm :: GoalForm,
+  inputs ::  M.Map String String
   -- inputs :: M.Map String StringInputState
 }
 
@@ -62,7 +64,8 @@ emptyModel = {
     target: "",
     startDate: "",
     endDate: ""
-  }
+  },
+  inputs: M.empty
 }
 
 
@@ -89,31 +92,32 @@ nonEmptyString :: String -> Either String String
 nonEmptyString "" = Left "Can't be empty"
 nonEmptyString s = Right s
 
-stringInput :: forall a. String -> (String -> Either String a) -> L.Lens' Model String -> StringInput a
-stringInput placeholder validator lens = {
+-- abstract out message
+stringInput :: forall a. String -> (String -> Either String a) -> String -> StringInput a
+stringInput placeholder validator inputId = {
   validator: validator,
   inputLabel: "unused",
-  lens: lens,
+  lens: (inputsL >>> mapValL "" inputId),
   placeholder: placeholder,
-  inputId: "inputId" -- TODO use this as basis of lens
+  inputId: inputId -- TODO use this as basis of lens
 }
 
 goalNameInput :: StringInput String
-goalNameInput = stringInput "goal name" nonEmptyString (goalFormL >>> goalNameL)
+goalNameInput = stringInput "goal name" nonEmptyString "goalName"
 
 goalTargetInput :: StringInput Int
-goalTargetInput = stringInput "target" parseInt (goalFormL >>> goalTargetL)
+goalTargetInput = stringInput "target" parseInt "goalTarget"
 
 goalStartInput :: StringInput DateTime
-goalStartInput = stringInput "start date" parseDate (goalFormL >>> goalStartDateL)
+goalStartInput = stringInput "start date" parseDate "goalStartDate"
 
 goalEndInput :: StringInput DateTime
-goalEndInput = stringInput "end date" parseDate (goalFormL >>> goalEndDateL)
+goalEndInput = stringInput "end date" parseDate "goalEndDate"
 
 amountInput :: IdMap.Id -> StringInput Int
-amountInput id = stringInput "amount" parseInt (modelAmountInputL id)
+amountInput id = stringInput "amount" parseInt ("amount-" <> show id)
 
--- todo abstract out msg
+-- todo abstract out msg/model
 renderStringInput :: forall a. StringInput a -> Model -> H.Html Msg
 renderStringInput input model =
   H.div
@@ -135,13 +139,19 @@ statsL = L.prop (SProxy :: SProxy "stats")
 stateL :: L.Lens' Model GoalState
 stateL = L.prop (SProxy :: SProxy "state")
 
+inputsL :: L.Lens' Model (M.Map String String)
+inputsL = L.prop (SProxy :: SProxy "inputs")
+
+mapValL :: forall k v. (Ord k) => v -> k -> L.Lens' (M.Map k v) v
+mapValL default id = L.lens get set
+  where get m = fromMaybe default $ M.lookup id m
+        set m v = M.insert id v m
+
 amountInputsL :: L.Lens' Model (IdMap.IdMap String)
 amountInputsL = L.prop (SProxy :: SProxy "amountInputs")
 
 idMapValL :: forall a. a -> IdMap.Id -> L.Lens' (IdMap.IdMap a) a
-idMapValL default id = L.lens get set
-  where get m = fromMaybe default $ IdMap.get id m
-        set m v = IdMap.upsert id v m
+idMapValL = mapValL
 
 modelAmountInputL :: IdMap.Id -> L.Lens' Model String
 modelAmountInputL id = amountInputsL >>> (idMapValL "" id)
@@ -189,7 +199,7 @@ progressBar statsM = H.div [P.classes ["progress-bar"]]
                             H.span [] [(H.text (repeatString nSpace " "))]]
   where nX = progressScaled charLength statsM
         nSpace = charLength - nX
-        charLength = 20
+        charLength = 50
         statusClass = case isOnTrack <$> statsM of
           Nothing -> ""
           Just false -> "progress-red"
@@ -272,13 +282,18 @@ update model (AddGoal Nothing) = {effects, model}
   where effects = App.lift $ do
           nowInst <- now
           pure $ AddGoal (Just nowInst)
-update model (LogAmount id (Just now)) = fireStateEvent now model (addProgressEvent id now amount)
+update model (LogAmount id (Just now)) = fireStateEvent now clearedInputs (addProgressEvent id now amount)
   where amount = parseStringInputUnsafe (amountInput id) model
-update model (AddGoal (Just now)) = fireStateEvent now model (addGoalEvent title startDate endDate target)
+        clearedInputs = L.set (amountInput id).lens "" model
+update model (AddGoal (Just now)) = fireStateEvent now clearedInputs (addGoalEvent title startDate endDate target)
   where title = parseStringInputUnsafe goalNameInput model
         startDate = parseStringInputUnsafe goalStartInput model
         endDate = parseStringInputUnsafe goalEndInput model
         target = parseStringInputUnsafe goalTargetInput model
+        clearedInputs = L.set goalNameInput.lens "" $
+                        L.set goalStartInput.lens "" $
+                        L.set goalEndInput.lens "" $
+                        L.set goalTargetInput.lens "" $ model
 update model (DoNothing) = App.purely model
 update model (UpdateStringInput stringL input) = App.purely $ L.set stringL input model
 
