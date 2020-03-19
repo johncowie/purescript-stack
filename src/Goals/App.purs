@@ -176,13 +176,24 @@ repeatString n s = case n of
                   x' | x' <= 0 -> ""
                   x' -> s <> repeatString (x' - 1) s
 
-progressString :: Maybe GoalStats -> String
-progressString statsM = (repeatString nX "X") <> repeatString nSpace " "
-  where nX = progressScaled
-        nSpace = progressLength - progressScaled
-        progress = fromMaybe 0.0 $ _.progressPercentage <$> statsM
-        progressScaled = floor $ progress * (toNumber progressLength / 100.0)
-        progressLength = 20
+progressScaled :: Int -> Maybe GoalStats -> Int
+progressScaled points statsM = floor $ progress * (toNumber points / 100.0)
+  where progress = fromMaybe 0.0 $ _.progressPercentage <$> statsM
+
+isOnTrack :: GoalStats -> Boolean
+isOnTrack  = (>=) 0  <<< _.onTrackRequired
+
+progressBar :: forall a. Maybe GoalStats -> H.Html a
+progressBar statsM = H.div [P.classes ["progress-bar"]]
+                           [H.span [P.classes [statusClass]] [(H.text (repeatString nX "X"))],
+                            H.span [] [(H.text (repeatString nSpace " "))]]
+  where nX = progressScaled charLength statsM
+        nSpace = charLength - nX
+        charLength = 20
+        statusClass = case isOnTrack <$> statsM of
+          Nothing -> ""
+          Just false -> "progress-red"
+          Just true -> "progress-green"
 
 renderOnTrackRequired :: forall a. Maybe GoalStats -> H.Html a
 renderOnTrackRequired = H.text <<< show <<< fromMaybe 0 <<< map _.onTrackRequired
@@ -196,12 +207,13 @@ fromStringOrZero s = fromMaybe 0 (fromString s)
 submitButton :: forall m. String -> m -> H.Html m
 submitButton label msg = H.button [E.onClick (E.always_ msg)] [H.text label]
 
+-- TODO move towards each component using a lens
 renderRow :: Model -> Tuple IdMap.Id Goal.Goal -> Tuple String (H.Html Msg)
 renderRow model (Tuple id goal) =
   Tuple (show id) $ H.div [] [wrapWithClass "goalLabel" (H.text (L.view Goal.titleL goal)),
             wrapWithClass "amountDone" (H.text $ amountDoneString goal),
             wrapWithClass "onTrackRequired" $ renderOnTrackRequired statsM,
-            wrapWithClass "progressBar" (H.text $ progressString statsM),
+            progressBar statsM,
             wrapWithClass "amountInput" $ renderStringInput (amountInput id) model,
             submitButton "Log" (LogAmount id Nothing)
             ]

@@ -18,11 +18,21 @@ body {
   padding-right: 10px;
 }
 
-.progressBar {
+.progress-bar {
   border: solid #000 1px;
   display: inline-block;
-  white-space: pre;
   margin-right: 5px;
+}
+.progress-bar span {
+  white-space: pre;
+}
+
+.progress-red {
+  color: #AA2200;
+}
+
+.progress-green {
+  color: #33BB33;
 }
 
 .onTrackRequired {

@@ -1,6 +1,7 @@
 [X] Render goal form
 [X] Support submitting goal form
 [ ] Show ID next to goal
+[ ] Fix goal form formatting
 [ ] Cap required to 0
 [ ] When constructing input field, define parser (make special piece of model state for inputs)
 [ ] Better error handling
