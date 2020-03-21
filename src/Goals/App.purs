@@ -5,11 +5,11 @@ import Effect (Effect)
 import Utils.Lens as L
 import Data.List (List(..), (:))
 import Goals.Data.Goal as Goal
-import Goals.Data.State (GoalState, newGoalState, processEvent)
+import Goals.Data.State (GoalState, newGoalState, processEvent, currentGoals, expiredGoals)
 import Goals.Data.Stats (Stats, GoalStats, calculateStats)
 import Goals.Data.Event (Event, addGoalEvent, addProgressEvent)
 import Data.DateTime (DateTime)
-import Data.DateTime.Instant (Instant)
+import Data.DateTime.Instant (Instant, toDateTime)
 import Effect.Now (now)
 import Spork.App as App
 import Spork.Html as H
@@ -21,7 +21,7 @@ import Data.Either (Either(..), either)
 import Data.Foldable (foldr)
 import Spork.Interpreter (merge, basicEffect)
 import Utils.Spork.TimerSubscription (runSubscriptions, tickSub, Sub)
-import Utils.DateTime (parseDate)
+import Utils.DateTime (parseDate, showDate)
 import Utils.IdMap as IdMap
 import Data.Tuple (Tuple(..))
 import Data.Int (fromString, toNumber, floor) as Int
@@ -46,6 +46,7 @@ type GoalForm = {
 }
 
 type Model = {
+  lastUpdate :: Maybe Instant,
   state :: GoalState,
   stats :: Stats,
   amountInputs :: IdMap.IdMap String,
@@ -57,6 +58,7 @@ type Model = {
 -- could use the Data.Default abstraction
 emptyModel :: Model
 emptyModel = {
+  lastUpdate: Nothing,
   state: newGoalState,
   stats: IdMap.new,
   amountInputs: IdMap.new,
@@ -123,7 +125,7 @@ goalEndInput = stringInput "end date" parseDate "goalEndDate"
 amountInput :: IdMap.Id -> StringInput Number
 amountInput id = stringInput "amount" parseNumber ("amount-" <> show id)
 
--- todo abstract out msg/model
+-- TODO abstract out msg/model and move to utils
 renderStringInput :: forall a. StringInput a -> Model -> H.Html Msg
 renderStringInput input model =
   H.div
@@ -138,6 +140,9 @@ parseStringInputUnsafe :: forall a. StringInput a -> Model -> a
 parseStringInputUnsafe input model = either unsafeThrow identity $ input.validator $ L.view input.lens model
 
 --- composing these inputs together could construct lens for SubmitForm action to take parsed vals from model
+
+_lastUpdate :: L.Lens' Model (Maybe Instant)
+_lastUpdate = L.prop (SProxy :: SProxy "lastUpdate")
 
 statsL :: L.Lens' Model Stats
 statsL = L.prop (SProxy :: SProxy "stats")
@@ -180,7 +185,7 @@ goalEndDateL = L.prop (SProxy :: SProxy "endDate")
 -- TODO load initial state from localstorage events (events and date passed in as arg)
 -- TODO can do this without passing in as args, if an event is fired off to recalculate stats..
 init :: List Event -> Instant -> App.Transition Effect Model Msg
-init events dt = App.purely (emptyModel {state = state,stats = stats})
+init events dt = App.purely (emptyModel {lastUpdate = Just dt, state = state, stats = stats})
   where state = foldr processEvent newGoalState events
         stats = calculateStats dt state
 
@@ -226,8 +231,8 @@ submitButton :: forall m. String -> m -> H.Html m
 submitButton label msg = H.button [E.onClick (E.always_ msg)] [H.text label]
 
 -- TODO move towards each component using a lens
-renderRow :: Model -> Tuple IdMap.Id Goal.Goal -> Tuple String (H.Html Msg)
-renderRow model (Tuple id goal) =
+renderLiveGoal :: Model -> Tuple IdMap.Id Goal.Goal -> Tuple String (H.Html Msg)
+renderLiveGoal model (Tuple id goal) =
   Tuple (show id) $ H.div [] [wrapWithClass "goalLabel" $ H.text (show id <> ": " <> L.view Goal._title goal),
                               wrapWithClass "amountDone" $ (H.text $ amountDoneString goal),
                               wrapWithClass "onTrackRequired" $ renderOnTrackRequired statsM,
@@ -237,8 +242,26 @@ renderRow model (Tuple id goal) =
                               ]
     where statsM = IdMap.get id $ L.view statsL model
 
-renderGoalList :: Model -> H.Html Msg
-renderGoalList model = Keyed.div [] $ map (renderRow model) $ IdMap.toList model.state
+renderExpiredGoal :: Model -> Tuple IdMap.Id Goal.Goal -> Tuple String (H.Html Msg)
+renderExpiredGoal model (Tuple id goal) =
+  Tuple (show id) $ H.div [] [H.text $ L.view Goal._title goal,
+                              H.text $ " - ",
+                              H.text $ showDate $ L.view Goal._start goal,
+                              H.text $ " - ",
+                              H.text $ showDate $ L.view Goal._end goal
+                              ]
+
+renderCurrentGoalList :: Model -> H.Html Msg
+renderCurrentGoalList model = Keyed.div [] $ map (renderLiveGoal model) $
+  case model.lastUpdate of
+    Nothing -> []
+    (Just now) -> IdMap.toArray $ currentGoals (toDateTime now) $ model.state
+
+renderExpiredGoalList :: Model -> H.Html Msg
+renderExpiredGoalList model = Keyed.div [] $ map (renderExpiredGoal model) $
+  case model.lastUpdate of
+    Nothing -> []
+    (Just now) -> IdMap.toArray $ expiredGoals (toDateTime now) $ model.state
 
 renderGoalForm :: Model -> H.Html Msg
 renderGoalForm m = H.div [] [
@@ -251,7 +274,10 @@ renderGoalForm m = H.div [] [
 ] where inputRow label input = H.div [] [H.label [] [(H.text label)], input]
 
 render :: Model -> H.Html Msg
-render model = H.div [] [renderGoalList model,
+render model = H.div [] [H.h3 [] [H.text "Current goals"],
+                         renderCurrentGoalList model,
+                         H.h3 [] [H.text "Expired goals"],
+                         renderExpiredGoalList model,
                          renderGoalForm model]
 
 storageKey :: String
@@ -281,7 +307,10 @@ fireStateEvent now model event = {effects, model: updatedModel}
 -- store event in local storage, fire event to update model and stats
 
 update :: Model → Msg → App.Transition Effect Model Msg
-update model (Tick instant) =  App.purely $ L.set statsL (calculateStats instant model.state) model
+update model (Tick instant) =  App.purely $
+  L.set statsL (calculateStats instant model.state) $
+  L.set _lastUpdate (Just instant) $
+  model
 update model (LogAmount id Nothing) = {effects, model}
   where effects = App.lift $ do
           nowInst <- now

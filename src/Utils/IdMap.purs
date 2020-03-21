@@ -47,11 +47,11 @@ get = M.lookup
 delete :: forall v. Id -> IdMap v -> IdMap v
 delete id = M.update (const Nothing) id
 
-toList :: forall v. IdMap v -> Array (Tuple Id v)
-toList = M.toUnfoldable
+toArray :: forall v. IdMap v -> Array (Tuple Id v)
+toArray = M.toUnfoldable
 
 keys :: forall v. IdMap v -> Array Id
-keys = (map fst) <<< toList
+keys = (map fst) <<< toArray
 
 rightJoinMap :: forall k v w. (Ord k) => Map k v -> Map k w -> Map k (Tuple v (Maybe w))
 rightJoinMap m1 m2 = M.mapMaybeWithKey (\k v -> Just(Tuple v (M.lookup k m2))) m1

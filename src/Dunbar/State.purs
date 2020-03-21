@@ -50,7 +50,7 @@ updateState (JustSeen r) = IdMap.update r.id (L.set lastSeenL (Just (unwrap r.ti
 updateState (DeleteFriend r) = IdMap.delete r.id
 
 friendList :: Friendships -> Array (Tuple IdMap.Id Friend)
-friendList = IdMap.toList
+friendList = IdMap.toArray
 
 -- playEvents :: Array StateEvent -> Friendships
 

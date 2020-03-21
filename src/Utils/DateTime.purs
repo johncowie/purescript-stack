@@ -22,6 +22,9 @@ toEnumUnsafe i = case toEnum i of
 parseDate :: String -> Either String DateTime
 parseDate = F.unformatDateTime "DD/MM/YYYY"
 
+showDate :: DateTime -> String
+showDate = either unsafeThrow identity <<< F.formatDateTime "DD/MM/YYYY"
+
 parseDateUnsafe :: String -> DateTime
 parseDateUnsafe = either unsafeThrow identity <<< parseDate
 

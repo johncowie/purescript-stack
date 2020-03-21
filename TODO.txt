@@ -5,6 +5,7 @@
 [X] Support floats for amount done
 [ ] Hide goal when it is expired
 [ ] Show expired goals in List
+[ ] Consolidate Goal and State
 [ ] Indicate if expired goals in list were completed
 [ ] Create option to restart goal with new dates
 [ ] Can set start date as today
