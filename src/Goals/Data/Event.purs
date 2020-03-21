@@ -7,7 +7,6 @@ import Data.Newtype (wrap)
 import Data.DateTime (DateTime)
 import Data.DateTime.Instant (Instant, toDateTime)
 import Data.Either(Either(..))
-import Data.Tuple(Tuple(..))
 import Record as Record
 import Data.Argonaut.Decode (class DecodeJson, decodeJson, (.:))
 import Data.Argonaut.Encode (class EncodeJson, encodeJson)
@@ -15,7 +14,7 @@ import Data.Symbol (SProxy(..))
 
 data Event =
   AddGoal { title :: String, start :: JsonDateTime, end :: JsonDateTime, target :: Int} |
-  AddProgress { id :: Id, time :: JsonDateTime, amount :: Int}
+  AddProgress { id :: Id, time :: JsonDateTime, amount :: Number}
 
 addGoalEvent :: String -> DateTime -> DateTime -> Int -> Event
 addGoalEvent title start end target = AddGoal { title: title,
@@ -23,7 +22,7 @@ addGoalEvent title start end target = AddGoal { title: title,
                                                 end: wrap end,
                                                 target: target}
 
-addProgressEvent :: Id -> Instant -> Int -> Event
+addProgressEvent :: Id -> Instant -> Number -> Event
 addProgressEvent id time amount = AddProgress { id: id,
                                                 time: wrap (toDateTime time),
                                                 amount: amount}

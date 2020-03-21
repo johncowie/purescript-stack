@@ -11,6 +11,7 @@ You can edit this file as you like.
   , "exceptions"
   , "formatters"
   , "js-timers"
+  , "numbers"
   , "prelude"
   , "profunctor-lenses"
   , "psci-support"

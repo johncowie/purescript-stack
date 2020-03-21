@@ -24,7 +24,8 @@ import Utils.Spork.TimerSubscription (runSubscriptions, tickSub, Sub)
 import Utils.DateTime (parseDate)
 import Utils.IdMap as IdMap
 import Data.Tuple (Tuple(..))
-import Data.Int (fromString, toNumber, floor)
+import Data.Int (fromString, toNumber, floor) as Int
+import Data.Number (fromString) as Number
 import Data.Map as M
 import Effect.Exception.Unsafe (unsafeThrow)
 import Data.Symbol (SProxy(..))
@@ -84,8 +85,13 @@ type StringInput a = {
 }
 
 parseInt :: String -> Either String Int
-parseInt s = case fromString s of
+parseInt s = case Int.fromString s of
   Nothing -> Left "Not a valid integer"
+  (Just i) -> Right i
+
+parseNumber :: String -> Either String Number
+parseNumber s = case Number.fromString s of
+  Nothing -> Left "Not a valid number"
   (Just i) -> Right i
 
 nonEmptyString :: String -> Either String String
@@ -114,8 +120,8 @@ goalStartInput = stringInput "start date" parseDate "goalStartDate"
 goalEndInput :: StringInput DateTime
 goalEndInput = stringInput "end date" parseDate "goalEndDate"
 
-amountInput :: IdMap.Id -> StringInput Int
-amountInput id = stringInput "amount" parseInt ("amount-" <> show id)
+amountInput :: IdMap.Id -> StringInput Number
+amountInput id = stringInput "amount" parseNumber ("amount-" <> show id)
 
 -- todo abstract out msg/model
 renderStringInput :: forall a. StringInput a -> Model -> H.Html Msg
@@ -187,7 +193,7 @@ repeatString n s = case n of
                   x' -> s <> repeatString (x' - 1) s
 
 scalePercentage :: Int -> Number -> Int
-scalePercentage points percentage = floor $ percentage * (toNumber points / 100.0)
+scalePercentage points percentage = Int.floor $ percentage * (Int.toNumber points / 100.0)
 
 isOnTrack :: GoalStats -> Boolean
 isOnTrack  = (>=) 0  <<< _.onTrackRequired
@@ -211,10 +217,10 @@ renderOnTrackRequired :: forall a. Maybe GoalStats -> H.Html a
 renderOnTrackRequired = H.text <<< show <<< fromMaybe 0 <<< map _.onTrackRequired
 
 amountDoneString :: Goal.Goal -> String
-amountDoneString goal = show (L.view Goal.amountDoneL goal) <> "/" <> show (L.view Goal.targetL goal)
+amountDoneString goal = show (L.view Goal._amountDone goal) <> "/" <> show (L.view Goal._target goal)
 
 fromStringOrZero :: String -> Int
-fromStringOrZero s = fromMaybe 0 (fromString s)
+fromStringOrZero s = fromMaybe 0 (Int.fromString s)
 
 submitButton :: forall m. String -> m -> H.Html m
 submitButton label msg = H.button [E.onClick (E.always_ msg)] [H.text label]
@@ -222,7 +228,7 @@ submitButton label msg = H.button [E.onClick (E.always_ msg)] [H.text label]
 -- TODO move towards each component using a lens
 renderRow :: Model -> Tuple IdMap.Id Goal.Goal -> Tuple String (H.Html Msg)
 renderRow model (Tuple id goal) =
-  Tuple (show id) $ H.div [] [wrapWithClass "goalLabel" $ H.text (show id <> ": " <> L.view Goal.titleL goal),
+  Tuple (show id) $ H.div [] [wrapWithClass "goalLabel" $ H.text (show id <> ": " <> L.view Goal._title goal),
                               wrapWithClass "amountDone" $ (H.text $ amountDoneString goal),
                               wrapWithClass "onTrackRequired" $ renderOnTrackRequired statsM,
                               progressBar statsM,

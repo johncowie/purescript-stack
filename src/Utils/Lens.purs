@@ -4,6 +4,8 @@ import Prelude
 import Data.Symbol (class IsSymbol, SProxy)
 import Prim.Row (class Cons)
 import Record (get, set) as R
+import Data.Newtype (class Newtype, unwrap, wrap)
+-- import Effect.Exception.Unsafe (unsafeThrow)
 
 data Lens' a b = Lens (a -> b) (a -> b -> a)
 
@@ -29,3 +31,10 @@ composeLenses lensCD lensBC = lens getter setter
 
 instance lensSemigroupoid :: Semigroupoid Lens' where
   compose = composeLenses
+
+
+-- some handy lenses
+_newtype :: forall a b. (Newtype a b) => Lens' a b
+_newtype = lens getter setter
+  where getter a = unwrap a
+        setter _a b = wrap b

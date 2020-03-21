@@ -1,35 +1,58 @@
-module Goals.Data.Goal where
+module Goals.Data.Goal
+( _start
+, _end
+, _title
+, _target
+, _amountDone
+, Goal
+, isCurrent
+, isExpired
+, newUnitGoal
+)
+where
 
+import Prelude
 import Data.DateTime (DateTime)
-import Utils.Lens (Lens', lens)
+import Utils.Lens (Lens', _newtype, prop)
+import Data.Symbol (SProxy(..))
+import Data.Newtype (class Newtype)
+-- import Effect.Exception.Unsafe (unsafeThrow)
 
-type Goal = {
+newtype Goal = Goal {
   start :: DateTime,
   end :: DateTime,
   target :: Int,
   title :: String,
-  amountDone :: Int
+  amountDone :: Number
 }
+
+derive instance newtypeGoal :: Newtype Goal _
 
 newUnitGoal :: String -> DateTime -> DateTime -> Int -> Goal
 newUnitGoal title start end target =
-  {start: start,
-   end: end,
-   title: title,
-   target: target,
-   amountDone: 0}
+  Goal {start: start,
+        end: end,
+        title: title,
+        target: target,
+        amountDone: 0.0}
 
-startL :: Lens' Goal DateTime
-startL = lens _.start (_ {start = _})
+_start :: Lens' Goal DateTime
+_start = _newtype >>> prop (SProxy :: SProxy "start")
 
-endL :: Lens' Goal DateTime
-endL = lens _.end (_ {end = _})
+_end :: Lens' Goal DateTime
+_end = _newtype >>> prop (SProxy :: SProxy "end")
 
-titleL :: Lens' Goal String
-titleL = lens _.title (_ {title = _})
+_title :: Lens' Goal String
+_title = _newtype >>> prop (SProxy :: SProxy "title")
 
-targetL :: Lens' Goal Int
-targetL = lens _.target (_ {target = _})
+_target :: Lens' Goal Int
+_target = _newtype >>> prop (SProxy :: SProxy "target")
 
-amountDoneL :: Lens' Goal Int
-amountDoneL = lens _.amountDone (_ {amountDone = _})
+_amountDone :: Lens' Goal Number
+_amountDone = _newtype >>> prop (SProxy :: SProxy "amountDone")
+
+isCurrent :: DateTime -> Goal -> Boolean
+isCurrent now (Goal r) = r.start <= now && r.end >= now
+
+isExpired :: DateTime -> Goal -> Boolean
+isExpired now (Goal r) = r.end < now

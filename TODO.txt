@@ -1,19 +1,27 @@
 [X] Render goal form
 [X] Support submitting goal form
 [X] Show ID next to goal
-[ ] Greyed out Xs for required progress
+[X] Greyed out Xs for required progress
+[X] Support floats for amount done
+[ ] Hide goal when it is expired
+[ ] Show expired goals in List
+[ ] Indicate if expired goals in list were completed
+[ ] Create option to restart goal with new dates
+[ ] Can set start date as today
+[ ] Progress should be compared to percentage, when deciding if on track (e.g. the books goal)
 [ ] Fix goal form formatting
 [ ] Cap required to 0
-[ ] When constructing input field, define parser (make special piece of model state for inputs)
+[X] When constructing input field, define parser (make special piece of model state for inputs)
 [ ] Better error handling
-[ ] Wipe form when submitting
-[ ] Render goals in a table
+[X] Wipe form when submitting
 [X] Calculate stat for how much is required for a goal to be on track
 [ ] Calculate percentage for how on track goal is (i.e. done-up-to-now / required-up-to-now * 100) - capped to 100%
 [ ] Calculate overall percentage on track (i.e. across all goals)
 [ ] Order goals from least on-track to most-on-track
-[ ] Colour progress bar green if on track
-[ ] Colour progress bar red if not on track
+[X] Colour progress bar green if on track
+[X] Colour progress bar red if not on track
+[ ] Show event history
+[ ] Use colour-coding in progress bar to indicate which Xs are excessive in relation to amount required todate
 
 
 Ideas

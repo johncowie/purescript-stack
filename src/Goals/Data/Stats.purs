@@ -18,24 +18,24 @@ type Stats = IdMap GoalStats
 
 percentageTimeElapsed :: Instant -> Goal -> Number
 percentageTimeElapsed now goal = ((nowMillis - startMillis) / (endMillis - startMillis)) * 100.0
-  where startMillis = instantMillis $ fromDateTime $ L.view Goal.startL goal
-        endMillis = instantMillis $ fromDateTime $ L.view Goal.endL goal
+  where startMillis = instantMillis $ fromDateTime $ L.view Goal._start goal
+        endMillis = instantMillis $ fromDateTime $ L.view Goal._end goal
         nowMillis = instantMillis now
         instantMillis instant = unwrap $ unInstant instant
 
 calculateOnTrackRequired :: Number -> Goal -> Int
-calculateOnTrackRequired elapsedPC goal = requiredToDate - amountDone
-  where requiredToDate = round $ (toNumber target * elapsedPC / 100.0)
-        amountDone = L.view Goal.amountDoneL goal
-        target = L.view Goal.targetL goal
+calculateOnTrackRequired elapsedPC goal = round (requiredToDate - amountDone)
+  where requiredToDate = (toNumber target * elapsedPC / 100.0)
+        amountDone = L.view Goal._amountDone goal
+        target = L.view Goal._target goal
 
 goalStats :: Instant -> Goal -> GoalStats
 goalStats now goal = {progressPercentage: progress,
                       onTrackRequired: calculateOnTrackRequired timeElapsedPercentage goal,
                       timeElapsedPercentage}
-  where target = L.view Goal.targetL goal
-        amountDone = L.view Goal.amountDoneL goal
-        progress = min 100.0 $ (toNumber amountDone / toNumber target) * 100.0
+  where target = L.view Goal._target goal
+        amountDone = L.view Goal._amountDone goal
+        progress = min 100.0 $ (amountDone / toNumber target) * 100.0
         timeElapsedPercentage = percentageTimeElapsed now goal
 
 calculateStats :: Instant -> GoalState -> Stats
