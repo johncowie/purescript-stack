@@ -14,13 +14,22 @@ import Data.Symbol (SProxy(..))
 
 data Event =
   AddGoal { title :: String, start :: JsonDateTime, end :: JsonDateTime, target :: Int} |
-  AddProgress { id :: Id, time :: JsonDateTime, amount :: Number}
+  AddProgress { id :: Id, time :: JsonDateTime, amount :: Number} |
+  RestartGoal { title :: String, start :: JsonDateTime, end :: JsonDateTime, target :: Int, predecessor :: Id}
 
 addGoalEvent :: String -> DateTime -> DateTime -> Int -> Event
 addGoalEvent title start end target = AddGoal { title: title,
                                                 start: wrap start,
                                                 end: wrap end,
                                                 target: target}
+
+restartGoalEvent :: Id -> String -> DateTime -> DateTime -> Int -> Event
+restartGoalEvent predecessor title start end target =
+  RestartGoal { title: title,
+                start: wrap start,
+                end: wrap end,
+                target: target,
+                predecessor: predecessor}
 
 addProgressEvent :: Id -> Instant -> Number -> Event
 addProgressEvent id time amount = AddProgress { id: id,
@@ -37,8 +46,10 @@ instance decodeJsonEvent :: DecodeJson Event where
     case eventType of
       "addGoal" -> AddGoal <$> decodeJson json
       "addProgress" -> AddProgress <$> decodeJson json
+      "restartGoal" -> RestartGoal <$> decodeJson json
       other -> (Left "Uknown event type")
 
 instance encodeJsonEvent :: EncodeJson Event where
   encodeJson (AddGoal r) = encodeJson (Record.insert type_ "addGoal" r)
   encodeJson (AddProgress r) = encodeJson (Record.insert type_ "addProgress" r)
+  encodeJson (RestartGoal r) = encodeJson (Record.insert type_ "restartGoal" r)

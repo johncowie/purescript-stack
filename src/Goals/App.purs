@@ -36,6 +36,7 @@ data Msg = Tick Instant |
            UpdateStringInput (L.Lens' Model String) String |
            LogAmount IdMap.Id (Maybe Instant) |
            AddGoal (Maybe Instant) |
+           RestartGoal IdMap.Id (Maybe Instant) |
            DoNothing
 
 type GoalForm = {
@@ -125,6 +126,19 @@ goalEndInput = stringInput "end date" parseDate "goalEndDate"
 amountInput :: IdMap.Id -> StringInput Number
 amountInput id = stringInput "amount" parseNumber ("amount-" <> show id)
 
+restartGoalNameInput :: IdMap.Id -> StringInput String
+restartGoalNameInput id = stringInput "goal name" nonEmptyString ("restartGoalTitle" <> show id)
+
+restartGoalStartInput :: IdMap.Id -> StringInput DateTime
+restartGoalStartInput id = stringInput "start date" parseDate ("restartGoalStartDate" <> show id)
+
+restartGoalEndInput :: IdMap.Id -> StringInput DateTime
+restartGoalEndInput id = stringInput "end date" parseDate ("restartGoalEndDate" <> show id)
+
+restartGoalTargetInput :: IdMap.Id -> StringInput Int
+restartGoalTargetInput id = stringInput "target" parseInt ("restartGoalTarget" <> show id)
+
+
 -- TODO abstract out msg/model and move to utils
 renderStringInput :: forall a. StringInput a -> Model -> H.Html Msg
 renderStringInput input model =
@@ -135,6 +149,9 @@ renderStringInput input model =
             P.value (L.view lens model),
             E.onValueInput (E.always (UpdateStringInput lens))]]
   where lens = (input.lens :: L.Lens' Model String)
+
+clearInput :: forall a. StringInput a -> Model -> Model
+clearInput input model = L.set input.lens "" model
 
 parseStringInputUnsafe :: forall a. StringInput a -> Model -> a
 parseStringInputUnsafe input model = either unsafeThrow identity $ input.validator $ L.view input.lens model
@@ -157,30 +174,6 @@ mapValL :: forall k v. (Ord k) => v -> k -> L.Lens' (M.Map k v) v
 mapValL default id = L.lens get set
   where get m = fromMaybe default $ M.lookup id m
         set m v = M.insert id v m
-
-amountInputsL :: L.Lens' Model (IdMap.IdMap String)
-amountInputsL = L.prop (SProxy :: SProxy "amountInputs")
-
-idMapValL :: forall a. a -> IdMap.Id -> L.Lens' (IdMap.IdMap a) a
-idMapValL = mapValL
-
-modelAmountInputL :: IdMap.Id -> L.Lens' Model String
-modelAmountInputL id = amountInputsL >>> (idMapValL "" id)
-
-goalFormL :: L.Lens' Model GoalForm
-goalFormL = L.prop (SProxy :: SProxy "goalForm")
-
-goalNameL :: L.Lens' GoalForm String
-goalNameL = L.prop (SProxy :: SProxy "goalName")
-
-goalTargetL :: L.Lens' GoalForm String
-goalTargetL = L.prop (SProxy :: SProxy "target")
-
-goalStartDateL :: L.Lens' GoalForm String
-goalStartDateL = L.prop (SProxy :: SProxy "startDate")
-
-goalEndDateL :: L.Lens' GoalForm String
-goalEndDateL = L.prop (SProxy :: SProxy "endDate")
 
 -- TODO load initial state from localstorage events (events and date passed in as arg)
 -- TODO can do this without passing in as args, if an event is fired off to recalculate stats..
@@ -248,7 +241,11 @@ renderExpiredGoal model (Tuple id goal) =
                               H.text $ " - ",
                               H.text $ showDate $ L.view Goal._start goal,
                               H.text $ " - ",
-                              H.text $ showDate $ L.view Goal._end goal
+                              H.text $ showDate $ L.view Goal._end goal,
+                              renderStringInput (restartGoalNameInput id) model,
+                              renderStringInput (restartGoalStartInput id) model,
+                              renderStringInput (restartGoalEndInput id) model,
+                              renderStringInput (restartGoalTargetInput id) model
                               ]
 
 renderCurrentGoalList :: Model -> H.Html Msg
@@ -306,31 +303,44 @@ fireStateEvent now model event = {effects, model: updatedModel}
         updatedState = processEvent event model.state
 -- store event in local storage, fire event to update model and stats
 
+addTimestamp :: Model -> (Maybe Instant -> Msg) -> App.Transition Effect Model Msg
+addTimestamp model ctor = {effects, model}
+  where effects = App.lift $ do
+          nowInst <- now
+          pure $ ctor (Just nowInst)
+
 update :: Model → Msg → App.Transition Effect Model Msg
 update model (Tick instant) =  App.purely $
   L.set statsL (calculateStats instant model.state) $
   L.set _lastUpdate (Just instant) $
   model
-update model (LogAmount id Nothing) = {effects, model}
-  where effects = App.lift $ do
-          nowInst <- now
-          pure $ LogAmount id (Just nowInst)
-update model (AddGoal Nothing) = {effects, model}
-  where effects = App.lift $ do
-          nowInst <- now
-          pure $ AddGoal (Just nowInst)
-update model (LogAmount id (Just now)) = fireStateEvent now clearedInputs (addProgressEvent id now amount)
+update model (LogAmount id Nothing) = addTimestamp model (LogAmount id)
+update model (LogAmount id (Just now)) = fireStateEvent now clearedInputs progressEvent
   where amount = parseStringInputUnsafe (amountInput id) model
         clearedInputs = L.set (amountInput id).lens "" model
-update model (AddGoal (Just now)) = fireStateEvent now clearedInputs (addGoalEvent title startDate endDate target)
+        progressEvent = addProgressEvent id now amount
+update model (AddGoal Nothing) = addTimestamp model AddGoal
+update model (AddGoal (Just now)) = fireStateEvent now clearedInputs goalEvent
   where title = parseStringInputUnsafe goalNameInput model
         startDate = parseStringInputUnsafe goalStartInput model
         endDate = parseStringInputUnsafe goalEndInput model
         target = parseStringInputUnsafe goalTargetInput model
-        clearedInputs = L.set goalNameInput.lens "" $
-                        L.set goalStartInput.lens "" $
-                        L.set goalEndInput.lens "" $
-                        L.set goalTargetInput.lens "" $ model
+        goalEvent = addGoalEvent title startDate endDate target
+        clearedInputs = clearInput goalNameInput $
+                        clearInput goalStartInput $
+                        clearInput goalEndInput $
+                        clearInput goalTargetInput $ model
+update model (RestartGoal id Nothing) = addTimestamp model (RestartGoal id)
+update model (RestartGoal id (Just now)) = fireStateEvent now clearedInputs goalEvent
+  where title = parseStringInputUnsafe (restartGoalNameInput id) model
+        startDate = parseStringInputUnsafe (restartGoalStartInput id) model
+        endDate = parseStringInputUnsafe (restartGoalEndInput id) model
+        target = parseStringInputUnsafe (restartGoalTargetInput id) model
+        clearedInputs = clearInput (restartGoalNameInput id) $
+                        clearInput (restartGoalStartInput id) $
+                        clearInput (restartGoalEndInput id) $
+                        clearInput (restartGoalTargetInput id) $ model
+        goalEvent = addGoalEvent title startDate endDate target
 update model (DoNothing) = App.purely model
 update model (UpdateStringInput stringL input) = App.purely $ L.set stringL input model
 

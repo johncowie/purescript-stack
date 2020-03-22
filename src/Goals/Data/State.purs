@@ -30,6 +30,7 @@ addProgress id time amount = IdMap.update id (addProgressToGoal time amount)
 processEvent :: Event -> GoalState -> GoalState
 processEvent (AddGoal r) = IdMap.add (goalFromEventRecord r)
 processEvent (AddProgress r) = addProgress r.id (unwrap r.time) r.amount
+processEvent (RestartGoal r) = IdMap.add $ L.set Goal._predecessor (Just r.predecessor) $ goalFromEventRecord r
 
 currentGoals :: DateTime -> GoalState -> IdMap.IdMap Goal
 currentGoals now = filter (Goal.isCurrent now)

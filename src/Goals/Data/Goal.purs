@@ -4,6 +4,7 @@ module Goals.Data.Goal
 , _title
 , _target
 , _amountDone
+, _predecessor
 , Goal
 , isCurrent
 , isExpired
@@ -16,6 +17,8 @@ import Data.DateTime (DateTime)
 import Utils.Lens (Lens', _newtype, prop)
 import Data.Symbol (SProxy(..))
 import Data.Newtype (class Newtype)
+import Data.Maybe (Maybe(..))
+import Utils.IdMap as IdMap
 -- import Effect.Exception.Unsafe (unsafeThrow)
 
 newtype Goal = Goal {
@@ -23,7 +26,8 @@ newtype Goal = Goal {
   end :: DateTime,
   target :: Int,
   title :: String,
-  amountDone :: Number
+  amountDone :: Number,
+  predecessor :: Maybe IdMap.Id
 }
 
 derive instance newtypeGoal :: Newtype Goal _
@@ -34,7 +38,9 @@ newUnitGoal title start end target =
         end: end,
         title: title,
         target: target,
-        amountDone: 0.0}
+        amountDone: 0.0,
+        predecessor: Nothing
+        }
 
 _start :: Lens' Goal DateTime
 _start = _newtype >>> prop (SProxy :: SProxy "start")
@@ -50,6 +56,9 @@ _target = _newtype >>> prop (SProxy :: SProxy "target")
 
 _amountDone :: Lens' Goal Number
 _amountDone = _newtype >>> prop (SProxy :: SProxy "amountDone")
+
+_predecessor :: Lens' Goal (Maybe IdMap.Id)
+_predecessor = _newtype >>> prop (SProxy :: SProxy "predecessor")
 
 isCurrent :: DateTime -> Goal -> Boolean
 isCurrent now (Goal r) = r.start <= now && r.end >= now
