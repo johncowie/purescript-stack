@@ -3,8 +3,13 @@
 [X] Show ID next to goal
 [X] Greyed out Xs for required progress
 [X] Support floats for amount done
-[ ] Hide goal when it is expired
-[ ] Show expired goals in List
+[X] Hide goal when it is expired
+[X] Show expired goals in List
+[X] Treat completed goal as expired
+[X] Add button for submitting restart goal form
+[ ] Only allow restarting goal if it doesn't have a successor in the future
+[ ] format expired goal row so it doesn't look shit
+[ ] Show future goals
 [ ] Consolidate Goal and State
 [ ] Indicate if expired goals in list were completed
 [ ] Create option to restart goal with new dates

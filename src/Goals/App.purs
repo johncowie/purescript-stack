@@ -7,7 +7,7 @@ import Data.List (List(..), (:))
 import Goals.Data.Goal as Goal
 import Goals.Data.State (GoalState, newGoalState, processEvent, currentGoals, expiredGoals)
 import Goals.Data.Stats (Stats, GoalStats, calculateStats)
-import Goals.Data.Event (Event, addGoalEvent, addProgressEvent)
+import Goals.Data.Event (Event, addGoalEvent, addProgressEvent, restartGoalEvent)
 import Data.DateTime (DateTime)
 import Data.DateTime.Instant (Instant, toDateTime)
 import Effect.Now (now)
@@ -245,7 +245,8 @@ renderExpiredGoal model (Tuple id goal) =
                               renderStringInput (restartGoalNameInput id) model,
                               renderStringInput (restartGoalStartInput id) model,
                               renderStringInput (restartGoalEndInput id) model,
-                              renderStringInput (restartGoalTargetInput id) model
+                              renderStringInput (restartGoalTargetInput id) model,
+                              submitButton "Restart Goal" (RestartGoal id Nothing)
                               ]
 
 renderCurrentGoalList :: Model -> H.Html Msg
@@ -340,7 +341,7 @@ update model (RestartGoal id (Just now)) = fireStateEvent now clearedInputs goal
                         clearInput (restartGoalStartInput id) $
                         clearInput (restartGoalEndInput id) $
                         clearInput (restartGoalTargetInput id) $ model
-        goalEvent = addGoalEvent title startDate endDate target
+        goalEvent = restartGoalEvent id title startDate endDate target
 update model (DoNothing) = App.purely model
 update model (UpdateStringInput stringL input) = App.purely $ L.set stringL input model
 

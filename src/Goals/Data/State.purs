@@ -4,6 +4,7 @@ import Prelude
 import Data.Newtype (unwrap)
 import Data.DateTime (DateTime)
 import Data.Map (filter)
+import Data.Maybe (Maybe(..))
 import Utils.Lens as L
 import Utils.IdMap as IdMap
 import Utils.JsonDateTime (JsonDateTime)
@@ -17,7 +18,7 @@ type GoalState = IdMap.IdMap Goal
 newGoalState :: GoalState
 newGoalState = IdMap.new
 
-goalFromEventRecord :: {title :: String, start :: JsonDateTime, end :: JsonDateTime, target :: Int} -> Goal
+goalFromEventRecord :: forall r. {title :: String, start :: JsonDateTime, end :: JsonDateTime, target :: Int | r} -> Goal
 goalFromEventRecord r = newUnitGoal r.title (unwrap r.start) (unwrap r.end) r.target
 
 addProgressToGoal :: DateTime -> Number -> Goal -> Goal

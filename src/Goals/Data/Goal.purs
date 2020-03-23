@@ -18,6 +18,7 @@ import Utils.Lens (Lens', _newtype, prop)
 import Data.Symbol (SProxy(..))
 import Data.Newtype (class Newtype)
 import Data.Maybe (Maybe(..))
+import Data.Int as Int
 import Utils.IdMap as IdMap
 -- import Effect.Exception.Unsafe (unsafeThrow)
 
@@ -61,7 +62,7 @@ _predecessor :: Lens' Goal (Maybe IdMap.Id)
 _predecessor = _newtype >>> prop (SProxy :: SProxy "predecessor")
 
 isCurrent :: DateTime -> Goal -> Boolean
-isCurrent now (Goal r) = r.start <= now && r.end >= now
+isCurrent now (Goal r) = r.start <= now && r.end >= now && r.amountDone < Int.toNumber r.target
 
 isExpired :: DateTime -> Goal -> Boolean
-isExpired now (Goal r) = r.end < now
+isExpired now (Goal r) = r.end < now || r.amountDone >= Int.toNumber r.target
