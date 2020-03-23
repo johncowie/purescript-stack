@@ -20,6 +20,7 @@ import Data.Newtype (class Newtype)
 import Data.Maybe (Maybe(..))
 import Data.Int as Int
 import Utils.IdMap as IdMap
+import Goals.Data.State (GoalState)
 -- import Effect.Exception.Unsafe (unsafeThrow)
 
 newtype Goal = Goal {
@@ -65,4 +66,4 @@ isCurrent :: DateTime -> Goal -> Boolean
 isCurrent now (Goal r) = r.start <= now && r.end >= now && r.amountDone < Int.toNumber r.target
 
 isExpired :: DateTime -> Goal -> Boolean
-isExpired now (Goal r) = r.end < now || r.amountDone >= Int.toNumber r.target
+isExpired now (Goal r) = r.end < now || r.amountDone >= Int.toNumber r.target 

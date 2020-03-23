@@ -3,8 +3,10 @@ module Goals.Data.State where
 import Prelude
 import Data.Newtype (unwrap)
 import Data.DateTime (DateTime)
-import Data.Map (filter)
+import Data.Map (filter) as M
 import Data.Maybe (Maybe(..))
+import Data.Foldable (elem)
+import Data.Array (catMaybes)
 import Utils.Lens as L
 import Utils.IdMap as IdMap
 import Utils.JsonDateTime (JsonDateTime)
@@ -34,7 +36,11 @@ processEvent (AddProgress r) = addProgress r.id (unwrap r.time) r.amount
 processEvent (RestartGoal r) = IdMap.add $ L.set Goal._predecessor (Just r.predecessor) $ goalFromEventRecord r
 
 currentGoals :: DateTime -> GoalState -> IdMap.IdMap Goal
-currentGoals now = filter (Goal.isCurrent now)
+currentGoals now = M.filter (Goal.isCurrent now)
 
 expiredGoals :: DateTime -> GoalState -> IdMap.IdMap Goal
-expiredGoals now = filter (Goal.isExpired now)
+expiredGoals now = M.filter (Goal.isExpired now)
+
+hasSuccessor :: IdMap.Id -> GoalState -> Boolean
+hasSuccessor id goals = elem id predecessorList
+  where predecessorList = catMaybes $ map (L.view Goal._predecessor) $ IdMap.values goals
