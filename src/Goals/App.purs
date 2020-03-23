@@ -5,7 +5,7 @@ import Effect (Effect)
 import Utils.Lens as L
 import Data.List (List(..), (:))
 import Goals.Data.Goal as Goal
-import Goals.Data.State (GoalState, newGoalState, processEvent, currentGoals, expiredGoals)
+import Goals.Data.State (GoalState, newGoalState, processEvent, currentGoals, expiredGoals, hasSuccessor)
 import Goals.Data.Stats (Stats, GoalStats, calculateStats)
 import Goals.Data.Event (Event, addGoalEvent, addProgressEvent, restartGoalEvent)
 import Data.DateTime (DateTime)
@@ -237,17 +237,20 @@ renderLiveGoal model (Tuple id goal) =
 
 renderExpiredGoal :: Model -> Tuple IdMap.Id Goal.Goal -> Tuple String (H.Html Msg)
 renderExpiredGoal model (Tuple id goal) =
-  Tuple (show id) $ H.div [] [H.text $ L.view Goal._title goal,
-                              H.text $ " - ",
-                              H.text $ showDate $ L.view Goal._start goal,
-                              H.text $ " - ",
-                              H.text $ showDate $ L.view Goal._end goal,
-                              renderStringInput (restartGoalNameInput id) model,
-                              renderStringInput (restartGoalStartInput id) model,
-                              renderStringInput (restartGoalEndInput id) model,
-                              renderStringInput (restartGoalTargetInput id) model,
-                              submitButton "Restart Goal" (RestartGoal id Nothing)
-                              ]
+  Tuple (show id) $ H.div [] $ [H.text $ L.view Goal._title goal,
+                                H.text $ " - ",
+                                H.text $ showDate $ L.view Goal._start goal,
+                                H.text $ " - ",
+                                H.text $ showDate $ L.view Goal._end goal]
+                                <>
+                                if needsRestarting
+                                  then [renderStringInput (restartGoalNameInput id) model,
+                                        renderStringInput (restartGoalStartInput id) model,
+                                        renderStringInput (restartGoalEndInput id) model,
+                                        renderStringInput (restartGoalTargetInput id) model,
+                                        submitButton "Restart Goal" (RestartGoal id Nothing)]
+                                  else []
+  where needsRestarting = not $ hasSuccessor id model.state
 
 renderCurrentGoalList :: Model -> H.Html Msg
 renderCurrentGoalList model = Keyed.div [] $ map (renderLiveGoal model) $
