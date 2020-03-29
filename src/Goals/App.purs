@@ -142,12 +142,10 @@ restartGoalTargetInput id = stringInput "target" parseInt ("restartGoalTarget" <
 -- TODO abstract out msg/model and move to utils
 renderStringInput :: forall a. StringInput a -> Model -> H.Html Msg
 renderStringInput input model =
-  H.div
-  []
-  [H.input [P.placeholder input.placeholder,
+  H.input [P.placeholder input.placeholder,
             P.type_ P.InputText,
             P.value (L.view lens model),
-            E.onValueInput (E.always (UpdateStringInput lens))]]
+            E.onValueInput (E.always (UpdateStringInput lens))]
   where lens = (input.lens :: L.Lens' Model String)
 
 clearInput :: forall a. StringInput a -> Model -> Model
@@ -226,30 +224,37 @@ submitButton label msg = H.button [E.onClick (E.always_ msg)] [H.text label]
 -- TODO move towards each component using a lens
 renderLiveGoal :: Model -> Tuple IdMap.Id Goal.Goal -> Tuple String (H.Html Msg)
 renderLiveGoal model (Tuple id goal) =
-  Tuple (show id) $ H.div [] [wrapWithClass "goalLabel" $ H.text (show id <> ": " <> L.view Goal._title goal),
-                              wrapWithClass "amountDone" $ (H.text $ amountDoneString goal),
-                              wrapWithClass "onTrackRequired" $ renderOnTrackRequired statsM,
+  Tuple (show id) $ H.div [] [wrapWithClass "goal-label" $ H.text (show id <> ": " <> L.view Goal._title goal),
+                              wrapWithClass "amount-done" $ (H.text $ amountDoneString goal),
+                              wrapWithClass "on-track-required" $ renderOnTrackRequired statsM,
                               progressBar statsM,
-                              wrapWithClass "amountInput" $ renderStringInput (amountInput id) model,
+                              wrapWithClass "amount-input" $ renderStringInput (amountInput id) model,
                               submitButton "Log" (LogAmount id Nothing)
                               ]
     where statsM = IdMap.get id $ L.view statsL model
 
+renderRestartGoalForm :: IdMap.Id -> Model -> H.Html Msg
+renderRestartGoalForm id model =
+  H.div [P.classes ["expired-goal-form"]] $
+  [ renderStringInput (restartGoalNameInput id) model
+  , renderStringInput (restartGoalStartInput id) model
+  , renderStringInput (restartGoalEndInput id) model
+  , renderStringInput (restartGoalTargetInput id) model
+  , submitButton "Restart Goal" (RestartGoal id Nothing)
+  ]
+
 renderExpiredGoal :: Model -> Tuple IdMap.Id Goal.Goal -> Tuple String (H.Html Msg)
 renderExpiredGoal model (Tuple id goal) =
-  Tuple (show id) $ H.div [] $ [H.text $ L.view Goal._title goal,
-                                H.text $ " - ",
-                                H.text $ showDate $ L.view Goal._start goal,
-                                H.text $ " - ",
-                                H.text $ showDate $ L.view Goal._end goal]
-                                <>
-                                if needsRestarting
-                                  then [renderStringInput (restartGoalNameInput id) model,
-                                        renderStringInput (restartGoalStartInput id) model,
-                                        renderStringInput (restartGoalEndInput id) model,
-                                        renderStringInput (restartGoalTargetInput id) model,
-                                        submitButton "Restart Goal" (RestartGoal id Nothing)]
-                                  else []
+  Tuple (show id) $ H.div [P.classes ["expired-goal"]] $ [
+    H.text $ L.view Goal._title goal,
+    H.text $ " - ",
+    H.text $ showDate $ L.view Goal._start goal,
+    H.text $ " - ",
+    H.text $ showDate $ L.view Goal._end goal]
+    <>
+    if needsRestarting
+    then [renderRestartGoalForm id model]
+    else []
   where needsRestarting = not $ hasSuccessor id model.state
 
 renderCurrentGoalList :: Model -> H.Html Msg

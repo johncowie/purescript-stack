@@ -7,6 +7,7 @@
 [X] Show expired goals in List
 [X] Treat completed goal as expired
 [X] Add button for submitting restart goal form
+[ ] Abstract out input string stuff into utils
 [ ] Only allow restarting goal if it doesn't have a successor in the future
 [ ] format expired goal row so it doesn't look shit
 [ ] Show future goals

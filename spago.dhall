@@ -17,6 +17,7 @@ You can edit this file as you like.
   , "psci-support"
   , "record"
   , "spork"
+  , "uri"
   , "web-html"
   , "web-storage"
   ]

@@ -2,17 +2,17 @@ body {
   font-family: courier, sans-serif;
 }
 
-.goalLabel {
+.goal-label {
   width: 200px;
   display: inline-block;
 }
 
-.amountInput {
+.amount-input {
   width: 100px;
   display: inline-block;
 }
 
-.amountDone {
+.amount-done {
   width: 100px;
   display: inline-block;
   padding-right: 10px;
@@ -39,7 +39,16 @@ body {
   color: #AAAAAA;
 }
 
-.onTrackRequired {
+.on-track-required {
   width: 50px;
   display: inline-block;
+}
+
+.expired-goal-form {
+  display: inline-block;
+  margin-left: 30px;
+}
+
+.expired-goal-form input {
+  display: inline;
 }
