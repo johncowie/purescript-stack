@@ -41,6 +41,9 @@ currentGoals now = M.filter (Goal.isCurrent now)
 expiredGoals :: DateTime -> GoalState -> IdMap.IdMap Goal
 expiredGoals now = M.filter (Goal.isExpired now)
 
+futureGoals :: DateTime -> GoalState -> IdMap.IdMap Goal
+futureGoals now = M.filter (Goal.isFuture now)
+
 hasSuccessor :: IdMap.Id -> GoalState -> Boolean
 hasSuccessor id goals = elem id predecessorList
   where predecessorList = catMaybes $ map (L.view Goal._predecessor) $ IdMap.values goals

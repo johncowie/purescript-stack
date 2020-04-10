@@ -5,7 +5,7 @@ import Effect (Effect)
 import Utils.Lens as L
 import Data.List (List(..), (:))
 import Goals.Data.Goal as Goal
-import Goals.Data.State (GoalState, newGoalState, processEvent, currentGoals, expiredGoals, hasSuccessor)
+import Goals.Data.State (GoalState, newGoalState, processEvent, currentGoals, expiredGoals, futureGoals, hasSuccessor)
 import Goals.Data.Stats (Stats, GoalStats, calculateStats)
 import Goals.Data.Event (Event, addGoalEvent, addProgressEvent, restartGoalEvent)
 import Data.DateTime (DateTime)
@@ -31,6 +31,7 @@ import Effect.Exception.Unsafe (unsafeThrow)
 import Data.Symbol (SProxy(..))
 -- Webstorage stuff
 import Utils.LocalJsonStorage (load, store) as JsonStorage
+import Utils.NumberFormat (toDP)
 
 data Msg = Tick Instant |
            UpdateStringInput (L.Lens' Model String) String |
@@ -213,7 +214,7 @@ renderOnTrackRequired :: forall a. Maybe GoalStats -> H.Html a
 renderOnTrackRequired = H.text <<< show <<< fromMaybe 0 <<< map _.onTrackRequired
 
 amountDoneString :: Goal.Goal -> String
-amountDoneString goal = show (L.view Goal._amountDone goal) <> "/" <> show (L.view Goal._target goal)
+amountDoneString goal = toDP 1 (L.view Goal._amountDone goal) <> "/" <> show (L.view Goal._target goal)
 
 fromStringOrZero :: String -> Int
 fromStringOrZero s = fromMaybe 0 (Int.fromString s)
@@ -250,12 +251,25 @@ renderExpiredGoal model (Tuple id goal) =
     H.text $ " - ",
     H.text $ showDate $ L.view Goal._start goal,
     H.text $ " - ",
-    H.text $ showDate $ L.view Goal._end goal]
+    H.text $ showDate $ L.view Goal._end goal
+    ]
     <>
     if needsRestarting
     then [renderRestartGoalForm id model]
     else []
   where needsRestarting = not $ hasSuccessor id model.state
+
+renderFutureGoal :: Model -> Tuple IdMap.Id Goal.Goal -> Tuple String (H.Html Msg)
+renderFutureGoal model (Tuple id goal) =
+  Tuple (show id) $ H.div [P.classes ["future-goal"]] $ [
+    H.text $ L.view Goal._title goal,
+    H.text $ " - ",
+    H.text $ showDate $ L.view Goal._start goal,
+    H.text $ " - ",
+    H.text $ showDate $ L.view Goal._end goal,
+    H.text $ " - ",
+    H.text $ show $ L.view Goal._target goal
+  ]
 
 renderCurrentGoalList :: Model -> H.Html Msg
 renderCurrentGoalList model = Keyed.div [] $ map (renderLiveGoal model) $
@@ -268,6 +282,12 @@ renderExpiredGoalList model = Keyed.div [] $ map (renderExpiredGoal model) $
   case model.lastUpdate of
     Nothing -> []
     (Just now) -> IdMap.toArray $ expiredGoals (toDateTime now) $ model.state
+
+renderFutureGoalList :: Model -> H.Html Msg
+renderFutureGoalList model = Keyed.div [] $ map (renderFutureGoal model) $
+  case model.lastUpdate of
+    Nothing -> []
+    (Just now) -> IdMap.toArray $ futureGoals (toDateTime now) $ model.state
 
 renderGoalForm :: Model -> H.Html Msg
 renderGoalForm m = H.div [] [
@@ -284,6 +304,8 @@ render model = H.div [] [H.h3 [] [H.text "Current goals"],
                          renderCurrentGoalList model,
                          H.h3 [] [H.text "Expired goals"],
                          renderExpiredGoalList model,
+                         H.h3 [] [H.text "Future goals"],
+                         renderFutureGoalList model,
                          renderGoalForm model]
 
 storageKey :: String
