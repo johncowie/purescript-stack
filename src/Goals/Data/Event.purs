@@ -11,10 +11,12 @@ import Record as Record
 import Data.Argonaut.Decode (class DecodeJson, decodeJson, (.:))
 import Data.Argonaut.Encode (class EncodeJson, encodeJson)
 import Data.Symbol (SProxy(..))
+import Data.Maybe (Maybe(..))
+import Data.String as Str
 
 data Event =
   AddGoal { title :: String, start :: JsonDateTime, end :: JsonDateTime, target :: Int} |
-  AddProgress { id :: Id, time :: JsonDateTime, amount :: Number} |
+  AddProgress {id :: Id, time :: JsonDateTime, amount :: Number, comment :: Maybe String } |
   RestartGoal { title :: String, start :: JsonDateTime, end :: JsonDateTime, target :: Int, predecessor :: Id}
 
 addGoalEvent :: String -> DateTime -> DateTime -> Int -> Event
@@ -31,11 +33,15 @@ restartGoalEvent predecessor title start end target =
                 target: target,
                 predecessor: predecessor}
 
-addProgressEvent :: Id -> Instant -> Number -> Event
-addProgressEvent id time amount = AddProgress { id: id,
-                                                time: wrap (toDateTime time),
-                                                amount: amount}
-
+addProgressEventV2 :: Id -> Instant -> Number -> String -> Event
+addProgressEventV2 id time amount comment =
+  AddProgress { id: id,
+                  time: wrap (toDateTime time),
+                  amount: amount,
+                  comment: commentM }
+  where commentM = case Str.trim comment of
+                    "" -> Nothing
+                    or -> Just comment
 
 type_ = SProxy :: SProxy "type"
 

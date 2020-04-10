@@ -7,7 +7,7 @@ import Data.List (List(..), (:))
 import Goals.Data.Goal as Goal
 import Goals.Data.State (GoalState, newGoalState, processEvent, currentGoals, expiredGoals, futureGoals, hasSuccessor)
 import Goals.Data.Stats (Stats, GoalStats, calculateStats)
-import Goals.Data.Event (Event, addGoalEvent, addProgressEvent, restartGoalEvent)
+import Goals.Data.Event (Event, addGoalEvent, addProgressEventV2, restartGoalEvent)
 import Data.DateTime (DateTime)
 import Data.DateTime.Instant (Instant, toDateTime)
 import Effect.Now (now)
@@ -102,6 +102,9 @@ nonEmptyString :: String -> Either String String
 nonEmptyString "" = Left "Can't be empty"
 nonEmptyString s = Right s
 
+anyString :: String -> Either String String
+anyString s = Right s
+
 -- abstract out message
 stringInput :: forall a. String -> (String -> Either String a) -> String -> StringInput a
 stringInput placeholder validator inputId = {
@@ -126,6 +129,9 @@ goalEndInput = stringInput "end date" parseDate "goalEndDate"
 
 amountInput :: IdMap.Id -> StringInput Number
 amountInput id = stringInput "amount" parseNumber ("amount-" <> show id)
+
+commentInput :: IdMap.Id -> StringInput String
+commentInput id = stringInput "comment" anyString ("comment-" <> show id)
 
 restartGoalNameInput :: IdMap.Id -> StringInput String
 restartGoalNameInput id = stringInput "goal name" nonEmptyString ("restartGoalTitle" <> show id)
@@ -230,6 +236,7 @@ renderLiveGoal model (Tuple id goal) =
                               wrapWithClass "on-track-required" $ renderOnTrackRequired statsM,
                               progressBar statsM,
                               wrapWithClass "amount-input" $ renderStringInput (amountInput id) model,
+                              wrapWithClass "amount-input" $ renderStringInput (commentInput id) model,
                               submitButton "Log" (LogAmount id Nothing)
                               ]
     where statsM = IdMap.get id $ L.view statsL model
@@ -325,6 +332,11 @@ storeEvent event = do
   events <- loadEvents
   storeEvents $ event : events
 
+refreshEvents :: Effect Unit
+refreshEvents = do
+  events <- loadEvents
+  storeEvents events
+
 fireStateEvent :: Instant -> Model -> Event -> App.Transition Effect Model Msg
 fireStateEvent now model event = {effects, model: updatedModel}
   where effects = App.lift $ do
@@ -348,8 +360,10 @@ update model (Tick instant) =  App.purely $
 update model (LogAmount id Nothing) = addTimestamp model (LogAmount id)
 update model (LogAmount id (Just now)) = fireStateEvent now clearedInputs progressEvent
   where amount = parseStringInputUnsafe (amountInput id) model
-        clearedInputs = L.set (amountInput id).lens "" model
-        progressEvent = addProgressEvent id now amount
+        comment = parseStringInputUnsafe (commentInput id) model
+        clearedInputs = L.set (amountInput id).lens "" $
+                        L.set (commentInput id).lens "" $ model
+        progressEvent = addProgressEventV2 id now amount comment
 update model (AddGoal Nothing) = addTimestamp model AddGoal
 update model (AddGoal (Just now)) = fireStateEvent now clearedInputs goalEvent
   where title = parseStringInputUnsafe goalNameInput model
@@ -388,6 +402,7 @@ app events now = {
 
 runApp :: Effect Unit
 runApp = do
+  refreshEvents
   events <- loadEvents
   currentTime <- now
   inst <- App.makeWithSelector (basicEffect `merge` runSubscriptions) (app events currentTime) "#app"
