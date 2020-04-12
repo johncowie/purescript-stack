@@ -16,7 +16,7 @@ import Spork.Html as H
 import Spork.Html.Elements.Keyed as Keyed
 import Spork.Html.Properties as P
 import Spork.Html.Events as E
-import Data.Maybe (Maybe(..), fromMaybe)
+import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Either (Either(..), either)
 import Data.Foldable (foldr)
 import Spork.Interpreter (merge, basicEffect)
@@ -32,6 +32,11 @@ import Data.Symbol (SProxy(..))
 -- Webstorage stuff
 import Utils.LocalJsonStorage (load, store) as JsonStorage
 import Utils.NumberFormat (toDP)
+import Utils.Url as Url
+import Effect.Console as Console
+import Utils.Components.Input as Input
+import Utils.Components.Input (StringInput)
+import Data.Array as Array
 
 data Msg = Tick Instant |
            UpdateStringInput (L.Lens' Model String) String |
@@ -39,6 +44,8 @@ data Msg = Tick Instant |
            AddGoal (Maybe Instant) |
            RestartGoal IdMap.Id (Maybe Instant) |
            DoNothing
+
+data Page = GoalPage | EventsPage
 
 type GoalForm = {
   goalName :: String,
@@ -48,18 +55,20 @@ type GoalForm = {
 }
 
 type Model = {
+  page :: Page,
   lastUpdate :: Maybe Instant,
   state :: GoalState,
   stats :: Stats,
   amountInputs :: IdMap.IdMap String,
   goalForm :: GoalForm,
-  inputs ::  M.Map String String
+  inputs ::  Input.Inputs
   -- inputs :: M.Map String StringInputState
 }
 
 -- could use the Data.Default abstraction
 emptyModel :: Model
 emptyModel = {
+  page: GoalPage,
   lastUpdate: Nothing,
   state: newGoalState,
   stats: IdMap.new,
@@ -71,21 +80,6 @@ emptyModel = {
     endDate: ""
   },
   inputs: M.empty
-}
-
-
-type StringInputState = {
-  val :: String,
-  error :: Maybe String
-}
-
--- todo abstract out model
-type StringInput a = {
-  validator :: String -> Either String a,
-  inputLabel :: String,
-  inputId :: String,
-  lens :: L.Lens' Model String,
-  placeholder :: String
 }
 
 parseInt :: String -> Either String Int
@@ -106,7 +100,7 @@ anyString :: String -> Either String String
 anyString s = Right s
 
 -- abstract out message
-stringInput :: forall a. String -> (String -> Either String a) -> String -> StringInput a
+stringInput :: forall a. String -> (String -> Either String a) -> String -> StringInput Model a
 stringInput placeholder validator inputId = {
   validator: validator,
   inputLabel: "unused",
@@ -115,56 +109,43 @@ stringInput placeholder validator inputId = {
   inputId: inputId -- TODO use this as basis of lens
 }
 
-goalNameInput :: StringInput String
+goalNameInput :: StringInput Model String
 goalNameInput = stringInput "goal name" nonEmptyString "goalName"
 
-goalTargetInput :: StringInput Int
+goalTargetInput :: StringInput Model Int
 goalTargetInput = stringInput "target" parseInt "goalTarget"
 
-goalStartInput :: StringInput DateTime
+goalStartInput :: StringInput Model DateTime
 goalStartInput = stringInput "start date" parseDate "goalStartDate"
 
-goalEndInput :: StringInput DateTime
+goalEndInput :: StringInput Model DateTime
 goalEndInput = stringInput "end date" parseDate "goalEndDate"
 
-amountInput :: IdMap.Id -> StringInput Number
+amountInput :: IdMap.Id -> StringInput Model Number
 amountInput id = stringInput "amount" parseNumber ("amount-" <> show id)
 
-commentInput :: IdMap.Id -> StringInput String
+commentInput :: IdMap.Id -> StringInput Model String
 commentInput id = stringInput "comment" anyString ("comment-" <> show id)
 
-restartGoalNameInput :: IdMap.Id -> StringInput String
+restartGoalNameInput :: IdMap.Id -> StringInput Model String
 restartGoalNameInput id = stringInput "goal name" nonEmptyString ("restartGoalTitle" <> show id)
 
-restartGoalStartInput :: IdMap.Id -> StringInput DateTime
+restartGoalStartInput :: IdMap.Id -> StringInput Model DateTime
 restartGoalStartInput id = stringInput "start date" parseDate ("restartGoalStartDate" <> show id)
 
-restartGoalEndInput :: IdMap.Id -> StringInput DateTime
+restartGoalEndInput :: IdMap.Id -> StringInput Model DateTime
 restartGoalEndInput id = stringInput "end date" parseDate ("restartGoalEndDate" <> show id)
 
-restartGoalTargetInput :: IdMap.Id -> StringInput Int
+restartGoalTargetInput :: IdMap.Id -> StringInput Model Int
 restartGoalTargetInput id = stringInput "target" parseInt ("restartGoalTarget" <> show id)
-
-
--- TODO abstract out msg/model and move to utils
-renderStringInput :: forall a. StringInput a -> Model -> H.Html Msg
-renderStringInput input model =
-  H.input [P.placeholder input.placeholder,
-            P.type_ P.InputText,
-            P.value (L.view lens model),
-            E.onValueInput (E.always (UpdateStringInput lens))]
-  where lens = (input.lens :: L.Lens' Model String)
-
-clearInput :: forall a. StringInput a -> Model -> Model
-clearInput input model = L.set input.lens "" model
-
-parseStringInputUnsafe :: forall a. StringInput a -> Model -> a
-parseStringInputUnsafe input model = either unsafeThrow identity $ input.validator $ L.view input.lens model
 
 --- composing these inputs together could construct lens for SubmitForm action to take parsed vals from model
 
 _lastUpdate :: L.Lens' Model (Maybe Instant)
 _lastUpdate = L.prop (SProxy :: SProxy "lastUpdate")
+
+_page :: L.Lens' Model Page
+_page = L.prop (SProxy :: SProxy "page")
 
 statsL :: L.Lens' Model Stats
 statsL = L.prop (SProxy :: SProxy "stats")
@@ -182,8 +163,8 @@ mapValL default id = L.lens get set
 
 -- TODO load initial state from localstorage events (events and date passed in as arg)
 -- TODO can do this without passing in as args, if an event is fired off to recalculate stats..
-init :: List Event -> Instant -> App.Transition Effect Model Msg
-init events dt = App.purely (emptyModel {lastUpdate = Just dt, state = state, stats = stats})
+init :: Page -> List Event -> Instant -> App.Transition Effect Model Msg
+init page events dt = App.purely (emptyModel {page = page, lastUpdate = Just dt, state = state, stats = stats})
   where state = foldr processEvent newGoalState events
         stats = calculateStats dt state
 
@@ -235,8 +216,8 @@ renderLiveGoal model (Tuple id goal) =
                               wrapWithClass "amount-done" $ (H.text $ amountDoneString goal),
                               wrapWithClass "on-track-required" $ renderOnTrackRequired statsM,
                               progressBar statsM,
-                              wrapWithClass "amount-input" $ renderStringInput (amountInput id) model,
-                              wrapWithClass "amount-input" $ renderStringInput (commentInput id) model,
+                              wrapWithClass "amount-input" $ Input.renderStringInput UpdateStringInput (amountInput id) model,
+                              wrapWithClass "amount-input" $ Input.renderStringInput UpdateStringInput (commentInput id) model,
                               submitButton "Log" (LogAmount id Nothing)
                               ]
     where statsM = IdMap.get id $ L.view statsL model
@@ -244,10 +225,10 @@ renderLiveGoal model (Tuple id goal) =
 renderRestartGoalForm :: IdMap.Id -> Model -> H.Html Msg
 renderRestartGoalForm id model =
   H.div [P.classes ["expired-goal-form"]] $
-  [ renderStringInput (restartGoalNameInput id) model
-  , renderStringInput (restartGoalStartInput id) model
-  , renderStringInput (restartGoalEndInput id) model
-  , renderStringInput (restartGoalTargetInput id) model
+  [ Input.renderStringInput UpdateStringInput (restartGoalNameInput id) model
+  , Input.renderStringInput UpdateStringInput (restartGoalStartInput id) model
+  , Input.renderStringInput UpdateStringInput (restartGoalEndInput id) model
+  , Input.renderStringInput UpdateStringInput (restartGoalTargetInput id) model
   , submitButton "Restart Goal" (RestartGoal id Nothing)
   ]
 
@@ -282,7 +263,8 @@ renderCurrentGoalList :: Model -> H.Html Msg
 renderCurrentGoalList model = Keyed.div [] $ map (renderLiveGoal model) $
   case model.lastUpdate of
     Nothing -> []
-    (Just now) -> IdMap.toArray $ currentGoals (toDateTime now) $ model.state
+    (Just now) -> Array.sortWith sortF $ IdMap.toArray $ currentGoals (toDateTime now) $ model.state
+    where sortF (Tuple id goal) = maybe 0.0 _.onTrackPerformance $ IdMap.get id $ L.view statsL model
 
 renderExpiredGoalList :: Model -> H.Html Msg
 renderExpiredGoalList model = Keyed.div [] $ map (renderExpiredGoal model) $
@@ -299,21 +281,31 @@ renderFutureGoalList model = Keyed.div [] $ map (renderFutureGoal model) $
 renderGoalForm :: Model -> H.Html Msg
 renderGoalForm m = H.div [] [
   H.h3 [] [H.text "Add Goal"],
-  inputRow "Goal name: " $ renderStringInput goalNameInput m,
-  inputRow "Target: " $ renderStringInput goalTargetInput m,
-  inputRow "Start Date: " $ renderStringInput goalStartInput m,
-  inputRow "End Date: " $ renderStringInput goalEndInput m,
+  inputRow "Goal name: " $ Input.renderStringInput UpdateStringInput goalNameInput m,
+  inputRow "Target: " $ Input.renderStringInput UpdateStringInput goalTargetInput m,
+  inputRow "Start Date: " $ Input.renderStringInput UpdateStringInput goalStartInput m,
+  inputRow "End Date: " $ Input.renderStringInput UpdateStringInput goalEndInput m,
   submitButton "Add Goal" (AddGoal Nothing)
 ] where inputRow label input = H.div [] [H.label [] [(H.text label)], input]
 
+renderGoalsPage :: Model -> H.Html Msg
+renderGoalsPage model = H.div [] [H.h3 [] [H.text "Current goals"],
+                                  renderCurrentGoalList model,
+                                  H.h3 [] [H.text "Expired goals"],
+                                  renderExpiredGoalList model,
+                                  H.h3 [] [H.text "Future goals"],
+                                  renderFutureGoalList model,
+                                  renderGoalForm model]
+
+renderEventListPage :: Model -> H.Html Msg
+renderEventListPage model = H.div [] [H.h3 [] [H.text "Events"]]
+
+renderPage :: Page -> Model -> H.Html Msg
+renderPage GoalPage = renderGoalsPage
+renderPage EventsPage = renderEventListPage
+
 render :: Model -> H.Html Msg
-render model = H.div [] [H.h3 [] [H.text "Current goals"],
-                         renderCurrentGoalList model,
-                         H.h3 [] [H.text "Expired goals"],
-                         renderExpiredGoalList model,
-                         H.h3 [] [H.text "Future goals"],
-                         renderFutureGoalList model,
-                         renderGoalForm model]
+render model = renderPage (L.view _page model) model
 
 storageKey :: String
 storageKey = "goals"
@@ -359,32 +351,32 @@ update model (Tick instant) =  App.purely $
   model
 update model (LogAmount id Nothing) = addTimestamp model (LogAmount id)
 update model (LogAmount id (Just now)) = fireStateEvent now clearedInputs progressEvent
-  where amount = parseStringInputUnsafe (amountInput id) model
-        comment = parseStringInputUnsafe (commentInput id) model
+  where amount = Input.parseStringInputUnsafe (amountInput id) model
+        comment = Input.parseStringInputUnsafe (commentInput id) model
         clearedInputs = L.set (amountInput id).lens "" $
                         L.set (commentInput id).lens "" $ model
         progressEvent = addProgressEventV2 id now amount comment
 update model (AddGoal Nothing) = addTimestamp model AddGoal
 update model (AddGoal (Just now)) = fireStateEvent now clearedInputs goalEvent
-  where title = parseStringInputUnsafe goalNameInput model
-        startDate = parseStringInputUnsafe goalStartInput model
-        endDate = parseStringInputUnsafe goalEndInput model
-        target = parseStringInputUnsafe goalTargetInput model
+  where title = Input.parseStringInputUnsafe goalNameInput model
+        startDate = Input.parseStringInputUnsafe goalStartInput model
+        endDate = Input.parseStringInputUnsafe goalEndInput model
+        target = Input.parseStringInputUnsafe goalTargetInput model
         goalEvent = addGoalEvent title startDate endDate target
-        clearedInputs = clearInput goalNameInput $
-                        clearInput goalStartInput $
-                        clearInput goalEndInput $
-                        clearInput goalTargetInput $ model
+        clearedInputs = Input.clearInput goalNameInput $
+                        Input.clearInput goalStartInput $
+                        Input.clearInput goalEndInput $
+                        Input.clearInput goalTargetInput $ model
 update model (RestartGoal id Nothing) = addTimestamp model (RestartGoal id)
 update model (RestartGoal id (Just now)) = fireStateEvent now clearedInputs goalEvent
-  where title = parseStringInputUnsafe (restartGoalNameInput id) model
-        startDate = parseStringInputUnsafe (restartGoalStartInput id) model
-        endDate = parseStringInputUnsafe (restartGoalEndInput id) model
-        target = parseStringInputUnsafe (restartGoalTargetInput id) model
-        clearedInputs = clearInput (restartGoalNameInput id) $
-                        clearInput (restartGoalStartInput id) $
-                        clearInput (restartGoalEndInput id) $
-                        clearInput (restartGoalTargetInput id) $ model
+  where title = Input.parseStringInputUnsafe (restartGoalNameInput id) model
+        startDate = Input.parseStringInputUnsafe (restartGoalStartInput id) model
+        endDate = Input.parseStringInputUnsafe (restartGoalEndInput id) model
+        target = Input.parseStringInputUnsafe (restartGoalTargetInput id) model
+        clearedInputs = Input.clearInput (restartGoalNameInput id) $
+                        Input.clearInput (restartGoalStartInput id) $
+                        Input.clearInput (restartGoalEndInput id) $
+                        Input.clearInput (restartGoalTargetInput id) $ model
         goalEvent = restartGoalEvent id title startDate endDate target
 update model (DoNothing) = App.purely model
 update model (UpdateStringInput stringL input) = App.purely $ L.set stringL input model
@@ -392,18 +384,28 @@ update model (UpdateStringInput stringL input) = App.purely $ L.set stringL inpu
 subs :: Model -> App.Batch Sub Msg
 subs model = App.lift (tickSub Tick)
 
-app :: List Event -> Instant -> App.App Effect Sub Model Msg
-app events now = {
+app :: Page -> List Event -> Instant -> App.App Effect Sub Model Msg
+app page events now = {
     render
   , update
   , subs: subs
-  , init: init events now
+  , init: init page events now
 }
+
+pageFromQueryParams :: M.Map String String -> Page
+pageFromQueryParams queryParams =
+  case M.lookup "page" queryParams of
+    (Just "events") -> EventsPage
+    _ -> GoalPage
 
 runApp :: Effect Unit
 runApp = do
   refreshEvents
   events <- loadEvents
   currentTime <- now
-  inst <- App.makeWithSelector (basicEffect `merge` runSubscriptions) (app events currentTime) "#app"
+  url <- Url.getWindowUrl
+  let queryParams = Url.getQueryParams url
+  Console.log (show queryParams)
+  let page = pageFromQueryParams queryParams
+  inst <- App.makeWithSelector (basicEffect `merge` runSubscriptions) (app page events currentTime) "#app"
   inst.run

@@ -5,6 +5,8 @@ import Data.Symbol (class IsSymbol, SProxy)
 import Prim.Row (class Cons)
 import Record (get, set) as R
 import Data.Newtype (class Newtype, unwrap, wrap)
+import Data.Map as M
+import Data.Maybe (fromMaybe)
 -- import Effect.Exception.Unsafe (unsafeThrow)
 
 data Lens' a b = Lens (a -> b) (a -> b -> a)
@@ -38,3 +40,8 @@ _newtype :: forall a b. (Newtype a b) => Lens' a b
 _newtype = lens getter setter
   where getter a = unwrap a
         setter _a b = wrap b
+
+_mapVal :: forall k v. (Ord k) => v -> k -> Lens' (M.Map k v) v
+_mapVal default id = lens getter setter
+  where getter m = fromMaybe default $ M.lookup id m
+        setter m v = M.insert id v m

@@ -7,7 +7,7 @@
 [X] Show expired goals in List
 [X] Treat completed goal as expired
 [X] Add button for submitting restart goal form
-[ ] End date just be 00:00 of the day after
+[ ] Separate page with list of events - use query param for toggling page - just show last 10 events
 [ ] Show which goals are completed
 [ ] Abstract out input string stuff into utils
 [ ] Only allow restarting goal if it doesn't have a successor in the future

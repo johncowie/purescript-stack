@@ -68,10 +68,11 @@ runApp = do
   void $ PureApp.makeWithSelector (app queryParams) "#app"
 
 -- TODO
+-- [ ] Abstract out input field utility
 -- [ ] Wire up input field
 -- [ ] Add submit button
 -- [ ] Wire up submit button
 -- [ ] Rejib app to support Action effects
 -- [ ] Render form for new poem
 -- [ ] Wire up form for new poem
--- [ ] 
+-- [ ]
