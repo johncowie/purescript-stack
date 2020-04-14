@@ -5,7 +5,7 @@ import Effect (Effect)
 import Utils.Lens as L
 import Data.List (List(..), (:))
 import Goals.Data.Goal as Goal
-import Goals.Data.State (GoalState, newGoalState, processEvent, currentGoals, expiredGoals, futureGoals, hasSuccessor)
+import Goals.Data.State as St
 import Goals.Data.Stats (Stats, GoalStats, calculateStats)
 import Goals.Data.Event (Event, addGoalEvent, addProgressEventV2, restartGoalEvent)
 import Data.DateTime (DateTime)
@@ -57,7 +57,7 @@ type GoalForm = {
 type Model = {
   page :: Page,
   lastUpdate :: Maybe Instant,
-  state :: GoalState,
+  state :: St.GoalState,
   stats :: Stats,
   amountInputs :: IdMap.IdMap String,
   goalForm :: GoalForm,
@@ -70,7 +70,7 @@ emptyModel :: Model
 emptyModel = {
   page: GoalPage,
   lastUpdate: Nothing,
-  state: newGoalState,
+  state: St.newGoalState,
   stats: IdMap.new,
   amountInputs: IdMap.new,
   goalForm: {
@@ -150,7 +150,7 @@ _page = L.prop (SProxy :: SProxy "page")
 statsL :: L.Lens' Model Stats
 statsL = L.prop (SProxy :: SProxy "stats")
 
-stateL :: L.Lens' Model GoalState
+stateL :: L.Lens' Model St.GoalState
 stateL = L.prop (SProxy :: SProxy "state")
 
 inputsL :: L.Lens' Model (M.Map String String)
@@ -165,7 +165,7 @@ mapValL default id = L.lens get set
 -- TODO can do this without passing in as args, if an event is fired off to recalculate stats..
 init :: Page -> List Event -> Instant -> App.Transition Effect Model Msg
 init page events dt = App.purely (emptyModel {page = page, lastUpdate = Just dt, state = state, stats = stats})
-  where state = foldr processEvent newGoalState events
+  where state = foldr St.processEvent St.newGoalState events
         stats = calculateStats dt state
 
 wrapWithClass :: forall a. String -> H.Html a -> H.Html a
@@ -245,7 +245,7 @@ renderExpiredGoal model (Tuple id goal) =
     if needsRestarting
     then [renderRestartGoalForm id model]
     else []
-  where needsRestarting = not $ hasSuccessor id model.state
+  where needsRestarting = not $ St.hasSuccessor id model.state
 
 renderFutureGoal :: Model -> Tuple IdMap.Id Goal.Goal -> Tuple String (H.Html Msg)
 renderFutureGoal model (Tuple id goal) =
@@ -263,20 +263,21 @@ renderCurrentGoalList :: Model -> H.Html Msg
 renderCurrentGoalList model = Keyed.div [] $ map (renderLiveGoal model) $
   case model.lastUpdate of
     Nothing -> []
-    (Just now) -> Array.sortWith sortF $ IdMap.toArray $ currentGoals (toDateTime now) $ model.state
+    (Just now) -> Array.sortWith sortF $ IdMap.toArray $ St.currentGoals (toDateTime now) $ model.state
     where sortF (Tuple id goal) = maybe 0.0 _.onTrackPerformance $ IdMap.get id $ L.view statsL model
 
 renderExpiredGoalList :: Model -> H.Html Msg
 renderExpiredGoalList model = Keyed.div [] $ map (renderExpiredGoal model) $
   case model.lastUpdate of
     Nothing -> []
-    (Just now) -> IdMap.toArray $ expiredGoals (toDateTime now) $ model.state
+    (Just now) -> Array.filter noSuccessor $ IdMap.toArray $ St.expiredGoals (toDateTime now) $ model.state
+    where noSuccessor (Tuple id goal) = not $ St.hasSuccessor id (L.view stateL model)
 
 renderFutureGoalList :: Model -> H.Html Msg
 renderFutureGoalList model = Keyed.div [] $ map (renderFutureGoal model) $
   case model.lastUpdate of
     Nothing -> []
-    (Just now) -> IdMap.toArray $ futureGoals (toDateTime now) $ model.state
+    (Just now) -> IdMap.toArray $ St.futureGoals (toDateTime now) $ model.state
 
 renderGoalForm :: Model -> H.Html Msg
 renderGoalForm m = H.div [] [
@@ -335,7 +336,7 @@ fireStateEvent now model event = {effects, model: updatedModel}
           storeEvent event
           pure $ DoNothing
         updatedModel = L.set stateL updatedState $ L.set statsL (calculateStats now updatedState) model
-        updatedState = processEvent event model.state
+        updatedState = St.processEvent event model.state
 -- store event in local storage, fire event to update model and stats
 
 addTimestamp :: Model -> (Maybe Instant -> Msg) -> App.Transition Effect Model Msg

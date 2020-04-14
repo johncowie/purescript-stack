@@ -30,6 +30,7 @@ calculateOnTrackRequired elapsedPC goal = requiredToDate - amountDone
         amountDone = L.view Goal._amountDone goal
         target = L.view Goal._target goal
 
+-- update this to be ratio between on track required and amount done
 calculateOnTrackRequiredScaled :: Number -> Goal -> Number
 calculateOnTrackRequiredScaled onTrackRequired goal =
   (-1.0) * onTrackRequired / toNumber target
