@@ -16,7 +16,7 @@ import Spork.Html as H
 import Spork.Html.Elements.Keyed as Keyed
 import Spork.Html.Properties as P
 import Spork.Html.Events as E
-import Data.Maybe (Maybe(..), fromMaybe, maybe)
+import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Either (Either(..), either)
 import Data.Foldable (foldr)
 import Spork.Interpreter (merge, basicEffect)
@@ -59,6 +59,7 @@ type Model = {
   lastUpdate :: Maybe Instant,
   state :: St.GoalState,
   stats :: Stats,
+  events :: List Event,
   amountInputs :: IdMap.IdMap String,
   goalForm :: GoalForm,
   inputs ::  Input.Inputs
@@ -72,6 +73,7 @@ emptyModel = {
   lastUpdate: Nothing,
   state: St.newGoalState,
   stats: IdMap.new,
+  events: Nil,
   amountInputs: IdMap.new,
   goalForm: {
     goalName: "",
@@ -153,6 +155,9 @@ statsL = L.prop (SProxy :: SProxy "stats")
 stateL :: L.Lens' Model St.GoalState
 stateL = L.prop (SProxy :: SProxy "state")
 
+_events :: L.Lens' Model (List Event)
+_events = L.prop (SProxy :: SProxy "events")
+
 inputsL :: L.Lens' Model (M.Map String String)
 inputsL = L.prop (SProxy :: SProxy "inputs")
 
@@ -164,7 +169,7 @@ mapValL default id = L.lens get set
 -- TODO load initial state from localstorage events (events and date passed in as arg)
 -- TODO can do this without passing in as args, if an event is fired off to recalculate stats..
 init :: Page -> List Event -> Instant -> App.Transition Effect Model Msg
-init page events dt = App.purely (emptyModel {page = page, lastUpdate = Just dt, state = state, stats = stats})
+init page events dt = App.purely (emptyModel {page = page, lastUpdate = Just dt, state = state, stats = stats, events = events})
   where state = foldr St.processEvent St.newGoalState events
         stats = calculateStats dt state
 
@@ -191,7 +196,7 @@ progressBar statsM = H.div [P.classes ["progress-bar"]]
         nXRequired = fromMaybe 0 $ scalePercentage charLength <$> _.timeElapsedPercentage <$> statsM
         nXRem = max (nXRequired - nX) 0
         nSpace = charLength - (nX + nXRem)
-        charLength = 50
+        charLength = 30
         statusClass = case isOnTrack <$> statsM of
           Nothing -> ""
           Just false -> "progress-red"
@@ -213,6 +218,7 @@ submitButton label msg = H.button [E.onClick (E.always_ msg)] [H.text label]
 renderLiveGoal :: Model -> Tuple IdMap.Id Goal.Goal -> Tuple String (H.Html Msg)
 renderLiveGoal model (Tuple id goal) =
   Tuple (show id) $ H.div [] [wrapWithClass "goal-label" $ H.text (show id <> ": " <> L.view Goal._title goal),
+                              wrapWithClass "goal-end" $ H.text $ showDate $ L.view Goal._end goal,
                               wrapWithClass "amount-done" $ (H.text $ amountDoneString goal),
                               wrapWithClass "on-track-required" $ renderOnTrackRequired statsM,
                               progressBar statsM,
@@ -264,7 +270,7 @@ renderCurrentGoalList model = Keyed.div [] $ map (renderLiveGoal model) $
   case model.lastUpdate of
     Nothing -> []
     (Just now) -> Array.sortWith sortF $ IdMap.toArray $ St.currentGoals (toDateTime now) $ model.state
-    where sortF (Tuple id goal) = maybe 0.0 _.onTrackPerformance $ IdMap.get id $ L.view statsL model
+    where sortF (Tuple id goal) = id -- Tuple (maybe 0.0 _.onTrackPerformance $ IdMap.get id $ L.view statsL model) (L.view Goal._title goal)
 
 renderExpiredGoalList :: Model -> H.Html Msg
 renderExpiredGoalList model = Keyed.div [] $ map (renderExpiredGoal model) $
@@ -298,8 +304,17 @@ renderGoalsPage model = H.div [] [H.h3 [] [H.text "Current goals"],
                                   renderFutureGoalList model,
                                   renderGoalForm model]
 
+renderEvent :: Event -> H.Html Msg
+renderEvent event = H.div [] [H.text "something something"]
+-- TODO convert event to javascript and write as text
+-- TODO Also need a button for triggering a removal.
+
 renderEventListPage :: Model -> H.Html Msg
-renderEventListPage model = H.div [] [H.h3 [] [H.text "Events"]]
+renderEventListPage model =
+  H.div [] [
+    H.h3 [] [H.text "Events"],
+    H.div [] $ map renderEvent $ Array.fromFoldable model.events
+  ]
 
 renderPage :: Page -> Model -> H.Html Msg
 renderPage GoalPage = renderGoalsPage
@@ -335,7 +350,10 @@ fireStateEvent now model event = {effects, model: updatedModel}
   where effects = App.lift $ do
           storeEvent event
           pure $ DoNothing
-        updatedModel = L.set stateL updatedState $ L.set statsL (calculateStats now updatedState) model
+        updatedModel = L.set stateL updatedState $
+                       L.set statsL (calculateStats now updatedState) $
+                       L.over _events ((:) event) $
+                       model
         updatedState = St.processEvent event model.state
 -- store event in local storage, fire event to update model and stats
 

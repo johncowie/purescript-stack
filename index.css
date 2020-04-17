@@ -3,7 +3,12 @@ body {
 }
 
 .goal-label {
-  width: 300px;
+  width: 250px;
+  display: inline-block;
+}
+
+.goal-end {
+  width: 120px;
   display: inline-block;
 }
 
