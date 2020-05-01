@@ -1,21 +1,26 @@
 module Dunbar.Data.FullName where
 
 import Prelude
-import Utils.Lens (lens, Lens')
+import Utils.Lens as L
+import Data.Newtype (class Newtype)
 
-type FullName = {
+data FullName = FullName {
   firstName :: String,
   lastName :: String
 }
 
 fullName :: String -> String -> FullName
-fullName firstName lastName = {firstName: firstName, lastName: lastName}
+fullName firstName lastName = FullName {firstName: firstName, lastName: lastName}
 
-firstNameL :: Lens' FullName String
-firstNameL = lens _.firstName (_ {firstName = _})
+_firstName :: L.Lens' FullName String
+_firstName = L._newtype >>> L.lens _.firstName (_ {firstName = _})
 
-lastNameL :: Lens' FullName String
-lastNameL = lens _.lastName (_ {lastName = _})
+_lastName :: L.Lens' FullName String
+_lastName = L._newtype >>> L.lens _.lastName (_ {lastName = _})
 
-showLastName :: FullName -> String
-showLastName {firstName, lastName} = firstName <> " " <> lastName
+instance newTypeFullName :: Newtype FullName {firstName :: String, lastName :: String} where
+  wrap = FullName
+  unwrap (FullName r) = r
+
+instance showFullName :: Show FullName where
+  show (FullName {firstName, lastName}) = firstName <> " " <> lastName

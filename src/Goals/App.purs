@@ -21,7 +21,7 @@ import Data.Either (Either(..), either)
 import Data.Foldable (foldr)
 import Spork.Interpreter (merge, basicEffect)
 import Utils.Spork.TimerSubscription (runSubscriptions, tickSub, Sub)
-import Utils.DateTime (parseDate, showDate)
+import Utils.DateTime (parseDate, showDate, showDayMonth)
 import Utils.IdMap as IdMap
 import Data.Tuple (Tuple(..))
 import Data.Int (fromString, toNumber, floor) as Int
@@ -241,11 +241,12 @@ renderRestartGoalForm id model =
 renderExpiredGoal :: Model -> Tuple IdMap.Id Goal.Goal -> Tuple String (H.Html Msg)
 renderExpiredGoal model (Tuple id goal) =
   Tuple (show id) $ H.div [P.classes ["expired-goal"]] $ [
-    H.text $ L.view Goal._title goal,
+    wrapWithClass "goal-label" $ H.text $ L.view Goal._title goal,
+    H.text $ showDayMonth $ L.view Goal._start goal,
     H.text $ " - ",
-    H.text $ showDate $ L.view Goal._start goal,
-    H.text $ " - ",
-    H.text $ showDate $ L.view Goal._end goal
+    H.text $ showDayMonth $ L.view Goal._end goal,
+    H.text  " - ",
+    H.text $ show (L.view Goal._amountDone goal) <> "/" <> show (L.view Goal._target goal)
     ]
     <>
     if needsRestarting

@@ -1,9 +1,9 @@
 module Main where
 
 import Prelude
--- import SporkDemo (runApp)
 import Goals.App as Goals
 import Couplit.App as Couplit
+import Dunbar.App as Dunbar
 import Effect (Effect)
 import Data.Map as M
 import Data.Maybe(Maybe(..))
@@ -15,6 +15,7 @@ appFromQuery :: M.Map String String -> Effect Unit
 appFromQuery queryParams =
   case M.lookup "app" queryParams of
     (Just "couplit") -> Couplit.runApp
+    (Just "dunbar") -> Dunbar.runApp
     (Just "tiny") -> TinyUrl.main
     _ -> Goals.runApp
 

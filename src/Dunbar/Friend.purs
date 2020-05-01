@@ -1,8 +1,8 @@
 module Dunbar.Friend
 ( Friend,
   newFriend,
-  lastSeenL,
-  nameL
+  _lastSeen,
+  _name
 )
 where
 
@@ -20,20 +20,20 @@ type Friend = {
   notes :: String
 }
 
-nameL :: Lens' Friend FullName
-nameL = lens _.name (_ {name = _})
+_name :: Lens' Friend FullName
+_name = lens _.name (_ {name = _})
 
-dateOfBirthL :: Lens' Friend (Maybe Birthday)
-dateOfBirthL = lens _.dateOfBirth (_ {dateOfBirth = _})
+_dateOfBirth :: Lens' Friend (Maybe Birthday)
+_dateOfBirth = lens _.dateOfBirth (_ {dateOfBirth = _})
 
-yearOfBirthL :: Lens' Friend (Maybe Int)
-yearOfBirthL = lens _.yearOfBirth (_ {yearOfBirth = _})
+_yearOfBirth :: Lens' Friend (Maybe Int)
+_yearOfBirth = lens _.yearOfBirth (_ {yearOfBirth = _})
 
-lastSeenL :: Lens' Friend (Maybe DateTime)
-lastSeenL = lens _.lastSeen (_ {lastSeen = _})
+_lastSeen :: Lens' Friend (Maybe DateTime)
+_lastSeen = lens _.lastSeen (_ {lastSeen = _})
 
-notesL :: Lens' Friend String
-notesL = lens _.notes (_ {notes = _})
+_notes :: Lens' Friend String
+_notes = lens _.notes (_ {notes = _})
 
 newFriend :: String -> String -> Friend
 newFriend firstName lastName = {

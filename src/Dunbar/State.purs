@@ -1,7 +1,7 @@
 module Dunbar.State where
 
 import Prelude
-import Dunbar.Friend (Friend, newFriend, lastSeenL)
+import Dunbar.Friend (Friend, newFriend, _lastSeen)
 import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple)
 import Utils.Lens as L
@@ -20,6 +20,9 @@ data StateEvent =
   AddFriend {firstName :: String, lastName :: String}
   | JustSeen {id :: IdMap.Id, timeSeen :: JsonDateTime}
   | DeleteFriend {id :: IdMap.Id}
+
+addFriendEvent :: String -> String -> StateEvent
+addFriendEvent firstName lastName = AddFriend {firstName, lastName}
 
 type_ = SProxy :: SProxy "type"
 
@@ -41,13 +44,13 @@ instance encodeJsonEvent :: EncodeJson StateEvent where
   encodeJson (JustSeen r) = encodeJson (Record.insert type_ "justSeen" r)
   encodeJson (DeleteFriend r) = encodeJson (Record.insert type_ "deleteFriend" r)
 
-newFriendList :: Friendships
-newFriendList = IdMap.new
+empty :: Friendships
+empty = IdMap.new
 
-updateState :: StateEvent -> Friendships -> Friendships
-updateState (AddFriend r) = IdMap.add (newFriend r.firstName r.lastName)
-updateState (JustSeen r) = IdMap.update r.id (L.set lastSeenL (Just (unwrap r.timeSeen)))
-updateState (DeleteFriend r) = IdMap.delete r.id
+processEvent :: StateEvent -> Friendships -> Friendships
+processEvent (AddFriend r) = IdMap.add (newFriend r.firstName r.lastName)
+processEvent (JustSeen r) = IdMap.update r.id (L.set _lastSeen (Just (unwrap r.timeSeen)))
+processEvent (DeleteFriend r) = IdMap.delete r.id
 
 friendList :: Friendships -> Array (Tuple IdMap.Id Friend)
 friendList = IdMap.toArray

@@ -25,6 +25,9 @@ parseDate = F.unformatDateTime "DD/MM/YYYY"
 showDate :: DateTime -> String
 showDate = either unsafeThrow identity <<< F.formatDateTime "DD/MM/YYYY"
 
+showDayMonth :: DateTime -> String
+showDayMonth = either unsafeThrow identity <<< F.formatDateTime "DD/MM"
+
 parseDateUnsafe :: String -> DateTime
 parseDateUnsafe = either unsafeThrow identity <<< parseDate
 
