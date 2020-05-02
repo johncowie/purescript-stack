@@ -101,45 +101,35 @@ nonEmptyString s = Right s
 anyString :: String -> Either String String
 anyString s = Right s
 
--- abstract out message
-stringInput :: forall a. String -> (String -> Either String a) -> String -> StringInput Model a
-stringInput placeholder validator inputId = {
-  validator: validator,
-  inputLabel: "unused",
-  lens: (inputsL >>> mapValL "" inputId),
-  placeholder: placeholder,
-  inputId: inputId -- TODO use this as basis of lens
-}
-
 goalNameInput :: StringInput Model String
-goalNameInput = stringInput "goal name" nonEmptyString "goalName"
+goalNameInput = Input.stringInput _inputs "goal name" nonEmptyString "goalName"
 
 goalTargetInput :: StringInput Model Int
-goalTargetInput = stringInput "target" parseInt "goalTarget"
+goalTargetInput = Input.stringInput _inputs "target" parseInt "goalTarget"
 
 goalStartInput :: StringInput Model DateTime
-goalStartInput = stringInput "start date" parseDate "goalStartDate"
+goalStartInput = Input.stringInput _inputs "start date" parseDate "goalStartDate"
 
 goalEndInput :: StringInput Model DateTime
-goalEndInput = stringInput "end date" parseDate "goalEndDate"
+goalEndInput = Input.stringInput _inputs "end date" parseDate "goalEndDate"
 
 amountInput :: IdMap.Id -> StringInput Model Number
-amountInput id = stringInput "amount" parseNumber ("amount-" <> show id)
+amountInput id = Input.stringInput _inputs "amount" parseNumber ("amount-" <> show id)
 
 commentInput :: IdMap.Id -> StringInput Model String
-commentInput id = stringInput "comment" anyString ("comment-" <> show id)
+commentInput id = Input.stringInput _inputs "comment" anyString ("comment-" <> show id)
 
 restartGoalNameInput :: IdMap.Id -> StringInput Model String
-restartGoalNameInput id = stringInput "goal name" nonEmptyString ("restartGoalTitle" <> show id)
+restartGoalNameInput id = Input.stringInput _inputs "goal name" nonEmptyString ("restartGoalTitle" <> show id)
 
 restartGoalStartInput :: IdMap.Id -> StringInput Model DateTime
-restartGoalStartInput id = stringInput "start date" parseDate ("restartGoalStartDate" <> show id)
+restartGoalStartInput id = Input.stringInput _inputs "start date" parseDate ("restartGoalStartDate" <> show id)
 
 restartGoalEndInput :: IdMap.Id -> StringInput Model DateTime
-restartGoalEndInput id = stringInput "end date" parseDate ("restartGoalEndDate" <> show id)
+restartGoalEndInput id = Input.stringInput _inputs "end date" parseDate ("restartGoalEndDate" <> show id)
 
 restartGoalTargetInput :: IdMap.Id -> StringInput Model Int
-restartGoalTargetInput id = stringInput "target" parseInt ("restartGoalTarget" <> show id)
+restartGoalTargetInput id = Input.stringInput _inputs "target" parseInt ("restartGoalTarget" <> show id)
 
 --- composing these inputs together could construct lens for SubmitForm action to take parsed vals from model
 
@@ -158,8 +148,8 @@ stateL = L.prop (SProxy :: SProxy "state")
 _events :: L.Lens' Model (List Event)
 _events = L.prop (SProxy :: SProxy "events")
 
-inputsL :: L.Lens' Model (M.Map String String)
-inputsL = L.prop (SProxy :: SProxy "inputs")
+_inputs :: L.Lens' Model (M.Map String String)
+_inputs = L.prop (SProxy :: SProxy "inputs")
 
 mapValL :: forall k v. (Ord k) => v -> k -> L.Lens' (M.Map k v) v
 mapValL default id = L.lens get set

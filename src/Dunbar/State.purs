@@ -16,12 +16,12 @@ import Utils.IdMap as IdMap
 
 type Friendships = IdMap.IdMap Friend
 
-data StateEvent =
+data Event =
   AddFriend {firstName :: String, lastName :: String}
   | JustSeen {id :: IdMap.Id, timeSeen :: JsonDateTime}
   | DeleteFriend {id :: IdMap.Id}
 
-addFriendEvent :: String -> String -> StateEvent
+addFriendEvent :: String -> String -> Event
 addFriendEvent firstName lastName = AddFriend {firstName, lastName}
 
 type_ = SProxy :: SProxy "type"
@@ -29,7 +29,7 @@ type_ = SProxy :: SProxy "type"
 dateStrFormat :: String
 dateStrFormat = "YYYY/MM/DD HH:mm:ss.SSS"
 
-instance decodeJsonEvent :: DecodeJson StateEvent where
+instance decodeJsonEvent :: DecodeJson Event where
   decodeJson json = do
     obj <- decodeJson json
     eventType <- obj .: "type"
@@ -39,7 +39,7 @@ instance decodeJsonEvent :: DecodeJson StateEvent where
       "deleteFriend" -> DeleteFriend <$> decodeJson json
       other -> (Left "Uknown event type")
 
-instance encodeJsonEvent :: EncodeJson StateEvent where
+instance encodeJsonEvent :: EncodeJson Event where
   encodeJson (AddFriend r) = encodeJson (Record.insert type_ "addFriend" r)
   encodeJson (JustSeen r) = encodeJson (Record.insert type_ "justSeen" r)
   encodeJson (DeleteFriend r) = encodeJson (Record.insert type_ "deleteFriend" r)
@@ -47,7 +47,7 @@ instance encodeJsonEvent :: EncodeJson StateEvent where
 empty :: Friendships
 empty = IdMap.new
 
-processEvent :: StateEvent -> Friendships -> Friendships
+processEvent :: Event -> Friendships -> Friendships
 processEvent (AddFriend r) = IdMap.add (newFriend r.firstName r.lastName)
 processEvent (JustSeen r) = IdMap.update r.id (L.set _lastSeen (Just (unwrap r.timeSeen)))
 processEvent (DeleteFriend r) = IdMap.delete r.id

@@ -19,22 +19,20 @@ type StringInput m a = {
   placeholder :: String
 }
 
--- abstract out message
 stringInput :: forall model a.
                L.Lens' model Inputs
             -> String
             -> (String -> Either String a)
             -> String
             -> StringInput model a
-stringInput _Inputs placeholder validator inputId = {
+stringInput _inputs placeholder validator inputId = {
   validator: validator,
   inputLabel: "unused",
-  lens: _Inputs >>> L._mapVal "" inputId,
+  lens: _inputs >>> L._mapVal "" inputId,
   placeholder: placeholder,
   inputId: inputId -- TODO use this as basis of lens
 }
 
--- TODO abstract out msg/model and move to utils
 renderStringInput :: forall model msg a.
                      (L.Lens' model String -> String -> msg)
                   -> StringInput model a

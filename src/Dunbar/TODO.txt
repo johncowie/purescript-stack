@@ -2,4 +2,8 @@ Dunbar
 
 [X] Setup hello-world app
 [X] Render friend list
-[ ] Render add-friend form
+[X] Render add-friend form
+[X] Wire in add-friend form
+[X] Store events in browser
+[ ] Render friend list - indexed
+[ ] Sort friend list by name
