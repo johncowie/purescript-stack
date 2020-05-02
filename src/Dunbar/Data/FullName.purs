@@ -2,7 +2,7 @@ module Dunbar.Data.FullName where
 
 import Prelude
 import Utils.Lens as L
-import Data.Newtype (class Newtype)
+import Data.Newtype (class Newtype, unwrap)
 
 data FullName = FullName {
   firstName :: String,
@@ -24,3 +24,9 @@ instance newTypeFullName :: Newtype FullName {firstName :: String, lastName :: S
 
 instance showFullName :: Show FullName where
   show (FullName {firstName, lastName}) = firstName <> " " <> lastName
+
+instance ordFullName :: Ord FullName where
+  compare a b = compare (show a) (show b)
+
+instance eqFullName :: Eq FullName where
+  eq a b = eq (unwrap a) (unwrap b)

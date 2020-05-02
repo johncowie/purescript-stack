@@ -5,5 +5,5 @@ Dunbar
 [X] Render add-friend form
 [X] Wire in add-friend form
 [X] Store events in browser
-[ ] Render friend list - indexed
-[ ] Sort friend list by name
+[X] Render friend list - indexed
+[X] Sort friend list by name

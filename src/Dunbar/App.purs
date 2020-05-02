@@ -9,12 +9,14 @@ import Data.Symbol (SProxy(..))
 import Data.List (List(..), (:))
 import Data.Maybe (fromMaybe)
 import Data.Foldable (foldr)
+import Data.Array as Array
 import Effect (Effect)
 import Effect.Exception.Unsafe (unsafeThrow)
 import Spork.App as App
 import Spork.Html as H
 import Spork.Html.Events as E
 import Spork.Interpreter (merge, basicEffect)
+import Spork.Html.Elements.Keyed as Keyed
 import Utils.Spork.TimerSubscription (runSubscriptions, tickSub, Sub)
 import Utils.Lens as L
 import Utils.Components.Input as Input
@@ -47,12 +49,16 @@ init events = App.purely {friendships, inputs}
   where friendships = foldr State.processEvent State.empty events
         inputs = M.empty
 
-renderFriendRow :: forall id. (Show id) => Tuple id Friend -> H.Html Msg
-renderFriendRow (Tuple id friend) = H.div [] [H.text $ show $ L.view Friend._name friend]
+renderFriendRow :: forall id. (Show id) => Tuple id Friend -> Tuple String (H.Html Msg)
+renderFriendRow (Tuple id friend) = Tuple (show id) $ H.div [] [H.text $ show $ L.view Friend._name friend]
 
 -- TODO render indexed
 renderFriendsList :: Model -> H.Html Msg
-renderFriendsList model = H.div [] $ map renderFriendRow $ State.friendList model.friendships
+renderFriendsList model = Keyed.div [] $
+                          map renderFriendRow $
+                          Array.sortWith sortF $
+                          State.friendList model.friendships
+  where sortF (Tuple id friend) = L.view Friend._name friend
 
 nonEmptyString :: String -> Either String String
 nonEmptyString "" = Left "Can't be empty"
