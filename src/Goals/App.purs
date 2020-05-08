@@ -9,7 +9,7 @@ import Goals.Data.Goal (Goal)
 import Goals.Data.State as St
 import Goals.Data.Event (Event, addGoalEvent, addProgressEventV2, restartGoalEvent)
 import Data.DateTime (DateTime)
-import Data.DateTime.Instant (Instant, toDateTime)
+import Data.DateTime.Instant (Instant)
 import Effect.Now (now)
 import Spork.App as App
 import Spork.Html as H
@@ -247,18 +247,18 @@ renderFutureGoal model (Tuple id goal) =
 
 renderCurrentGoalList :: Model -> H.Html Msg
 renderCurrentGoalList model = Keyed.div [] $ map (renderLiveGoal model) $
-    Array.sortWith sortF $ IdMap.toArray $ St.currentGoals (toDateTime now) $ model.state
+    Array.sortWith sortF $ IdMap.toArray $ St.currentGoals now $ model.state
     where sortF (Tuple id goal) = tuple3 (-1.0 * (Goal.requiredPercentage now goal)) (L.view Goal._end goal) (L.view Goal._title goal)
           now = model.lastUpdate
 
 renderExpiredGoalList :: Model -> H.Html Msg
 renderExpiredGoalList model = Keyed.div [] $ map (renderExpiredGoal model) $
-  Array.filter noSuccessor $ IdMap.toArray $ St.expiredGoals (toDateTime model.lastUpdate) $ model.state
+  Array.filter noSuccessor $ IdMap.toArray $ St.expiredGoals model.lastUpdate $ model.state
     where noSuccessor (Tuple id goal) = not $ St.hasSuccessor id (L.view stateL model)
 
 renderFutureGoalList :: Model -> H.Html Msg
 renderFutureGoalList model = Keyed.div [] $ map (renderFutureGoal model) $
-  IdMap.toArray $ St.futureGoals (toDateTime model.lastUpdate) $ model.state
+  IdMap.toArray $ St.futureGoals model.lastUpdate $ model.state
 
 renderGoalForm :: Model -> H.Html Msg
 renderGoalForm m = H.div [] [

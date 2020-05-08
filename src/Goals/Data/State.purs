@@ -3,6 +3,7 @@ module Goals.Data.State where
 import Prelude
 import Data.Newtype (unwrap)
 import Data.DateTime (DateTime)
+import Data.DateTime.Instant (Instant, fromDateTime)
 import Data.Map (filter) as M
 import Data.Maybe (Maybe(..))
 import Data.Foldable (elem)
@@ -24,8 +25,9 @@ goalFromEventRecord :: forall r. {title :: String, start :: JsonDateTime, end ::
 goalFromEventRecord r = newUnitGoal r.title (unwrap r.start) (unwrap r.end) r.target
 
 addProgressToGoal :: DateTime -> Number -> Goal -> Goal
-addProgressToGoal time amount goal = L.over Goal._amountDone ((+) amountToAdd) goal
+addProgressToGoal timeDT amount goal = L.over Goal._amountDone ((+) amountToAdd) goal
   where amountToAdd = if Goal.isCurrent time goal then amount else 0.0
+        time = fromDateTime timeDT
 
 addProgress :: IdMap.Id -> DateTime -> Number -> GoalState -> GoalState
 addProgress id time amount = IdMap.update id (addProgressToGoal time amount)
@@ -35,13 +37,13 @@ processEvent (AddGoal r) = IdMap.add (goalFromEventRecord r)
 processEvent (AddProgress r) = addProgress r.id (unwrap r.time) r.amount
 processEvent (RestartGoal r) = IdMap.add $ L.set Goal._predecessor (Just r.predecessor) $ goalFromEventRecord r
 
-currentGoals :: DateTime -> GoalState -> IdMap.IdMap Goal
+currentGoals :: Instant -> GoalState -> IdMap.IdMap Goal
 currentGoals now = M.filter (Goal.isCurrent now)
 
-expiredGoals :: DateTime -> GoalState -> IdMap.IdMap Goal
+expiredGoals :: Instant -> GoalState -> IdMap.IdMap Goal
 expiredGoals now = M.filter (Goal.isExpired now)
 
-futureGoals :: DateTime -> GoalState -> IdMap.IdMap Goal
+futureGoals :: Instant -> GoalState -> IdMap.IdMap Goal
 futureGoals now = M.filter (Goal.isFuture now)
 
 hasSuccessor :: IdMap.Id -> GoalState -> Boolean

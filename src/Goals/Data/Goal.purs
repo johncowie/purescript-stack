@@ -19,7 +19,7 @@ where
 
 import Prelude
 import Data.DateTime (DateTime)
-import Data.DateTime.Instant (Instant, fromDateTime, unInstant)
+import Data.DateTime.Instant (Instant, fromDateTime, unInstant, toDateTime)
 import Utils.Lens (Lens', _newtype, prop)
 import Data.Symbol (SProxy(..))
 import Data.Newtype (class Newtype, unwrap)
@@ -67,14 +67,17 @@ _amountDone = _newtype >>> prop (SProxy :: SProxy "amountDone")
 _predecessor :: Lens' Goal (Maybe IdMap.Id)
 _predecessor = _newtype >>> prop (SProxy :: SProxy "predecessor")
 
-isCurrent :: DateTime -> Goal -> Boolean
-isCurrent now (Goal r) = r.start <= now && r.end >= now && r.amountDone < Int.toNumber r.target
+isCurrent :: Instant -> Goal -> Boolean
+isCurrent now (Goal r) = r.start <= nowDT && r.end >= nowDT && r.amountDone < Int.toNumber r.target
+  where nowDT = toDateTime now
 
-isExpired :: DateTime -> Goal -> Boolean
-isExpired now (Goal r) = r.end < now || r.amountDone >= Int.toNumber r.target
+isExpired :: Instant -> Goal -> Boolean
+isExpired now (Goal r) = r.end < nowDT || r.amountDone >= Int.toNumber r.target
+  where nowDT = toDateTime now
 
-isFuture :: DateTime -> Goal -> Boolean
-isFuture now (Goal r) = r.start > now
+isFuture :: Instant -> Goal -> Boolean
+isFuture now (Goal r) = r.start > nowDT
+  where nowDT = toDateTime now
 
 
 -- stats
