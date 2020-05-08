@@ -10,14 +10,19 @@ module Goals.Data.Goal
 , isExpired
 , isFuture
 , newUnitGoal
+, progressPercentage
+, onTrackRequired
+, timeElapsedPercentage
+, requiredPercentage
 )
 where
 
 import Prelude
 import Data.DateTime (DateTime)
+import Data.DateTime.Instant (Instant, fromDateTime, unInstant)
 import Utils.Lens (Lens', _newtype, prop)
 import Data.Symbol (SProxy(..))
-import Data.Newtype (class Newtype)
+import Data.Newtype (class Newtype, unwrap)
 import Data.Maybe (Maybe(..))
 import Data.Int as Int
 import Utils.IdMap as IdMap
@@ -70,3 +75,24 @@ isExpired now (Goal r) = r.end < now || r.amountDone >= Int.toNumber r.target
 
 isFuture :: DateTime -> Goal -> Boolean
 isFuture now (Goal r) = r.start > now
+
+
+-- stats
+
+progressPercentage :: Goal -> Number
+progressPercentage (Goal goal) = min 100.0 $ (goal.amountDone / Int.toNumber goal.target) * 100.0
+
+timeElapsedPercentage :: Instant -> Goal -> Number
+timeElapsedPercentage now (Goal goal) = ((nowMillis - startMillis) / (endMillis - startMillis)) * 100.0
+  where startMillis = instantMillis $ fromDateTime $ goal.start
+        endMillis = instantMillis $ fromDateTime $ goal.end
+        nowMillis = instantMillis now
+        instantMillis instant = unwrap $ unInstant instant
+
+onTrackRequired :: Instant -> Goal -> Number
+onTrackRequired now (Goal goal) = requiredToDate - goal.amountDone
+  where requiredToDate = (Int.toNumber goal.target * elapsedPC / 100.0)
+        elapsedPC = timeElapsedPercentage now (Goal goal)
+
+requiredPercentage :: Instant -> Goal -> Number
+requiredPercentage now (Goal goal) = onTrackRequired now (Goal goal) / (Int.toNumber goal.target) * 100.0

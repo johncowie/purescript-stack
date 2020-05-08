@@ -7,3 +7,16 @@ Dunbar
 [X] Store events in browser
 [X] Render friend list - indexed
 [X] Sort friend list by name
+[X] Render last seen button
+[X] Wire in last seen button
+[X] Render last seen
+[X] Add contactFrequency to Friend model (make optional)
+[X] Restrict things exported from State module
+[X] Create event for updating desiredContactFrequency
+[X] Add 'page' to UI model - FriendsList | UpdateFriend Id
+[X] add render for empty UpdateFriend form
+[X] Add friend name to update form
+[ ] add desired minimum contact frequency single dropdown to updatefriend form
+[ ] wire in submit button in form
+[ ] Order by days overdue contacting
+[ ] Finesse single dropdown to multiple dropdowns

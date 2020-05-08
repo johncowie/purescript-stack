@@ -5,8 +5,8 @@ import Effect (Effect)
 import Utils.Lens as L
 import Data.List (List(..), (:))
 import Goals.Data.Goal as Goal
+import Goals.Data.Goal (Goal)
 import Goals.Data.State as St
-import Goals.Data.Stats (Stats, GoalStats, calculateStats)
 import Goals.Data.Event (Event, addGoalEvent, addProgressEventV2, restartGoalEvent)
 import Data.DateTime (DateTime)
 import Data.DateTime.Instant (Instant, toDateTime)
@@ -24,6 +24,7 @@ import Utils.Spork.TimerSubscription (runSubscriptions, tickSub, Sub)
 import Utils.DateTime (parseDate, showDate, showDayMonth)
 import Utils.IdMap as IdMap
 import Data.Tuple (Tuple(..))
+import Data.Tuple.Nested (tuple3)
 import Data.Int (fromString, toNumber, floor) as Int
 import Data.Number (fromString) as Number
 import Data.Map as M
@@ -56,9 +57,8 @@ type GoalForm = {
 
 type Model = {
   page :: Page,
-  lastUpdate :: Maybe Instant,
+  lastUpdate :: Instant,
   state :: St.GoalState,
-  stats :: Stats,
   events :: List Event,
   amountInputs :: IdMap.IdMap String,
   goalForm :: GoalForm,
@@ -67,12 +67,11 @@ type Model = {
 }
 
 -- could use the Data.Default abstraction
-emptyModel :: Model
-emptyModel = {
+emptyModel :: Instant -> Model
+emptyModel now = {
   page: GoalPage,
-  lastUpdate: Nothing,
+  lastUpdate: now,
   state: St.newGoalState,
-  stats: IdMap.new,
   events: Nil,
   amountInputs: IdMap.new,
   goalForm: {
@@ -102,45 +101,42 @@ anyString :: String -> Either String String
 anyString s = Right s
 
 goalNameInput :: StringInput Model String
-goalNameInput = Input.stringInput _inputs "goal name" nonEmptyString "goalName"
+goalNameInput = Input.stringInput _inputs nonEmptyString "goalName"
 
 goalTargetInput :: StringInput Model Int
-goalTargetInput = Input.stringInput _inputs "target" parseInt "goalTarget"
+goalTargetInput = Input.stringInput _inputs parseInt "goalTarget"
 
 goalStartInput :: StringInput Model DateTime
-goalStartInput = Input.stringInput _inputs "start date" parseDate "goalStartDate"
+goalStartInput = Input.stringInput _inputs parseDate "goalStartDate"
 
 goalEndInput :: StringInput Model DateTime
-goalEndInput = Input.stringInput _inputs "end date" parseDate "goalEndDate"
+goalEndInput = Input.stringInput _inputs parseDate "goalEndDate"
 
 amountInput :: IdMap.Id -> StringInput Model Number
-amountInput id = Input.stringInput _inputs "amount" parseNumber ("amount-" <> show id)
+amountInput id = Input.stringInput _inputs parseNumber ("amount-" <> show id)
 
 commentInput :: IdMap.Id -> StringInput Model String
-commentInput id = Input.stringInput _inputs "comment" anyString ("comment-" <> show id)
+commentInput id = Input.stringInput _inputs anyString ("comment-" <> show id)
 
 restartGoalNameInput :: IdMap.Id -> StringInput Model String
-restartGoalNameInput id = Input.stringInput _inputs "goal name" nonEmptyString ("restartGoalTitle" <> show id)
+restartGoalNameInput id = Input.stringInput _inputs nonEmptyString ("restartGoalTitle" <> show id)
 
 restartGoalStartInput :: IdMap.Id -> StringInput Model DateTime
-restartGoalStartInput id = Input.stringInput _inputs "start date" parseDate ("restartGoalStartDate" <> show id)
+restartGoalStartInput id = Input.stringInput _inputs parseDate ("restartGoalStartDate" <> show id)
 
 restartGoalEndInput :: IdMap.Id -> StringInput Model DateTime
-restartGoalEndInput id = Input.stringInput _inputs "end date" parseDate ("restartGoalEndDate" <> show id)
+restartGoalEndInput id = Input.stringInput _inputs parseDate ("restartGoalEndDate" <> show id)
 
 restartGoalTargetInput :: IdMap.Id -> StringInput Model Int
-restartGoalTargetInput id = Input.stringInput _inputs "target" parseInt ("restartGoalTarget" <> show id)
+restartGoalTargetInput id = Input.stringInput _inputs parseInt ("restartGoalTarget" <> show id)
 
 --- composing these inputs together could construct lens for SubmitForm action to take parsed vals from model
 
-_lastUpdate :: L.Lens' Model (Maybe Instant)
+_lastUpdate :: L.Lens' Model Instant
 _lastUpdate = L.prop (SProxy :: SProxy "lastUpdate")
 
 _page :: L.Lens' Model Page
 _page = L.prop (SProxy :: SProxy "page")
-
-statsL :: L.Lens' Model Stats
-statsL = L.prop (SProxy :: SProxy "stats")
 
 stateL :: L.Lens' Model St.GoalState
 stateL = L.prop (SProxy :: SProxy "state")
@@ -156,12 +152,9 @@ mapValL default id = L.lens get set
   where get m = fromMaybe default $ M.lookup id m
         set m v = M.insert id v m
 
--- TODO load initial state from localstorage events (events and date passed in as arg)
--- TODO can do this without passing in as args, if an event is fired off to recalculate stats..
 init :: Page -> List Event -> Instant -> App.Transition Effect Model Msg
-init page events dt = App.purely (emptyModel {page = page, lastUpdate = Just dt, state = state, stats = stats, events = events})
+init page events dt = App.purely ((emptyModel dt) {page = page, state = state, events = events})
   where state = foldr St.processEvent St.newGoalState events
-        stats = calculateStats dt state
 
 wrapWithClass :: forall a. String -> H.Html a -> H.Html a
 wrapWithClass clazz node = H.div [P.classes [clazz]] [node]
@@ -174,26 +167,23 @@ repeatString n s = case n of
 scalePercentage :: Int -> Number -> Int
 scalePercentage points percentage = Int.floor $ percentage * (Int.toNumber points / 100.0)
 
-isOnTrack :: GoalStats -> Boolean
-isOnTrack  = (>=) 0  <<< _.onTrackRequired
+isOnTrack :: Instant -> Goal -> Boolean
+isOnTrack now goal = (>=) 0.0 $ Goal.onTrackRequired now goal
 
-progressBar :: forall a. Maybe GoalStats -> H.Html a
-progressBar statsM = H.div [P.classes ["progress-bar"]]
-                           [H.span [P.classes [statusClass]] [H.text (repeatString nX "X")],
-                            H.span [P.classes ["progress-grey"]] [H.text (repeatString nXRem "X")],
-                            H.span [] [(H.text (repeatString nSpace " "))]]
-  where nX = fromMaybe 0 $ scalePercentage charLength <$> _.progressPercentage <$> statsM
-        nXRequired = fromMaybe 0 $ scalePercentage charLength <$> _.timeElapsedPercentage <$> statsM
+progressBar :: forall a. Instant -> Goal -> H.Html a
+progressBar now goal = H.div [P.classes ["progress-bar"]]
+                             [H.span [P.classes [statusClass]] [H.text (repeatString nX "X")],
+                              H.span [P.classes ["progress-grey"]] [H.text (repeatString nXRem "X")],
+                              H.span [] [(H.text (repeatString nSpace " "))]]
+  where nX = scalePercentage charLength $ Goal.progressPercentage goal
+        nXRequired = scalePercentage charLength $ Goal.timeElapsedPercentage now goal
         nXRem = max (nXRequired - nX) 0
         nSpace = charLength - (nX + nXRem)
         charLength = 30
-        statusClass = case isOnTrack <$> statsM of
-          Nothing -> ""
-          Just false -> "progress-red"
-          Just true -> "progress-green"
+        statusClass = if isOnTrack now goal then "progress-green" else "progress-red"
 
-renderOnTrackRequired :: forall a. Maybe GoalStats -> H.Html a
-renderOnTrackRequired = H.text <<< show <<< fromMaybe 0 <<< map _.onTrackRequired
+renderOnTrackRequired :: forall a. Instant -> Goal -> H.Html a
+renderOnTrackRequired now goal = H.text $ toDP 0 $ Goal.onTrackRequired now goal
 
 amountDoneString :: Goal.Goal -> String
 amountDoneString goal = toDP 1 (L.view Goal._amountDone goal) <> "/" <> show (L.view Goal._target goal)
@@ -210,21 +200,20 @@ renderLiveGoal model (Tuple id goal) =
   Tuple (show id) $ H.div [] [wrapWithClass "goal-label" $ H.text (show id <> ": " <> L.view Goal._title goal),
                               wrapWithClass "goal-end" $ H.text $ showDate $ L.view Goal._end goal,
                               wrapWithClass "amount-done" $ (H.text $ amountDoneString goal),
-                              wrapWithClass "on-track-required" $ renderOnTrackRequired statsM,
-                              progressBar statsM,
-                              wrapWithClass "amount-input" $ Input.renderStringInput UpdateStringInput (amountInput id) model,
-                              wrapWithClass "amount-input" $ Input.renderStringInput UpdateStringInput (commentInput id) model,
+                              wrapWithClass "on-track-required" $ renderOnTrackRequired model.lastUpdate goal,
+                              progressBar model.lastUpdate goal,
+                              wrapWithClass "amount-input" $ Input.renderStringInput UpdateStringInput (amountInput id) "amount" model,
+                              wrapWithClass "amount-input" $ Input.renderStringInput UpdateStringInput (commentInput id) "comment" model,
                               submitButton "Log" (LogAmount id Nothing)
                               ]
-    where statsM = IdMap.get id $ L.view statsL model
 
 renderRestartGoalForm :: IdMap.Id -> Model -> H.Html Msg
 renderRestartGoalForm id model =
   H.div [P.classes ["expired-goal-form"]] $
-  [ Input.renderStringInput UpdateStringInput (restartGoalNameInput id) model
-  , Input.renderStringInput UpdateStringInput (restartGoalStartInput id) model
-  , Input.renderStringInput UpdateStringInput (restartGoalEndInput id) model
-  , Input.renderStringInput UpdateStringInput (restartGoalTargetInput id) model
+  [ Input.renderStringInput UpdateStringInput (restartGoalNameInput id) "goal name" model
+  , Input.renderStringInput UpdateStringInput (restartGoalStartInput id) "start date" model
+  , Input.renderStringInput UpdateStringInput (restartGoalEndInput id) "end date" model
+  , Input.renderStringInput UpdateStringInput (restartGoalTargetInput id) "target" model
   , submitButton "Restart Goal" (RestartGoal id Nothing)
   ]
 
@@ -258,31 +247,26 @@ renderFutureGoal model (Tuple id goal) =
 
 renderCurrentGoalList :: Model -> H.Html Msg
 renderCurrentGoalList model = Keyed.div [] $ map (renderLiveGoal model) $
-  case model.lastUpdate of
-    Nothing -> []
-    (Just now) -> Array.sortWith sortF $ IdMap.toArray $ St.currentGoals (toDateTime now) $ model.state
-    where sortF (Tuple id goal) = id -- Tuple (maybe 0.0 _.onTrackPerformance $ IdMap.get id $ L.view statsL model) (L.view Goal._title goal)
+    Array.sortWith sortF $ IdMap.toArray $ St.currentGoals (toDateTime now) $ model.state
+    where sortF (Tuple id goal) = tuple3 (-1.0 * (Goal.requiredPercentage now goal)) (L.view Goal._end goal) (L.view Goal._title goal)
+          now = model.lastUpdate
 
 renderExpiredGoalList :: Model -> H.Html Msg
 renderExpiredGoalList model = Keyed.div [] $ map (renderExpiredGoal model) $
-  case model.lastUpdate of
-    Nothing -> []
-    (Just now) -> Array.filter noSuccessor $ IdMap.toArray $ St.expiredGoals (toDateTime now) $ model.state
+  Array.filter noSuccessor $ IdMap.toArray $ St.expiredGoals (toDateTime model.lastUpdate) $ model.state
     where noSuccessor (Tuple id goal) = not $ St.hasSuccessor id (L.view stateL model)
 
 renderFutureGoalList :: Model -> H.Html Msg
 renderFutureGoalList model = Keyed.div [] $ map (renderFutureGoal model) $
-  case model.lastUpdate of
-    Nothing -> []
-    (Just now) -> IdMap.toArray $ St.futureGoals (toDateTime now) $ model.state
+  IdMap.toArray $ St.futureGoals (toDateTime model.lastUpdate) $ model.state
 
 renderGoalForm :: Model -> H.Html Msg
 renderGoalForm m = H.div [] [
   H.h3 [] [H.text "Add Goal"],
-  inputRow "Goal name: " $ Input.renderStringInput UpdateStringInput goalNameInput m,
-  inputRow "Target: " $ Input.renderStringInput UpdateStringInput goalTargetInput m,
-  inputRow "Start Date: " $ Input.renderStringInput UpdateStringInput goalStartInput m,
-  inputRow "End Date: " $ Input.renderStringInput UpdateStringInput goalEndInput m,
+  inputRow "Goal name: " $ Input.renderStringInput UpdateStringInput goalNameInput "goal name" m,
+  inputRow "Target: " $ Input.renderStringInput UpdateStringInput goalTargetInput "target" m,
+  inputRow "Start Date: " $ Input.renderStringInput UpdateStringInput goalStartInput "start date" m,
+  inputRow "End Date: " $ Input.renderStringInput UpdateStringInput goalEndInput "end date" m,
   submitButton "Add Goal" (AddGoal Nothing)
 ] where inputRow label input = H.div [] [H.label [] [(H.text label)], input]
 
@@ -342,7 +326,6 @@ fireStateEvent now model event = {effects, model: updatedModel}
           storeEvent event
           pure $ DoNothing
         updatedModel = L.set stateL updatedState $
-                       L.set statsL (calculateStats now updatedState) $
                        L.over _events ((:) event) $
                        model
         updatedState = St.processEvent event model.state
@@ -356,8 +339,7 @@ addTimestamp model ctor = {effects, model}
 
 update :: Model → Msg → App.Transition Effect Model Msg
 update model (Tick instant) =  App.purely $
-  L.set statsL (calculateStats instant model.state) $
-  L.set _lastUpdate (Just instant) $
+  L.set _lastUpdate instant $
   model
 update model (LogAmount id Nothing) = addTimestamp model (LogAmount id)
 update model (LogAmount id (Just now)) = fireStateEvent now clearedInputs progressEvent

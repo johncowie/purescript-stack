@@ -10,6 +10,7 @@ import Data.Maybe(Maybe(..))
 import Utils.Url as Url
 
 import Utils.TinyUrl as TinyUrl
+import Experiment as Exp
 
 appFromQuery :: M.Map String String -> Effect Unit
 appFromQuery queryParams =
@@ -17,6 +18,7 @@ appFromQuery queryParams =
     (Just "couplit") -> Couplit.runApp
     (Just "dunbar") -> Dunbar.runApp
     (Just "tiny") -> TinyUrl.main
+    (Just "exp") ->  Exp.main
     _ -> Goals.runApp
 
 main :: Effect Unit
