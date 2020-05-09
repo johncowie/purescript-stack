@@ -4,10 +4,11 @@ import Prelude
 import Effect (Effect)
 import Utils.Lens as L
 import Data.List (List(..), (:))
+import Data.List as List
 import Goals.Data.Goal as Goal
 import Goals.Data.Goal (Goal)
 import Goals.Data.State as St
-import Goals.Data.Event (Event, addGoalEvent, addProgressEventV2, restartGoalEvent)
+import Goals.Data.Event (Event, addGoalEvent, addProgressEvent, restartGoalEvent, undoEvent)
 import Data.DateTime (DateTime)
 import Data.DateTime.Instant (Instant)
 import Effect.Now (now)
@@ -42,8 +43,10 @@ import Data.Array as Array
 data Msg = Tick Instant |
            UpdateStringInput (L.Lens' Model String) String |
            LogAmount IdMap.Id (Maybe Instant) |
-           AddGoal (Maybe Instant) |
-           RestartGoal IdMap.Id (Maybe Instant) |
+           AddGoal |
+           RestartGoal IdMap.Id |
+           StoreEvent Event |
+           UndoEvent Int |
            DoNothing
 
 data Page = GoalPage | EventsPage
@@ -214,7 +217,7 @@ renderRestartGoalForm id model =
   , Input.renderStringInput UpdateStringInput (restartGoalStartInput id) "start date" model
   , Input.renderStringInput UpdateStringInput (restartGoalEndInput id) "end date" model
   , Input.renderStringInput UpdateStringInput (restartGoalTargetInput id) "target" model
-  , submitButton "Restart Goal" (RestartGoal id Nothing)
+  , submitButton "Restart Goal" (RestartGoal id)
   ]
 
 renderExpiredGoal :: Model -> Tuple IdMap.Id Goal.Goal -> Tuple String (H.Html Msg)
@@ -247,18 +250,18 @@ renderFutureGoal model (Tuple id goal) =
 
 renderCurrentGoalList :: Model -> H.Html Msg
 renderCurrentGoalList model = Keyed.div [] $ map (renderLiveGoal model) $
-    Array.sortWith sortF $ IdMap.toArray $ St.currentGoals now $ model.state
+    Array.sortWith sortF $ IdMap.toArray $ M.filter (Goal.isInProgress now) $ model.state
     where sortF (Tuple id goal) = tuple3 (-1.0 * (Goal.requiredPercentage now goal)) (L.view Goal._end goal) (L.view Goal._title goal)
           now = model.lastUpdate
 
 renderExpiredGoalList :: Model -> H.Html Msg
 renderExpiredGoalList model = Keyed.div [] $ map (renderExpiredGoal model) $
-  Array.filter noSuccessor $ IdMap.toArray $ St.expiredGoals model.lastUpdate $ model.state
+  Array.filter noSuccessor $ IdMap.toArray $ M.filter (Goal.isExpired model.lastUpdate) model.state
     where noSuccessor (Tuple id goal) = not $ St.hasSuccessor id (L.view stateL model)
 
 renderFutureGoalList :: Model -> H.Html Msg
 renderFutureGoalList model = Keyed.div [] $ map (renderFutureGoal model) $
-  IdMap.toArray $ St.futureGoals model.lastUpdate $ model.state
+  IdMap.toArray $ M.filter (Goal.isFuture model.lastUpdate) $ model.state
 
 renderGoalForm :: Model -> H.Html Msg
 renderGoalForm m = H.div [] [
@@ -267,7 +270,7 @@ renderGoalForm m = H.div [] [
   inputRow "Target: " $ Input.renderStringInput UpdateStringInput goalTargetInput "target" m,
   inputRow "Start Date: " $ Input.renderStringInput UpdateStringInput goalStartInput "start date" m,
   inputRow "End Date: " $ Input.renderStringInput UpdateStringInput goalEndInput "end date" m,
-  submitButton "Add Goal" (AddGoal Nothing)
+  submitButton "Add Goal" AddGoal
 ] where inputRow label input = H.div [] [H.label [] [(H.text label)], input]
 
 renderGoalsPage :: Model -> H.Html Msg
@@ -279,17 +282,20 @@ renderGoalsPage model = H.div [] [H.h3 [] [H.text "Current goals"],
                                   renderFutureGoalList model,
                                   renderGoalForm model]
 
-renderEvent :: Event -> H.Html Msg
-renderEvent event = H.div [] [H.text "something something"]
--- TODO convert event to javascript and write as text
+renderEvent :: Tuple Int Event -> H.Html Msg
+renderEvent (Tuple index event) =
+  H.div [] [ H.text (show index <> ": " <> show event)
+           , submitButton "Undo" (UndoEvent index)
+           ]
 -- TODO Also need a button for triggering a removal.
 
 renderEventListPage :: Model -> H.Html Msg
 renderEventListPage model =
   H.div [] [
     H.h3 [] [H.text "Events"],
-    H.div [] $ map renderEvent $ Array.fromFoldable model.events
+    H.div [] $ map renderEvent $ Array.take 20 $ addIndices $ Array.fromFoldable model.events
   ]
+  where addIndices l = Array.zip (Array.range 0 (Array.length l - 1)) l
 
 renderPage :: Page -> Model -> H.Html Msg
 renderPage GoalPage = renderGoalsPage
@@ -315,16 +321,21 @@ storeEvent event = do
   events <- loadEvents
   storeEvents $ event : events
 
+deleteEvent :: Int -> Effect Unit
+deleteEvent idx = do
+  events <- loadEvents
+  case List.deleteAt idx events of
+    (Just updated) -> storeEvents updated
+    Nothing -> pure unit
+
 refreshEvents :: Effect Unit
 refreshEvents = do
   events <- loadEvents
   storeEvents events
 
-fireStateEvent :: Instant -> Model -> Event -> App.Transition Effect Model Msg
-fireStateEvent now model event = {effects, model: updatedModel}
-  where effects = App.lift $ do
-          storeEvent event
-          pure $ DoNothing
+fireStateEvent :: Model -> Event -> App.Transition Effect Model Msg
+fireStateEvent model event = {effects, model: updatedModel}
+  where effects = App.lift $ pure $ StoreEvent event
         updatedModel = L.set stateL updatedState $
                        L.over _events ((:) event) $
                        model
@@ -338,18 +349,26 @@ addTimestamp model ctor = {effects, model}
           pure $ ctor (Just nowInst)
 
 update :: Model → Msg → App.Transition Effect Model Msg
-update model (Tick instant) =  App.purely $
+update model (Tick instant) = App.purely $
   L.set _lastUpdate instant $
   model
+update model (StoreEvent event) = {effects, model}
+  where effects = App.lift $ do
+          storeEvent event
+          pure $ DoNothing
+update model (UndoEvent idx) = fireStateEvent model undo
+  where event = case List.index model.events idx of
+                  (Just e) -> e
+                  Nothing -> unsafeThrow ("DOH: " <> show idx)
+        undo = undoEvent event
 update model (LogAmount id Nothing) = addTimestamp model (LogAmount id)
-update model (LogAmount id (Just now)) = fireStateEvent now clearedInputs progressEvent
+update model (LogAmount id (Just now)) = fireStateEvent clearedInputs progressEvent
   where amount = Input.parseStringInputUnsafe (amountInput id) model
         comment = Input.parseStringInputUnsafe (commentInput id) model
         clearedInputs = L.set (amountInput id).lens "" $
                         L.set (commentInput id).lens "" $ model
-        progressEvent = addProgressEventV2 id now amount comment
-update model (AddGoal Nothing) = addTimestamp model AddGoal
-update model (AddGoal (Just now)) = fireStateEvent now clearedInputs goalEvent
+        progressEvent = addProgressEvent id now amount comment
+update model (AddGoal) = fireStateEvent clearedInputs goalEvent
   where title = Input.parseStringInputUnsafe goalNameInput model
         startDate = Input.parseStringInputUnsafe goalStartInput model
         endDate = Input.parseStringInputUnsafe goalEndInput model
@@ -359,8 +378,7 @@ update model (AddGoal (Just now)) = fireStateEvent now clearedInputs goalEvent
                         Input.clearInput goalStartInput $
                         Input.clearInput goalEndInput $
                         Input.clearInput goalTargetInput $ model
-update model (RestartGoal id Nothing) = addTimestamp model (RestartGoal id)
-update model (RestartGoal id (Just now)) = fireStateEvent now clearedInputs goalEvent
+update model (RestartGoal id) = fireStateEvent clearedInputs goalEvent
   where title = Input.parseStringInputUnsafe (restartGoalNameInput id) model
         startDate = Input.parseStringInputUnsafe (restartGoalStartInput id) model
         endDate = Input.parseStringInputUnsafe (restartGoalEndInput id) model

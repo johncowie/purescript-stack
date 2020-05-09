@@ -8,6 +8,7 @@ import Data.DateTime (DateTime)
 import Data.DateTime.Instant (Instant, toDateTime)
 import Data.Either(Either(..))
 import Record as Record
+import Data.Argonaut.Core (stringify)
 import Data.Argonaut.Decode (class DecodeJson, decodeJson, (.:))
 import Data.Argonaut.Encode (class EncodeJson, encodeJson)
 import Data.Symbol (SProxy(..))
@@ -17,7 +18,8 @@ import Data.String as Str
 data Event =
   AddGoal { title :: String, start :: JsonDateTime, end :: JsonDateTime, target :: Int} |
   AddProgress {id :: Id, time :: JsonDateTime, amount :: Number, comment :: Maybe String } |
-  RestartGoal { title :: String, start :: JsonDateTime, end :: JsonDateTime, target :: Int, predecessor :: Id}
+  RestartGoal { title :: String, start :: JsonDateTime, end :: JsonDateTime, target :: Int, predecessor :: Id} |
+  UndoEvent { event :: Event }
 
 addGoalEvent :: String -> DateTime -> DateTime -> Int -> Event
 addGoalEvent title start end target = AddGoal { title: title,
@@ -33,17 +35,23 @@ restartGoalEvent predecessor title start end target =
                 target: target,
                 predecessor: predecessor}
 
-addProgressEventV2 :: Id -> Instant -> Number -> String -> Event
-addProgressEventV2 id time amount comment =
+addProgressEvent :: Id -> Instant -> Number -> String -> Event
+addProgressEvent id time amount comment =
   AddProgress { id: id,
-                  time: wrap (toDateTime time),
-                  amount: amount,
-                  comment: commentM }
+                time: wrap (toDateTime time),
+                amount: amount,
+                comment: commentM }
   where commentM = case Str.trim comment of
                     "" -> Nothing
                     or -> Just comment
 
+undoEvent :: Event -> Event
+undoEvent event = UndoEvent {event}
+
 type_ = SProxy :: SProxy "type"
+
+instance showEvent :: Show Event where
+  show = stringify <<< encodeJson
 
 instance decodeJsonEvent :: DecodeJson Event where
   decodeJson json = do
@@ -53,9 +61,11 @@ instance decodeJsonEvent :: DecodeJson Event where
       "addGoal" -> AddGoal <$> decodeJson json
       "addProgress" -> AddProgress <$> decodeJson json
       "restartGoal" -> RestartGoal <$> decodeJson json
+      "undoEvent" -> UndoEvent <$> decodeJson json
       other -> (Left "Uknown event type")
 
 instance encodeJsonEvent :: EncodeJson Event where
   encodeJson (AddGoal r) = encodeJson (Record.insert type_ "addGoal" r)
   encodeJson (AddProgress r) = encodeJson (Record.insert type_ "addProgress" r)
   encodeJson (RestartGoal r) = encodeJson (Record.insert type_ "restartGoal" r)
+  encodeJson (UndoEvent r) = encodeJson (Record.insert type_ "undoEvent" r)

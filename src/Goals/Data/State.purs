@@ -14,7 +14,7 @@ import Utils.JsonDateTime (JsonDateTime)
 import Goals.Data.Goal (Goal, newUnitGoal)
 import Goals.Data.Goal as Goal
 import Goals.Data.Event (Event(..))
--- import Effect.Exception.Unsafe (unsafeThrow)
+import Effect.Exception.Unsafe (unsafeThrow)
 
 type GoalState = IdMap.IdMap Goal
 
@@ -24,6 +24,7 @@ newGoalState = IdMap.new
 goalFromEventRecord :: forall r. {title :: String, start :: JsonDateTime, end :: JsonDateTime, target :: Int | r} -> Goal
 goalFromEventRecord r = newUnitGoal r.title (unwrap r.start) (unwrap r.end) r.target
 
+-- TODO move to Goal module
 addProgressToGoal :: DateTime -> Number -> Goal -> Goal
 addProgressToGoal timeDT amount goal = L.over Goal._amountDone ((+) amountToAdd) goal
   where amountToAdd = if Goal.isCurrent time goal then amount else 0.0
@@ -36,15 +37,13 @@ processEvent :: Event -> GoalState -> GoalState
 processEvent (AddGoal r) = IdMap.add (goalFromEventRecord r)
 processEvent (AddProgress r) = addProgress r.id (unwrap r.time) r.amount
 processEvent (RestartGoal r) = IdMap.add $ L.set Goal._predecessor (Just r.predecessor) $ goalFromEventRecord r
+processEvent (UndoEvent r) = rollbackEvent r.event
 
-currentGoals :: Instant -> GoalState -> IdMap.IdMap Goal
-currentGoals now = M.filter (Goal.isCurrent now)
-
-expiredGoals :: Instant -> GoalState -> IdMap.IdMap Goal
-expiredGoals now = M.filter (Goal.isExpired now)
-
-futureGoals :: Instant -> GoalState -> IdMap.IdMap Goal
-futureGoals now = M.filter (Goal.isFuture now)
+rollbackEvent :: Event -> GoalState -> GoalState
+rollbackEvent (UndoEvent _) = unsafeThrow "can't undo an undo" -- TODO figure out how to deal with this
+rollbackEvent (AddGoal r) = unsafeThrow "implement me"
+rollbackEvent (RestartGoal r) = unsafeThrow "implement me"
+rollbackEvent (AddProgress r) = addProgress r.id (unwrap r.time) (r.amount * -1.0)
 
 hasSuccessor :: IdMap.Id -> GoalState -> Boolean
 hasSuccessor id goals = elem id predecessorList

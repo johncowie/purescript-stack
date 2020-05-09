@@ -52,9 +52,9 @@ daysToInt = unwrap >>> round
 
 timeElapsedStr :: Seconds -> String
 timeElapsedStr secs = case round $ unwrap secs of
-  s | s < secondsLimit -> show s <> " seconds ago"
-  s | s < minutesLimit -> show (mins s) <> " minutes ago"
-  s | s < hoursLimit -> show (hours s) <> " hours ago"
+  s | s < secondsLimit -> show s <> " seconds"
+  s | s < minutesLimit -> show (mins s) <> " minutes"
+  s | s < hoursLimit -> show (hours s) <> " hours"
   s -> "Some time has elapsed"
   where secondsLimit = 120
         minutesLimit = minSecs * 120

@@ -2,6 +2,7 @@ module Dunbar.Friend
 ( Friend,
   newFriend,
   timeSinceLastSeen,
+  overdueContact,
   _lastSeen,
   _name,
   _desiredContactFrequency
@@ -12,9 +13,10 @@ import Prelude
 import Dunbar.Data.Birthday (Birthday)
 import Dunbar.Data.FullName (FullName, fullName)
 import Data.DateTime.Instant (Instant)
-import Data.Time.Duration (Seconds, Days)
+import Data.Time.Duration (Seconds, Days, convertDuration)
 import Data.Maybe (Maybe(..))
 import Data.Symbol (SProxy(..))
+import Data.Newtype (unwrap, wrap)
 import Utils.Lens as L
 import Utils.DateTime as UDT
 -- import Effect.Exception.Unsafe (unsafeThrow)
@@ -58,3 +60,9 @@ newFriend firstName lastName = {
 
 timeSinceLastSeen :: Instant -> Friend -> Maybe Seconds
 timeSinceLastSeen i f = (UDT.diffSecs i) <$> L.view _lastSeen f
+
+overdueContact :: Instant -> Friend -> Maybe Seconds
+overdueContact i f = do
+  sinceSeenSecs <- timeSinceLastSeen i f
+  (freqSecs :: Seconds) <- convertDuration <$> f.desiredContactFrequency
+  pure $ wrap $ max 0.0 (unwrap sinceSeenSecs - unwrap freqSecs)

@@ -70,12 +70,14 @@ renderFriendRow :: Instant -> Tuple IdMap.Id Friend -> Tuple String (H.Html Msg)
 renderFriendRow now (Tuple id friend) =
   Tuple (show id) $
   H.div [] [
-    H.div [H.classes ["friend-name"]] [H.text $ show $ L.view Friend._name friend]
-  , H.div [H.classes ["time-since-seen"]] [H.text $ "Contacted: " <> timeElapsedStr ]
+    H.div [H.classes ["w-300", "inline-block"]] [H.text $ show $ L.view Friend._name friend]
+  , H.div [H.classes ["w-300", "inline-block"]] [H.text $ "Overdue: " <> overdueStr]
   , submitButton "Just contacted" (JustSeen id Nothing)
   , submitButton "Update" (Navigate (UpdateFriendForm id))
   ]
   where timeElapsedStr = maybe "-" UDT.timeElapsedStr $ Friend.timeSinceLastSeen now friend
+        freqStr = maybe "-" show $ L.view Friend._desiredContactFrequency friend
+        overdueStr = maybe "-" UDT.timeElapsedStr $ Friend.overdueContact now friend
 
 -- TODO render indexed
 renderFriendsList :: Model -> H.Html Msg
@@ -175,7 +177,8 @@ update model (AddFriend) = fireStateEvent event DoNothing $
         firstName = Input.parseStringInputUnsafe firstNameInput model
         lastName = Input.parseStringInputUnsafe lastNameInput model
 update model (UpdateFriend id) = fireStateEvent event (Navigate Dashboard) model
-  where event = State.updateDesiredContactFrequencyEvent id (Just 1)
+  where event = State.updateDesiredContactFrequencyEvent id (Just freq)
+        freq = Input.parseStringInputUnsafe contactFreqInput model
 
 update model (JustSeen id Nothing) = addTimestamp model (JustSeen id)
 update model (JustSeen id (Just timestamp)) = fireStateEvent event DoNothing model

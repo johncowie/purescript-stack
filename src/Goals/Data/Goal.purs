@@ -6,9 +6,10 @@ module Goals.Data.Goal
 , _amountDone
 , _predecessor
 , Goal
-, isCurrent
+, isInProgress
 , isExpired
 , isFuture
+, isCurrent
 , newUnitGoal
 , progressPercentage
 , onTrackRequired
@@ -68,7 +69,11 @@ _predecessor :: Lens' Goal (Maybe IdMap.Id)
 _predecessor = _newtype >>> prop (SProxy :: SProxy "predecessor")
 
 isCurrent :: Instant -> Goal -> Boolean
-isCurrent now (Goal r) = r.start <= nowDT && r.end >= nowDT && r.amountDone < Int.toNumber r.target
+isCurrent now (Goal r) = r.start <= nowDT && r.end >= nowDT
+  where nowDT = toDateTime now
+
+isInProgress :: Instant -> Goal -> Boolean
+isInProgress now (Goal r) = r.start <= nowDT && r.end >= nowDT && r.amountDone < Int.toNumber r.target
   where nowDT = toDateTime now
 
 isExpired :: Instant -> Goal -> Boolean
