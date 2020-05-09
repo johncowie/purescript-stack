@@ -9,7 +9,8 @@ import Goals.Data.Goal as Goal
 import Goals.Data.Goal (Goal)
 import Goals.Data.State as St
 import Goals.Data.Event (Event, addGoalEvent, addProgressEvent, restartGoalEvent, undoEvent)
-import Data.DateTime (DateTime)
+import Data.Date (Date)
+import Data.DateTime (date)
 import Data.DateTime.Instant (Instant)
 import Effect.Now (now)
 import Spork.App as App
@@ -22,7 +23,7 @@ import Data.Either (Either(..), either)
 import Data.Foldable (foldr)
 import Spork.Interpreter (merge, basicEffect)
 import Utils.Spork.TimerSubscription (runSubscriptions, tickSub, Sub)
-import Utils.DateTime (parseDate, showDate, showDayMonth)
+import Utils.DateTime (showDate, showDayMonth, dateToDateTime)
 import Utils.IdMap as IdMap
 import Data.Tuple (Tuple(..))
 import Data.Tuple.Nested (tuple3)
@@ -96,42 +97,38 @@ parseNumber s = case Number.fromString s of
   Nothing -> Left "Not a valid number"
   (Just i) -> Right i
 
-nonEmptyString :: String -> Either String String
-nonEmptyString "" = Left "Can't be empty"
-nonEmptyString s = Right s
-
 anyString :: String -> Either String String
 anyString s = Right s
 
 goalNameInput :: StringInput Model String
-goalNameInput = Input.stringInput _inputs nonEmptyString "goalName"
+goalNameInput = Input.stringInput _inputs "goalName"
 
 goalTargetInput :: StringInput Model Int
-goalTargetInput = Input.stringInput _inputs parseInt "goalTarget"
+goalTargetInput = Input.stringInput _inputs "goalTarget"
 
-goalStartInput :: StringInput Model DateTime
-goalStartInput = Input.stringInput _inputs parseDate "goalStartDate"
+goalStartInput :: StringInput Model Date
+goalStartInput = Input.stringInput _inputs "goalStartDate"
 
-goalEndInput :: StringInput Model DateTime
-goalEndInput = Input.stringInput _inputs parseDate "goalEndDate"
+goalEndInput :: StringInput Model Date
+goalEndInput = Input.stringInput _inputs "goalEndDate"
 
 amountInput :: IdMap.Id -> StringInput Model Number
-amountInput id = Input.stringInput _inputs parseNumber ("amount-" <> show id)
+amountInput id = Input.stringInput _inputs ("amount-" <> show id)
 
-commentInput :: IdMap.Id -> StringInput Model String
-commentInput id = Input.stringInput _inputs anyString ("comment-" <> show id)
+commentInput :: IdMap.Id -> StringInput Model (Maybe String)
+commentInput id = Input.stringInput _inputs ("comment-" <> show id)
 
 restartGoalNameInput :: IdMap.Id -> StringInput Model String
-restartGoalNameInput id = Input.stringInput _inputs nonEmptyString ("restartGoalTitle" <> show id)
+restartGoalNameInput id = Input.stringInput _inputs ("restartGoalTitle" <> show id)
 
-restartGoalStartInput :: IdMap.Id -> StringInput Model DateTime
-restartGoalStartInput id = Input.stringInput _inputs parseDate ("restartGoalStartDate" <> show id)
+restartGoalStartInput :: IdMap.Id -> StringInput Model Date
+restartGoalStartInput id = Input.stringInput _inputs ("restartGoalStartDate" <> show id)
 
-restartGoalEndInput :: IdMap.Id -> StringInput Model DateTime
-restartGoalEndInput id = Input.stringInput _inputs parseDate ("restartGoalEndDate" <> show id)
+restartGoalEndInput :: IdMap.Id -> StringInput Model Date
+restartGoalEndInput id = Input.stringInput _inputs ("restartGoalEndDate" <> show id)
 
 restartGoalTargetInput :: IdMap.Id -> StringInput Model Int
-restartGoalTargetInput id = Input.stringInput _inputs parseInt ("restartGoalTarget" <> show id)
+restartGoalTargetInput id = Input.stringInput _inputs ("restartGoalTarget" <> show id)
 
 --- composing these inputs together could construct lens for SubmitForm action to take parsed vals from model
 
@@ -201,7 +198,7 @@ submitButton label msg = H.button [E.onClick (E.always_ msg)] [H.text label]
 renderLiveGoal :: Model -> Tuple IdMap.Id Goal.Goal -> Tuple String (H.Html Msg)
 renderLiveGoal model (Tuple id goal) =
   Tuple (show id) $ H.div [] [wrapWithClass "goal-label" $ H.text (show id <> ": " <> L.view Goal._title goal),
-                              wrapWithClass "goal-end" $ H.text $ showDate $ L.view Goal._end goal,
+                              wrapWithClass "goal-end" $ H.text $ showDate $ date $ L.view Goal._end goal,
                               wrapWithClass "amount-done" $ (H.text $ amountDoneString goal),
                               wrapWithClass "on-track-required" $ renderOnTrackRequired model.lastUpdate goal,
                               progressBar model.lastUpdate goal,
@@ -241,9 +238,9 @@ renderFutureGoal model (Tuple id goal) =
   Tuple (show id) $ H.div [P.classes ["future-goal"]] $ [
     H.text $ L.view Goal._title goal,
     H.text $ " - ",
-    H.text $ showDate $ L.view Goal._start goal,
+    H.text $ showDate $ date $ L.view Goal._start goal,
     H.text $ " - ",
-    H.text $ showDate $ L.view Goal._end goal,
+    H.text $ showDate $ date $ L.view Goal._end goal,
     H.text $ " - ",
     H.text $ show $ L.view Goal._target goal
   ]
@@ -364,14 +361,14 @@ update model (UndoEvent idx) = fireStateEvent model undo
 update model (LogAmount id Nothing) = addTimestamp model (LogAmount id)
 update model (LogAmount id (Just now)) = fireStateEvent clearedInputs progressEvent
   where amount = Input.parseStringInputUnsafe (amountInput id) model
-        comment = Input.parseStringInputUnsafe (commentInput id) model
+        comment = fromMaybe "" $ Input.parseStringInputUnsafe (commentInput id) model
         clearedInputs = L.set (amountInput id).lens "" $
                         L.set (commentInput id).lens "" $ model
         progressEvent = addProgressEvent id now amount comment
 update model (AddGoal) = fireStateEvent clearedInputs goalEvent
   where title = Input.parseStringInputUnsafe goalNameInput model
-        startDate = Input.parseStringInputUnsafe goalStartInput model
-        endDate = Input.parseStringInputUnsafe goalEndInput model
+        startDate = dateToDateTime $ Input.parseStringInputUnsafe goalStartInput model
+        endDate = dateToDateTime $ Input.parseStringInputUnsafe goalEndInput model
         target = Input.parseStringInputUnsafe goalTargetInput model
         goalEvent = addGoalEvent title startDate endDate target
         clearedInputs = Input.clearInput goalNameInput $
@@ -380,8 +377,8 @@ update model (AddGoal) = fireStateEvent clearedInputs goalEvent
                         Input.clearInput goalTargetInput $ model
 update model (RestartGoal id) = fireStateEvent clearedInputs goalEvent
   where title = Input.parseStringInputUnsafe (restartGoalNameInput id) model
-        startDate = Input.parseStringInputUnsafe (restartGoalStartInput id) model
-        endDate = Input.parseStringInputUnsafe (restartGoalEndInput id) model
+        startDate = dateToDateTime $ Input.parseStringInputUnsafe (restartGoalStartInput id) model
+        endDate = dateToDateTime $ Input.parseStringInputUnsafe (restartGoalEndInput id) model
         target = Input.parseStringInputUnsafe (restartGoalTargetInput id) model
         clearedInputs = Input.clearInput (restartGoalNameInput id) $
                         Input.clearInput (restartGoalStartInput id) $

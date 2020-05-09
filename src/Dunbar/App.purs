@@ -120,8 +120,6 @@ renderDashboard model = H.div [] [
 renderFriendNotFound :: H.Html Msg
 renderFriendNotFound = H.div [] [H.h3 [] [H.text "Friend 404"]]
 
-
-
 renderUpdateFriendForm :: IdMap.Id -> Model -> Friend -> H.Html Msg
 renderUpdateFriendForm id model friend = renderSection title $
   H.div [] [

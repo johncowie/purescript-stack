@@ -4,8 +4,8 @@ import Prelude
 
 import Data.Enum (class BoundedEnum, toEnum)
 import Data.Date (canonicalDate, Date)
-import Data.DateTime (DateTime)
 import Data.Formatter.DateTime as F
+import Data.DateTime (DateTime(..))
 import Data.DateTime.Instant (Instant, fromDateTime, toDateTime, unInstant, instant)
 import Data.Newtype (unwrap, wrap)
 import Data.Either (Either(..), either)
@@ -20,17 +20,14 @@ toEnumUnsafe i = case toEnum i of
   Nothing -> unsafeThrow ("ARGHHH invalid date value: " <> show i)
   Just a -> a
 
-parseDate :: String -> Either String DateTime
-parseDate = F.unformatDateTime "DD/MM/YYYY"
+dateToDateTime :: Date -> DateTime
+dateToDateTime d = DateTime d bottom
 
-showDate :: DateTime -> String
-showDate = either unsafeThrow identity <<< F.formatDateTime "DD/MM/YYYY"
+showDate :: Date -> String
+showDate = either unsafeThrow identity <<< F.formatDateTime "DD/MM/YYYY" <<< dateToDateTime
 
 showDayMonth :: DateTime -> String
 showDayMonth = either unsafeThrow identity <<< F.formatDateTime "DD/MM"
-
-parseDateUnsafe :: String -> DateTime
-parseDateUnsafe = either unsafeThrow identity <<< parseDate
 
 dateTimeToMillis :: DateTime -> Number
 dateTimeToMillis = unwrap <<< unInstant <<< fromDateTime

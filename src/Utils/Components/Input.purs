@@ -6,7 +6,12 @@ import Data.Maybe (Maybe(..), maybe)
 import Data.Map as M
 import Data.Tuple (Tuple(..))
 import Data.Int as Int
+import Data.Number as Number
+import Data.DateTime (date)
+import Data.Formatter.DateTime as F
+import Data.Date (Date)
 import Utils.Lens as L
+import Utils.DateTime (dateToDateTime)
 import Spork.Html as H
 import Spork.Html.Properties as P
 import Spork.Html.Events as E
@@ -14,45 +19,85 @@ import Effect.Exception.Unsafe (unsafeThrow)
 
 type Inputs = M.Map String String
 
+type ModelWithInputs r = {inputs :: Inputs | r}
+
 type StringInput m a = {
   validator :: String -> Either String a,
-  inputLabel :: String,
-  inputId :: String,
   lens :: L.Lens' m String
 }
+
+-- does this already exist? i.e. encode/decode
+class InputType a where
+  parseInput :: String -> Either String a
+  showInput :: a -> String
+
+instance inputTypeInt :: InputType Int where
+  parseInput s = case Int.fromString s of
+    Nothing -> Left "Not a valid integer"
+    (Just i) -> Right i
+  showInput = show
+
+instance inputTypeNumber :: InputType Number where
+  parseInput = parseNumber
+  showInput = show
+
+instance inputTypeString :: InputType String where
+  parseInput "" = (Left "Can't be empty")
+  parseInput s = Right s
+  showInput = show
+
+instance inputTypeDate :: InputType Date where
+  parseInput = parseDate
+  showInput = showDate
+
+instance inputTypeMaybe :: (InputType a) => InputType (Maybe a) where
+  parseInput "" = Right Nothing
+  parseInput s = Just <$> parseInput s
+  showInput = maybe "" showInput
 
 nonEmptyString :: String -> Either String String
 nonEmptyString "" = Left "Can't be empty"
 nonEmptyString s = Right s
+
+showDate :: Date -> String
+showDate = either unsafeThrow identity <<< F.formatDateTime "DD/MM/YYYY" <<< dateToDateTime
 
 parseInt :: String -> Either String Int
 parseInt s = case Int.fromString s of
   Nothing -> Left "Not a valid integer"
   (Just i) -> Right i
 
+parseNumber :: String -> Either String Number
+parseNumber s = case Number.fromString s of
+  Nothing -> Left "Not a valid number"
+  (Just i) -> Right i
+
+parseDate :: String -> Either String Date
+parseDate s = date <$> F.unformatDateTime "DD/MM/YYYY" s
+
+-- way of getting value out of inputs, and way of setting it
+
 stringInput :: forall model a.
-               L.Lens' model Inputs
-            -> (String -> Either String a)
+               (InputType a)
+            => L.Lens' model Inputs
             -> String
             -> StringInput model a
-stringInput _inputs validator inputId = {
-  validator: validator,
-  inputLabel: "unused",
-  lens: _inputs >>> L._mapVal "" inputId,
-  inputId: inputId -- TODO use this as basis of lens
+stringInput _inputs inputId = {
+  validator: parseInput,
+  lens: _inputs >>> L._mapVal "" inputId
 }
 
 nonEmptyStringInput :: forall model.
                        L.Lens' model Inputs
                     -> String
                     -> StringInput model String
-nonEmptyStringInput _inputs = stringInput _inputs nonEmptyString
+nonEmptyStringInput _inputs = stringInput _inputs
 
 intInput :: forall model.
             L.Lens' model Inputs
          -> String
          -> StringInput model Int
-intInput _inputs = stringInput _inputs parseInt 
+intInput _inputs = stringInput _inputs
 
 renderStringInput :: forall model msg a.
                      (L.Lens' model String -> String -> msg)
@@ -94,7 +139,6 @@ renderDropdown_ :: forall model msg a.
 renderDropdown_ actionF input optionVals model =
   renderDropdown actionF input options model
   where options = map (\v -> Tuple (show v) v) optionVals
-
 
 clearInput :: forall model a. StringInput model a -> model -> model
 clearInput input model = L.set input.lens "" model
