@@ -89,13 +89,13 @@ renderFriendsList model = Keyed.div [] $
         currentTime = L.view _now model
 
 firstNameInput :: StringInput Model String
-firstNameInput = Input.nonEmptyStringInput _inputs "firstName"
+firstNameInput = Input.stringInput _inputs "firstName"
 
 lastNameInput :: StringInput Model String
-lastNameInput = Input.nonEmptyStringInput _inputs "lastName"
+lastNameInput = Input.stringInput _inputs "lastName"
 
 contactFreqInput :: StringInput Model Int
-contactFreqInput = Input.intInput _inputs "contactFreq"
+contactFreqInput = Input.stringInput _inputs "contactFreq"
 
 submitButton :: forall m. String -> m -> H.Html m
 submitButton label msg = H.button [E.onClick (E.always_ msg)] [H.text label]
@@ -155,7 +155,7 @@ navigate :: Page -> Model -> Model
 navigate (Dashboard) model = L.set _page Dashboard model
 navigate (UpdateFriendForm id) model =
   L.set _page (UpdateFriendForm id) $
-  Input.setInput contactFreq contactFreqInput $
+  Input.setInputFromVal contactFreq contactFreqInput $
   model
   where contactFreq = do
           friend <- IdMap.get id model.friendships

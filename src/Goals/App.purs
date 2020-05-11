@@ -39,7 +39,7 @@ import Utils.Url as Url
 import Utils.Fixed as DF
 import Effect.Console as Console
 import Utils.Components.Input as Input
-import Utils.Components.Input (StringInput)
+import Utils.Components.Input (Inputs, StringInput)
 import Data.Array as Array
 
 data Msg = Tick Instant |
@@ -145,7 +145,7 @@ stateL = L.prop (SProxy :: SProxy "state")
 _events :: L.Lens' Model (List Event)
 _events = L.prop (SProxy :: SProxy "events")
 
-_inputs :: L.Lens' Model (M.Map String String)
+_inputs :: L.Lens' Model Inputs
 _inputs = L.prop (SProxy :: SProxy "inputs")
 
 mapValL :: forall k v. (Ord k) => v -> k -> L.Lens' (M.Map k v) v
@@ -366,8 +366,8 @@ update model (LogAmount id Nothing) = addTimestamp model (LogAmount id)
 update model (LogAmount id (Just now)) = fireStateEvent clearedInputs progressEvent
   where amount = Input.parseStringInputUnsafe (amountInput id) model
         comment = fromMaybe "" $ Input.parseStringInputUnsafe (commentInput id) model
-        clearedInputs = L.set (amountInput id).lens "" $
-                        L.set (commentInput id).lens "" $ model
+        clearedInputs = Input.clearInput (amountInput id) $
+                        Input.clearInput (commentInput id) $ model
         progressEvent = addProgressEvent id now amount comment
 update model (AddGoal) = fireStateEvent clearedInputs goalEvent
   where title = Input.parseStringInputUnsafe goalNameInput model

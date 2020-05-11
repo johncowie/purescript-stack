@@ -1,4 +1,20 @@
-module Utils.Components.Input where
+module Utils.Components.Input
+( InputData
+, Inputs
+, StringInput
+, class InputType
+, parseInput
+, showInput
+, stringInput
+, renderStringInput
+, renderDropdown
+, renderDropdown_
+, clearInput
+, setInput
+, setInputFromVal
+, parseStringInputUnsafe
+)
+where
 
 import Prelude
 import Data.Either (Either(..), either)
@@ -10,6 +26,7 @@ import Data.Number as Number
 import Data.DateTime (date)
 import Data.Formatter.DateTime as F
 import Data.Date (Date)
+import Data.Symbol (SProxy(..))
 import Utils.Lens as L
 import Utils.DateTime (dateToDateTime)
 import Spork.Html as H
@@ -17,11 +34,19 @@ import Spork.Html.Properties as P
 import Spork.Html.Events as E
 import Effect.Exception.Unsafe (unsafeThrow)
 
-type Inputs = M.Map String String
+type InputData = { rawValue :: String
+                 , processedValue :: Either String String }
 
-type ModelWithInputs r = {inputs :: Inputs | r}
+emptyInputData :: InputData
+emptyInputData = { rawValue: ""
+                 , processedValue: Right ""}
 
-type StringInput m a = {
+_inputDataVal :: L.Lens' InputData String
+_inputDataVal = L.prop (SProxy :: SProxy "rawValue")
+
+type Inputs = M.Map String InputData
+
+newtype StringInput m a = StringInput {
   validator :: String -> Either String a,
   lens :: L.Lens' m String
 }
@@ -82,22 +107,10 @@ stringInput :: forall model a.
             => L.Lens' model Inputs
             -> String
             -> StringInput model a
-stringInput _inputs inputId = {
+stringInput _inputs inputId = StringInput {
   validator: parseInput,
-  lens: _inputs >>> L._mapVal "" inputId
+  lens: _inputs >>> L._mapVal emptyInputData inputId >>> _inputDataVal
 }
-
-nonEmptyStringInput :: forall model.
-                       L.Lens' model Inputs
-                    -> String
-                    -> StringInput model String
-nonEmptyStringInput _inputs = stringInput _inputs
-
-intInput :: forall model.
-            L.Lens' model Inputs
-         -> String
-         -> StringInput model Int
-intInput _inputs = stringInput _inputs
 
 renderStringInput :: forall model msg a.
                      (L.Lens' model String -> String -> msg)
@@ -105,7 +118,7 @@ renderStringInput :: forall model msg a.
                   -> String
                   -> model
                   -> H.Html msg
-renderStringInput actionF input placeholder model =
+renderStringInput actionF (StringInput input) placeholder model =
   H.input [ P.placeholder placeholder
           , P.type_ P.InputText
           , P.value (L.view input.lens model)
@@ -125,7 +138,7 @@ renderDropdown :: forall model msg a.
                -> Array (Tuple String a)
                -> model
                -> H.Html msg
-renderDropdown actionF input options model =
+renderDropdown actionF (StringInput input) options model =
   H.select [E.onValueChange (E.always (actionF input.lens))] $ map (renderOption selected) options
   where selected = L.view input.lens model
 
@@ -140,12 +153,14 @@ renderDropdown_ actionF input optionVals model =
   renderDropdown actionF input options model
   where options = map (\v -> Tuple (show v) v) optionVals
 
-clearInput :: forall model a. StringInput model a -> model -> model
-clearInput input model = L.set input.lens "" model
+setInput :: forall model a. String -> StringInput model a -> model -> model
+setInput s (StringInput input) = L.set input.lens s
 
-setInput :: forall model a. (Show a) => Maybe a -> StringInput model a -> model -> model
-setInput val input model = L.set input.lens s model
-  where s = maybe "" show val
+clearInput :: forall model a. StringInput model a -> model -> model
+clearInput = setInput ""
+
+setInputFromVal :: forall model a. (InputType a) => Maybe a -> StringInput model a -> model -> model
+setInputFromVal val (StringInput input) model = L.set input.lens (maybe "" showInput val) model
 
 parseStringInputUnsafe :: forall model a. StringInput model a -> model -> a
-parseStringInputUnsafe input model = either unsafeThrow identity $ input.validator $ L.view input.lens model
+parseStringInputUnsafe (StringInput input) model = either unsafeThrow identity $ input.validator $ L.view input.lens model
