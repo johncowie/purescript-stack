@@ -36,6 +36,7 @@ import Data.Symbol (SProxy(..))
 import Utils.LocalJsonStorage (load, store) as JsonStorage
 import Utils.NumberFormat (toDP)
 import Utils.Url as Url
+import Utils.Fixed as DF
 import Effect.Console as Console
 import Utils.Components.Input as Input
 import Utils.Components.Input (StringInput)
@@ -248,8 +249,11 @@ renderFutureGoal model (Tuple id goal) =
 renderCurrentGoalList :: Model -> H.Html Msg
 renderCurrentGoalList model = Keyed.div [] $ map (renderLiveGoal model) $
     Array.sortWith sortF $ IdMap.toArray $ M.filter (Goal.isInProgress now) $ model.state
-    where sortF (Tuple id goal) = tuple3 (-1.0 * (Goal.requiredPercentage now goal)) (L.view Goal._end goal) (L.view Goal._title goal)
+    where sortF (Tuple id goal) = tuple3 (toFixed $ -1.0 * (Goal.requiredPercentage now goal)) (L.view Goal._end goal) (L.view Goal._title goal)
           now = model.lastUpdate
+          toFixed n = case DF.fromNumber n of
+                        Nothing -> unsafeThrow "ARGHH"
+                        (Just f) -> (f :: DF.Fixed DF.P10000)
 
 renderExpiredGoalList :: Model -> H.Html Msg
 renderExpiredGoalList model = Keyed.div [] $ map (renderExpiredGoal model) $

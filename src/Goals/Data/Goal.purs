@@ -27,7 +27,8 @@ import Data.Newtype (class Newtype, unwrap)
 import Data.Maybe (Maybe(..))
 import Data.Int as Int
 import Utils.IdMap as IdMap
--- import Effect.Exception.Unsafe (unsafeThrow)
+import Utils.Fixed as DF
+import Effect.Exception.Unsafe (unsafeThrow)
 
 newtype Goal = Goal {
   start :: DateTime,

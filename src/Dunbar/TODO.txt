@@ -21,7 +21,7 @@ Dunbar
 [X] Create CSS file for dimensions with common widths
 [X] Create CSS file for div styles
 [X] Render time overdue in contact
-[ ] Support input that can parse out a maybe (Nothing if string in input is blank)
+[X] Support input that can parse out a maybe (Nothing if string in input is blank)
 [ ] Support field validation
 [ ] Tidy up rendering/labeling of update friend form
 [ ] Put page in URL when navigating so that back button works
