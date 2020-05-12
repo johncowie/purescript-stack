@@ -4,6 +4,7 @@ import Prelude
 import Goals.App as Goals
 import Couplit.App as Couplit
 import Dunbar.App as Dunbar
+import Utils.Components.Lib as ComponentLib
 import Effect (Effect)
 import Data.Map as M
 import Data.Maybe(Maybe(..))
@@ -19,6 +20,7 @@ appFromQuery queryParams =
     (Just "dunbar") -> Dunbar.runApp
     (Just "tiny") -> TinyUrl.main
     (Just "exp") ->  Exp.main
+    (Just "lib") -> ComponentLib.main
     _ -> Goals.runApp
 
 main :: Effect Unit

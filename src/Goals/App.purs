@@ -43,7 +43,7 @@ import Utils.Components.Input (Inputs, StringInput)
 import Data.Array as Array
 
 data Msg = Tick Instant |
-           UpdateStringInput (L.Lens' Model String) String |
+           UpdateStringInput (Input.InputSetter Model) String |
            LogAmount IdMap.Id (Maybe Instant) |
            AddGoal |
            RestartGoal IdMap.Id |
@@ -390,7 +390,7 @@ update model (RestartGoal id) = fireStateEvent clearedInputs goalEvent
                         Input.clearInput (restartGoalTargetInput id) $ model
         goalEvent = restartGoalEvent id title startDate endDate target
 update model (DoNothing) = App.purely model
-update model (UpdateStringInput stringL input) = App.purely $ L.set stringL input model
+update model (UpdateStringInput stringL input) = App.purely $ Input.updateInput stringL input model
 
 subs :: Model -> App.Batch Sub Msg
 subs model = App.lift (tickSub Tick)

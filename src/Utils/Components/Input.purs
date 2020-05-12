@@ -2,14 +2,17 @@ module Utils.Components.Input
 ( InputData
 , Inputs
 , StringInput
+, InputSetter
 , class InputType
 , parseInput
 , showInput
+, newInputs
 , stringInput
 , renderStringInput
 , renderDropdown
 , renderDropdown_
 , clearInput
+, updateInput
 , setInput
 , setInputFromVal
 , parseStringInputUnsafe
@@ -17,7 +20,7 @@ module Utils.Components.Input
 where
 
 import Prelude
-import Data.Either (Either(..), either)
+import Data.Either (Either(..), either, isLeft)
 import Data.Maybe (Maybe(..), maybe)
 import Data.Map as M
 import Data.Tuple (Tuple(..))
@@ -26,7 +29,6 @@ import Data.Number as Number
 import Data.DateTime (date)
 import Data.Formatter.DateTime as F
 import Data.Date (Date)
-import Data.Symbol (SProxy(..))
 import Utils.Lens as L
 import Utils.DateTime (dateToDateTime)
 import Spork.Html as H
@@ -37,18 +39,33 @@ import Effect.Exception.Unsafe (unsafeThrow)
 type InputData = { rawValue :: String
                  , processedValue :: Either String String }
 
+data InputSetter model = InputSetter (L.Lens' model InputData) (String -> Either String String)
+
 emptyInputData :: InputData
 emptyInputData = { rawValue: ""
                  , processedValue: Right ""}
 
-_inputDataVal :: L.Lens' InputData String
-_inputDataVal = L.prop (SProxy :: SProxy "rawValue")
+hasError :: InputData -> Boolean
+hasError = isLeft <<<  _.processedValue
+
+updateInputData :: (String -> Either String String) -> String -> InputData -> InputData
+updateInputData validator s _inputData = { rawValue, processedValue }
+  where rawValue = s
+        processedValue = validator s
+
+stringifyValidator :: forall a. (InputType a)
+                             => (String -> Either String a)
+                             -> (String -> Either String String)
+stringifyValidator validator = \s -> showInput <$> validator s
 
 type Inputs = M.Map String InputData
 
+newInputs :: M.Map String InputData
+newInputs = M.empty
+
 newtype StringInput m a = StringInput {
   validator :: String -> Either String a,
-  lens :: L.Lens' m String
+  lens :: L.Lens' m InputData
 }
 
 -- does this already exist? i.e. encode/decode
@@ -108,12 +125,19 @@ stringInput :: forall model a.
             -> String
             -> StringInput model a
 stringInput _inputs inputId = StringInput {
-  validator: parseInput,
-  lens: _inputs >>> L._mapVal emptyInputData inputId >>> _inputDataVal
+  validator: parseInput, -- TODO remove?
+  lens: _inputs >>> L._mapVal emptyInputData inputId
 }
 
+mkInputSetter :: forall model a.
+                 (InputType a)
+              => StringInput model a
+              -> InputSetter model
+mkInputSetter (StringInput input) = InputSetter input.lens (stringifyValidator input.validator)
+
 renderStringInput :: forall model msg a.
-                     (L.Lens' model String -> String -> msg)
+                     (InputType a)
+                  => (InputSetter model -> String -> msg)
                   -> StringInput model a
                   -> String
                   -> model
@@ -121,46 +145,52 @@ renderStringInput :: forall model msg a.
 renderStringInput actionF (StringInput input) placeholder model =
   H.input [ P.placeholder placeholder
           , P.type_ P.InputText
-          , P.value (L.view input.lens model)
-          , E.onValueInput (E.always (actionF input.lens))]
+          , P.value $ inputData.rawValue
+          , E.onValueInput (E.always (actionF (mkInputSetter (StringInput input))))
+          , H.classes classes]
+  where inputData = L.view input.lens model
+        classes = if hasError inputData then ["invalid"] else []
 
-
-renderOption :: forall msg a. (Show a) => String -> Tuple String a -> H.Html msg
+-- TODO selectedVal should be of type A
+renderOption :: forall msg a. (InputType a) => String -> Tuple String a -> H.Html msg
 renderOption selectedVal (Tuple label val) =
-  H.option [ P.value (show val)
-           , H.prop "selected" (show val == selectedVal)]
+  H.option [ P.value (showInput val)
+           , H.prop "selected" (showInput val == selectedVal)]
            [H.text label]
 
 renderDropdown :: forall model msg a.
-                  (Show a)
-               => (L.Lens' model String -> String -> msg)
+                  (InputType a)
+               => (InputSetter model -> String -> msg)
                -> StringInput model a
                -> Array (Tuple String a)
                -> model
                -> H.Html msg
 renderDropdown actionF (StringInput input) options model =
-  H.select [E.onValueChange (E.always (actionF input.lens))] $ map (renderOption selected) options
-  where selected = L.view input.lens model
+  H.select [E.onValueChange (E.always (actionF (mkInputSetter (StringInput input))))] $ map (renderOption selected) options
+  where selected = _.rawValue $ L.view input.lens model
 
 renderDropdown_ :: forall model msg a.
-                   (Show a)
-                => (L.Lens' model String -> String -> msg)
+                   (InputType a)
+                => (InputSetter model -> String -> msg)
                 -> StringInput model a
                 -> Array a
                 -> model
                 -> H.Html msg
 renderDropdown_ actionF input optionVals model =
   renderDropdown actionF input options model
-  where options = map (\v -> Tuple (show v) v) optionVals
+  where options = map (\v -> Tuple (showInput v) v) optionVals
 
-setInput :: forall model a. String -> StringInput model a -> model -> model
-setInput s (StringInput input) = L.set input.lens s
+updateInput :: forall model. InputSetter model -> String -> model -> model
+updateInput (InputSetter l v) s = L.over l (updateInputData v s)
 
-clearInput :: forall model a. StringInput model a -> model -> model
+setInput :: forall model a. (InputType a) => String -> StringInput model a -> model -> model
+setInput s (StringInput input) = L.over input.lens (updateInputData (stringifyValidator input.validator) s)
+
+clearInput :: forall model a. (InputType a) => StringInput model a -> model -> model
 clearInput = setInput ""
 
 setInputFromVal :: forall model a. (InputType a) => Maybe a -> StringInput model a -> model -> model
-setInputFromVal val (StringInput input) model = L.set input.lens (maybe "" showInput val) model
+setInputFromVal val = setInput (maybe "" showInput val)
 
 parseStringInputUnsafe :: forall model a. StringInput model a -> model -> a
-parseStringInputUnsafe (StringInput input) model = either unsafeThrow identity $ input.validator $ L.view input.lens model
+parseStringInputUnsafe (StringInput input) model = either unsafeThrow identity $ input.validator $ _.rawValue $ L.view input.lens model

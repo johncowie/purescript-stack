@@ -53,7 +53,7 @@ _page :: L.Lens' Model Page
 _page = L.prop (SProxy :: SProxy "page")
 
 data Msg = Tick Instant
-         | UpdateInput (L.Lens' Model String) String
+         | UpdateInput (Input.InputSetter Model) String
          | AddFriend
          | UpdateFriend IdMap.Id
          | DoNothing
@@ -166,7 +166,7 @@ update :: Model → Msg → App.Transition Effect Model Msg
 update model (DoNothing) = App.purely model
 update model (Tick instant) = App.purely $ L.set _now instant model
 update model (Navigate page) = App.purely $ navigate page model
-update model (UpdateInput lens val) = App.purely (L.set lens val model)
+update model (UpdateInput lens val) = App.purely $ Input.updateInput lens val model
 update model (AddFriend) = fireStateEvent event DoNothing $
                            Input.clearInput firstNameInput $
                            Input.clearInput lastNameInput $

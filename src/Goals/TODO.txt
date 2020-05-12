@@ -8,6 +8,7 @@
 [X] Treat completed goal as expired
 [X] Add button for submitting restart goal form
 [X] Separate page with list of events - use query param for toggling page - just show last 10 events
+[ ] Only enable log button if amount field is populated
 [ ] Support show validation errors for text fields
 [ ] Fix textbox for comment
 [ ] Show which goals are completed
