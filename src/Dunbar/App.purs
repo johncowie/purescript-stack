@@ -125,7 +125,7 @@ renderUpdateFriendForm id model friend = renderSection title $
   H.div [] [
     H.div [] [Input.renderDropdown UpdateInput contactFreqInput contactFrequencies model]
   , submitButton "Update" (UpdateFriend id)
-  , H.div [] $ [H.a [E.onClick (E.always_ (Navigate Dashboard)), H.href "#"] [H.text "Back to dashboard"]]
+  , H.div [] $ [H.a [E.onClick (E.always_ (Navigate Dashboard)), H.href ""] [H.text "Back to dashboard"]]
   ]
   where title = "Update '" <> show (L.view Friend._name friend) <> "'"
         contactFrequencies = [ Tuple "-" Nothing

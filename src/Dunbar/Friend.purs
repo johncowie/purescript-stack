@@ -27,7 +27,7 @@ type Friend = {
   yearOfBirth :: Maybe Int,
   lastSeen :: Maybe Instant,
   desiredContactFrequency :: Maybe Days,
-  notes :: String
+  notes :: Maybe String
 }
 
 _name :: L.Lens' Friend FullName
@@ -45,7 +45,7 @@ _lastSeen = L.prop (SProxy :: SProxy "lastSeen")
 _desiredContactFrequency :: L.Lens' Friend (Maybe Days)
 _desiredContactFrequency = L.prop (SProxy :: SProxy "desiredContactFrequency")
 
-_notes :: L.Lens' Friend String
+_notes :: L.Lens' Friend (Maybe String)
 _notes = L.prop (SProxy :: SProxy "notes")
 
 newFriend :: String -> String -> Friend
@@ -55,7 +55,7 @@ newFriend firstName lastName = {
   yearOfBirth: Nothing,
   lastSeen: Nothing,
   desiredContactFrequency: Nothing,
-  notes: ""
+  notes: Nothing
 }
 
 timeSinceLastSeen :: Instant -> Friend -> Maybe Seconds
