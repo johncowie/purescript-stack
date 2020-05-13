@@ -94,7 +94,7 @@ firstNameInput = Input.stringInput _inputs "firstName"
 lastNameInput :: StringInput Model String
 lastNameInput = Input.stringInput _inputs "lastName"
 
-contactFreqInput :: StringInput Model Int
+contactFreqInput :: StringInput Model (Maybe Int)
 contactFreqInput = Input.stringInput _inputs "contactFreq"
 
 submitButton :: forall m. String -> m -> H.Html m
@@ -123,12 +123,21 @@ renderFriendNotFound = H.div [] [H.h3 [] [H.text "Friend 404"]]
 renderUpdateFriendForm :: IdMap.Id -> Model -> Friend -> H.Html Msg
 renderUpdateFriendForm id model friend = renderSection title $
   H.div [] [
-    H.div [] [Input.renderDropdown_ UpdateInput contactFreqInput contactFrequencies model]
+    H.div [] [Input.renderDropdown UpdateInput contactFreqInput contactFrequencies model]
   , submitButton "Update" (UpdateFriend id)
+  , H.div [] $ [H.a [E.onClick (E.always_ (Navigate Dashboard)), H.href "#"] [H.text "Back to dashboard"]]
   ]
   where title = "Update '" <> show (L.view Friend._name friend) <> "'"
-        contactFrequencies = [1, 2, 3, 7, 14, 21, 28, 56, 84]
-  -- TODO need to initialise from Friend
+        contactFrequencies = [ Tuple "-" Nothing
+                             , Tuple "Every day" (Just 1)
+                             , Tuple "Every 2 days" (Just 2)
+                             , Tuple "Every 3 days" (Just 3)
+                             , Tuple "Every week" (Just 7)
+                             , Tuple "Every 2 weeks" (Just 14)
+                             , Tuple "Every 3 weeks" (Just 21)
+                             , Tuple "Every month" (Just 30)
+                             , Tuple "Every 2 months" (Just 60)
+                             , Tuple "Every 3 months" (Just 90)]
 
 render :: Model -> H.Html Msg
 render model = case model.page of
@@ -155,7 +164,7 @@ navigate :: Page -> Model -> Model
 navigate (Dashboard) model = L.set _page Dashboard model
 navigate (UpdateFriendForm id) model =
   L.set _page (UpdateFriendForm id) $
-  Input.setInputFromVal contactFreq contactFreqInput $
+  Input.setInputFromVal (Just contactFreq) contactFreqInput $
   model
   where contactFreq = do
           friend <- IdMap.get id model.friendships
@@ -175,7 +184,7 @@ update model (AddFriend) = fireStateEvent event DoNothing $
         firstName = Input.parseStringInputUnsafe firstNameInput model
         lastName = Input.parseStringInputUnsafe lastNameInput model
 update model (UpdateFriend id) = fireStateEvent event (Navigate Dashboard) model
-  where event = State.updateDesiredContactFrequencyEvent id (Just freq)
+  where event = State.updateDesiredContactFrequencyEvent id freq
         freq = Input.parseStringInputUnsafe contactFreqInput model
 
 update model (JustSeen id Nothing) = addTimestamp model (JustSeen id)

@@ -24,5 +24,5 @@ Dunbar
 [X] Support input that can parse out a maybe (Nothing if string in input is blank)
 [ ] Support field validation
 [ ] Tidy up rendering/labeling of update friend form
-[ ] Put page in URL when navigating so that back button works
+[X] Add 'back' link to update friend form
 [ ] Order by days overdue contacting (then alphabetical)
