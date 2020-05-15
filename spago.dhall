@@ -15,6 +15,7 @@ You can edit this file as you like.
   , "httpure"
   , "js-timers"
   , "numbers"
+  , "postgresql-client"
   , "prelude"
   , "profunctor-lenses"
   , "psci-support"
