@@ -12,6 +12,7 @@ You can edit this file as you like.
   , "effect"
   , "exceptions"
   , "formatters"
+  , "httpure"
   , "js-timers"
   , "numbers"
   , "prelude"

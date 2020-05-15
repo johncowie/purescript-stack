@@ -22,9 +22,11 @@ Dunbar
 [X] Create CSS file for div styles
 [X] Render time overdue in contact
 [X] Support input that can parse out a maybe (Nothing if string in input is blank)
-[ ] Determine app type from path param
+[X] Determine app type from path param
 [X] Change notes type to Maybe
+[ ] Create text area input type
 [ ] Add notes field to form
+[ ] Generalise rendering of list of events
 [ ] Indicate if contact frequency hasn't been set
 [ ] Support field validation
 [ ] Tidy up rendering/labeling of update friend form
