@@ -15,6 +15,7 @@ module Utils.Components.Input
 , updateInput
 , setInput
 , setInputFromVal
+, inputValue
 , parseStringInputUnsafe
 )
 where
@@ -187,10 +188,13 @@ setInput :: forall model a. (InputType a) => String -> StringInput model a -> mo
 setInput s (StringInput input) = L.over input.lens (updateInputData (stringifyValidator input.validator) s)
 
 clearInput :: forall model a. (InputType a) => StringInput model a -> model -> model
-clearInput = setInput ""
+clearInput (StringInput input) = L.set input.lens emptyInputData
 
 setInputFromVal :: forall model a. (InputType a) => Maybe a -> StringInput model a -> model -> model
 setInputFromVal val = setInput (maybe "" showInput val)
+
+inputValue :: forall model a.StringInput model a -> model -> String
+inputValue (StringInput input) = L.view input.lens >>> _.rawValue
 
 parseStringInputUnsafe :: forall model a. StringInput model a -> model -> a
 parseStringInputUnsafe (StringInput input) model = either unsafeThrow identity $ input.validator $ _.rawValue $ L.view input.lens model

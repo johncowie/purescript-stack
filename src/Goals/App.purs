@@ -192,8 +192,8 @@ amountDoneString goal = toDP 1 (L.view Goal._amountDone goal) <> "/" <> show (L.
 fromStringOrZero :: String -> Int
 fromStringOrZero s = fromMaybe 0 (Int.fromString s)
 
-submitButton :: forall m. String -> m -> H.Html m
-submitButton label msg = H.button [E.onClick (E.always_ msg)] [H.text label]
+submitButton :: forall m. Boolean -> String -> m -> H.Html m
+submitButton isEnabled label msg = H.button [E.onClick (E.always_ msg), P.disabled (not isEnabled)] [H.text label]
 
 -- TODO move towards each component using a lens
 renderLiveGoal :: Model -> Tuple IdMap.Id Goal.Goal -> Tuple String (H.Html Msg)
@@ -205,8 +205,9 @@ renderLiveGoal model (Tuple id goal) =
                               progressBar model.lastUpdate goal,
                               wrapWithClass "amount-input" $ Input.renderStringInput UpdateStringInput (amountInput id) "amount" model,
                               wrapWithClass "amount-input" $ Input.renderStringInput UpdateStringInput (commentInput id) "comment" model,
-                              submitButton "Log" (LogAmount id Nothing)
+                              submitButton hasAmount "Log" (LogAmount id Nothing)
                               ]
+  where hasAmount = not $ Input.inputValue (amountInput id) model == ""
 
 renderRestartGoalForm :: IdMap.Id -> Model -> H.Html Msg
 renderRestartGoalForm id model =
@@ -215,7 +216,7 @@ renderRestartGoalForm id model =
   , Input.renderStringInput UpdateStringInput (restartGoalStartInput id) "start date" model
   , Input.renderStringInput UpdateStringInput (restartGoalEndInput id) "end date" model
   , Input.renderStringInput UpdateStringInput (restartGoalTargetInput id) "target" model
-  , submitButton "Restart Goal" (RestartGoal id)
+  , submitButton true "Restart Goal" (RestartGoal id)
   ]
 
 renderExpiredGoal :: Model -> Tuple IdMap.Id Goal.Goal -> Tuple String (H.Html Msg)
@@ -271,7 +272,7 @@ renderGoalForm m = H.div [] [
   inputRow "Target: " $ Input.renderStringInput UpdateStringInput goalTargetInput "target" m,
   inputRow "Start Date: " $ Input.renderStringInput UpdateStringInput goalStartInput "start date" m,
   inputRow "End Date: " $ Input.renderStringInput UpdateStringInput goalEndInput "end date" m,
-  submitButton "Add Goal" AddGoal
+  submitButton true "Add Goal" AddGoal
 ] where inputRow label input = H.div [] [H.label [] [(H.text label)], input]
 
 renderGoalsPage :: Model -> H.Html Msg
@@ -286,7 +287,7 @@ renderGoalsPage model = H.div [] [H.h3 [] [H.text "Current goals"],
 renderEvent :: Tuple Int Event -> H.Html Msg
 renderEvent (Tuple index event) =
   H.div [] [ H.text (show index <> ": " <> show event)
-           , submitButton "Undo" (UndoEvent index)
+           , submitButton true "Undo" (UndoEvent index)
            ]
 -- TODO Also need a button for triggering a removal.
 
@@ -411,7 +412,7 @@ pageFromQueryParams queryParams =
 
 runApp :: Effect Unit
 runApp = do
-  refreshEvents
+  -- refreshEvents
   events <- loadEvents
   currentTime <- now
   url <- Url.getWindowUrl
