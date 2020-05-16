@@ -23,7 +23,7 @@ import Data.Either (Either(..), either)
 import Data.Foldable (foldr)
 import Spork.Interpreter (merge, basicEffect)
 import Utils.Spork.TimerSubscription (runSubscriptions, tickSub, Sub)
-import Utils.DateTime (showDate, showDayMonth, dateToDateTime)
+import Utils.DateTime (showDate, showDayMonth, dateToDateTime, nextDateTime)
 import Utils.IdMap as IdMap
 import Data.Tuple (Tuple(..))
 import Data.Tuple.Nested (tuple3)
@@ -46,7 +46,7 @@ data Msg = Tick Instant |
            UpdateStringInput (Input.InputSetter Model) String |
            LogAmount IdMap.Id (Maybe Instant) |
            AddGoal |
-           RestartGoal IdMap.Id |
+           RestartGoal IdMap.Id Goal.Goal |
            StoreEvent Event |
            UndoEvent Int |
            DoNothing
@@ -119,17 +119,21 @@ amountInput id = Input.stringInput _inputs ("amount-" <> show id)
 commentInput :: IdMap.Id -> StringInput Model (Maybe String)
 commentInput id = Input.stringInput _inputs ("comment-" <> show id)
 
-restartGoalNameInput :: IdMap.Id -> StringInput Model String
-restartGoalNameInput id = Input.stringInput _inputs ("restartGoalTitle" <> show id)
+restartGoalNameInput :: IdMap.Id -> Goal.Goal -> StringInput Model String
+restartGoalNameInput id goal = Input.stringInput_ _inputs ("restartGoalTitle" <> show id) initialVal
+  where initialVal = L.view Goal._title goal
 
-restartGoalStartInput :: IdMap.Id -> StringInput Model Date
-restartGoalStartInput id = Input.stringInput _inputs ("restartGoalStartDate" <> show id)
+restartGoalStartInput :: IdMap.Id -> Goal.Goal -> StringInput Model Date
+restartGoalStartInput id goal = Input.stringInput_ _inputs ("restartGoalStartDate" <> show id) initialVal
+  where initialVal = date $ L.view Goal._end goal
 
-restartGoalEndInput :: IdMap.Id -> StringInput Model Date
-restartGoalEndInput id = Input.stringInput _inputs ("restartGoalEndDate" <> show id)
+restartGoalEndInput :: IdMap.Id -> Goal.Goal -> StringInput Model Date
+restartGoalEndInput id goal = Input.stringInput_ _inputs ("restartGoalEndDate" <> show id) initialVal
+  where initialVal = date $ nextDateTime (L.view Goal._start goal) (L.view Goal._end goal)
 
-restartGoalTargetInput :: IdMap.Id -> StringInput Model Int
-restartGoalTargetInput id = Input.stringInput _inputs ("restartGoalTarget" <> show id)
+restartGoalTargetInput :: IdMap.Id -> Goal.Goal -> StringInput Model Int
+restartGoalTargetInput id goal = Input.stringInput_ _inputs ("restartGoalTarget" <> show id) initialVal
+  where initialVal = L.view Goal._target goal
 
 --- composing these inputs together could construct lens for SubmitForm action to take parsed vals from model
 
@@ -209,14 +213,14 @@ renderLiveGoal model (Tuple id goal) =
                               ]
   where hasAmount = not $ Input.inputValue (amountInput id) model == ""
 
-renderRestartGoalForm :: IdMap.Id -> Model -> H.Html Msg
-renderRestartGoalForm id model =
+renderRestartGoalForm :: IdMap.Id -> Goal.Goal -> Model -> H.Html Msg
+renderRestartGoalForm id goal model =
   H.div [P.classes ["expired-goal-form"]] $
-  [ Input.renderStringInput UpdateStringInput (restartGoalNameInput id) "goal name" model
-  , Input.renderStringInput UpdateStringInput (restartGoalStartInput id) "start date" model
-  , Input.renderStringInput UpdateStringInput (restartGoalEndInput id) "end date" model
-  , Input.renderStringInput UpdateStringInput (restartGoalTargetInput id) "target" model
-  , submitButton true "Restart Goal" (RestartGoal id)
+  [ Input.renderStringInput UpdateStringInput (restartGoalNameInput id goal) "goal name" model
+  , Input.renderStringInput UpdateStringInput (restartGoalStartInput id goal) "start date" model
+  , Input.renderStringInput UpdateStringInput (restartGoalEndInput id goal) "end date" model
+  , Input.renderStringInput UpdateStringInput (restartGoalTargetInput id goal) "target" model
+  , submitButton true "Restart Goal" (RestartGoal id goal)
   ]
 
 renderExpiredGoal :: Model -> Tuple IdMap.Id Goal.Goal -> Tuple String (H.Html Msg)
@@ -231,7 +235,7 @@ renderExpiredGoal model (Tuple id goal) =
     ]
     <>
     if needsRestarting
-    then [renderRestartGoalForm id model]
+    then [renderRestartGoalForm id goal model]
     else []
   where needsRestarting = not $ St.hasSuccessor id model.state
 
@@ -380,15 +384,15 @@ update model (AddGoal) = fireStateEvent clearedInputs goalEvent
                         Input.clearInput goalStartInput $
                         Input.clearInput goalEndInput $
                         Input.clearInput goalTargetInput $ model
-update model (RestartGoal id) = fireStateEvent clearedInputs goalEvent
-  where title = Input.parseStringInputUnsafe (restartGoalNameInput id) model
-        startDate = dateToDateTime $ Input.parseStringInputUnsafe (restartGoalStartInput id) model
-        endDate = dateToDateTime $ Input.parseStringInputUnsafe (restartGoalEndInput id) model
-        target = Input.parseStringInputUnsafe (restartGoalTargetInput id) model
-        clearedInputs = Input.clearInput (restartGoalNameInput id) $
-                        Input.clearInput (restartGoalStartInput id) $
-                        Input.clearInput (restartGoalEndInput id) $
-                        Input.clearInput (restartGoalTargetInput id) $ model
+update model (RestartGoal id goal) = fireStateEvent clearedInputs goalEvent
+  where title = Input.parseStringInputUnsafe (restartGoalNameInput id goal) model
+        startDate = dateToDateTime $ Input.parseStringInputUnsafe (restartGoalStartInput id goal) model
+        endDate = dateToDateTime $ Input.parseStringInputUnsafe (restartGoalEndInput id goal) model
+        target = Input.parseStringInputUnsafe (restartGoalTargetInput id goal) model
+        clearedInputs = Input.clearInput (restartGoalNameInput id goal) $
+                        Input.clearInput (restartGoalStartInput id goal) $
+                        Input.clearInput (restartGoalEndInput id goal) $
+                        Input.clearInput (restartGoalTargetInput id goal) $ model
         goalEvent = restartGoalEvent id title startDate endDate target
 update model (DoNothing) = App.purely model
 update model (UpdateStringInput stringL input) = App.purely $ Input.updateInput stringL input model

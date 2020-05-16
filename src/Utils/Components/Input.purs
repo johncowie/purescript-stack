@@ -8,6 +8,7 @@ module Utils.Components.Input
 , showInput
 , newInputs
 , stringInput
+, stringInput_
 , renderStringInput
 , renderDropdown
 , renderDropdown_
@@ -87,7 +88,7 @@ instance inputTypeNumber :: InputType Number where
 instance inputTypeString :: InputType String where
   parseInput "" = (Left "Can't be empty")
   parseInput s = Right s
-  showInput = show
+  showInput = identity
 
 instance inputTypeDate :: InputType Date where
   parseInput = parseDate
@@ -129,6 +130,18 @@ stringInput _inputs inputId = StringInput {
   validator: parseInput, -- TODO remove?
   lens: _inputs >>> L._mapVal emptyInputData inputId
 }
+
+stringInput_ :: forall model a.
+                (InputType a)
+             => L.Lens' model Inputs
+             -> String
+             -> a
+             -> StringInput model a
+stringInput_ _inputs inputId initialVal = StringInput {
+  validator: parseInput, -- TODO remove?
+  lens: _inputs >>> L._mapVal startData inputId
+} where startData = emptyInputData {rawValue = showInput initialVal}
+
 
 mkInputSetter :: forall model a.
                  (InputType a)

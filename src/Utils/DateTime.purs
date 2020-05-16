@@ -5,11 +5,11 @@ import Prelude
 import Data.Enum (class BoundedEnum, toEnum)
 import Data.Date (canonicalDate, Date)
 import Data.Formatter.DateTime as F
-import Data.DateTime (DateTime(..))
+import Data.DateTime (DateTime(..), diff, adjust)
 import Data.DateTime.Instant (Instant, fromDateTime, toDateTime, unInstant, instant)
 import Data.Newtype (unwrap, wrap)
 import Data.Either (Either(..), either)
-import Data.Maybe (Maybe(..), maybe)
+import Data.Maybe (Maybe(..), maybe, fromMaybe)
 import Data.Time.Duration (Milliseconds, Seconds, Days)
 import Data.Int (round, toNumber)
 import Effect.Exception.Unsafe (unsafeThrow)
@@ -63,6 +63,10 @@ timeElapsedStr secs = case round $ unwrap secs of
         minSecs = 60
         hourSecs = minSecs * 60
         daySecs = hourSecs * 24
+
+nextDateTime :: DateTime -> DateTime -> DateTime
+nextDateTime start end = fromMaybe end $ adjust d end
+  where (d :: Seconds) = diff end start
 
 -- newDateTime :: Int -> Int -> Int -> DateTime
 -- newDateTime y m d = DateTime (newDate y m d) midnight
