@@ -1,10 +1,7 @@
 module Goals.App where
 
 import Prelude
-import Effect (Effect)
 import Utils.Lens as L
-import Data.List (List(..), (:))
-import Data.List as List
 import Goals.Data.Goal as Goal
 import Goals.Data.Goal (Goal)
 import Goals.Data.State as St
@@ -12,35 +9,41 @@ import Goals.Data.Event (Event, addGoalEvent, addProgressEvent, restartGoalEvent
 import Data.Date (Date)
 import Data.DateTime (date)
 import Data.DateTime.Instant (Instant)
-import Effect.Now (now)
 import Spork.App as App
 import Spork.Html as H
 import Spork.Html.Elements.Keyed as Keyed
 import Spork.Html.Properties as P
 import Spork.Html.Events as E
+import Spork.Interpreter (basicAff, merge)
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Either (Either(..), either)
 import Data.Foldable (foldr)
-import Spork.Interpreter (merge, basicEffect)
-import Utils.Spork.TimerSubscription (runSubscriptions, tickSub, Sub)
-import Utils.DateTime (showDate, showDayMonth, dateToDateTime, nextDateTime)
-import Utils.IdMap as IdMap
 import Data.Tuple (Tuple(..))
 import Data.Tuple.Nested (tuple3)
 import Data.Int (fromString, toNumber, floor) as Int
 import Data.Number (fromString) as Number
 import Data.Map as M
-import Effect.Exception.Unsafe (unsafeThrow)
+import Data.Array as Array
 import Data.Symbol (SProxy(..))
--- Webstorage stuff
-import Utils.LocalJsonStorage (load, store) as JsonStorage
+import Effect (Effect)
+import Effect.Exception (Error)
+import Effect.Exception.Unsafe (unsafeThrow)
+import Effect.Console as Console
+import Effect.Now (now)
+import Effect.Aff (Aff)
+
 import Utils.NumberFormat (toDP)
 import Utils.Url as Url
 import Utils.Fixed as DF
-import Effect.Console as Console
 import Utils.Components.Input as Input
 import Utils.Components.Input (Inputs, StringInput)
-import Data.Array as Array
+import Utils.Async (async)
+import Utils.Spork.TimerSubscription (runSubscriptions, tickSub, Sub)
+import Utils.DateTime (showDate, showDayMonth, dateToDateTime, nextDateTime)
+import Utils.IdMap as IdMap
+import Utils.AppendStore (localStorageAppendStore, AppendStore)
+
+data AppStatus = Loading | Loaded | Saving
 
 data Msg = Tick Instant |
            UpdateStringInput (Input.InputSetter Model) String |
@@ -48,7 +51,10 @@ data Msg = Tick Instant |
            AddGoal |
            RestartGoal IdMap.Id Goal.Goal |
            StoreEvent Event |
+           StoredEvent |
            UndoEvent Int |
+           LoadEvents |
+           LoadedEvents (Array Event) |
            DoNothing
 
 data Page = GoalPage | EventsPage
@@ -61,10 +67,11 @@ type GoalForm = {
 }
 
 type Model = {
+  appStatus :: AppStatus,
   page :: Page,
   lastUpdate :: Instant,
   state :: St.GoalState,
-  events :: List Event,
+  events :: Array Event,
   amountInputs :: IdMap.IdMap String,
   goalForm :: GoalForm,
   inputs ::  Input.Inputs
@@ -74,10 +81,11 @@ type Model = {
 -- could use the Data.Default abstraction
 emptyModel :: Instant -> Model
 emptyModel now = {
+  appStatus: Loaded,
   page: GoalPage,
   lastUpdate: now,
   state: St.newGoalState,
-  events: Nil,
+  events: [],
   amountInputs: IdMap.new,
   goalForm: {
     goalName: "",
@@ -143,23 +151,27 @@ _lastUpdate = L.prop (SProxy :: SProxy "lastUpdate")
 _page :: L.Lens' Model Page
 _page = L.prop (SProxy :: SProxy "page")
 
-stateL :: L.Lens' Model St.GoalState
-stateL = L.prop (SProxy :: SProxy "state")
+_state :: L.Lens' Model St.GoalState
+_state = L.prop (SProxy :: SProxy "state")
 
-_events :: L.Lens' Model (List Event)
+_events :: L.Lens' Model (Array Event)
 _events = L.prop (SProxy :: SProxy "events")
 
 _inputs :: L.Lens' Model Inputs
 _inputs = L.prop (SProxy :: SProxy "inputs")
+
+_appStatus :: L.Lens' Model AppStatus
+_appStatus = L.prop (SProxy :: SProxy "appStatus")
 
 mapValL :: forall k v. (Ord k) => v -> k -> L.Lens' (M.Map k v) v
 mapValL default id = L.lens get set
   where get m = fromMaybe default $ M.lookup id m
         set m v = M.insert id v m
 
-init :: Page -> List Event -> Instant -> App.Transition Effect Model Msg
-init page events dt = App.purely ((emptyModel dt) {page = page, state = state, events = events})
-  where state = foldr St.processEvent St.newGoalState events
+init :: Page -> Instant -> App.Transition Aff Model Msg
+init page dt = {effects, model}
+  where model = ((emptyModel dt) {page = page})
+        effects = pure LoadEvents
 
 wrapWithClass :: forall a. String -> H.Html a -> H.Html a
 wrapWithClass clazz node = H.div [P.classes [clazz]] [node]
@@ -263,7 +275,7 @@ renderCurrentGoalList model = Keyed.div [] $ map (renderLiveGoal model) $
 renderExpiredGoalList :: Model -> H.Html Msg
 renderExpiredGoalList model = Keyed.div [] $ map (renderExpiredGoal model) $
   Array.filter noSuccessor $ IdMap.toArray $ M.filter (Goal.isExpired model.lastUpdate) model.state
-    where noSuccessor (Tuple id goal) = not $ St.hasSuccessor id (L.view stateL model)
+    where noSuccessor (Tuple id goal) = not $ St.hasSuccessor id (L.view _state model)
 
 renderFutureGoalList :: Model -> H.Html Msg
 renderFutureGoalList model = Keyed.div [] $ map (renderFutureGoal model) $
@@ -307,63 +319,69 @@ renderPage :: Page -> Model -> H.Html Msg
 renderPage GoalPage = renderGoalsPage
 renderPage EventsPage = renderEventListPage
 
+appStatusMessage :: AppStatus -> String
+appStatusMessage Loaded = " - "
+appStatusMessage Loading = "Loading..."
+appStatusMessage Saving = "Saving..."
+
+renderAppStatus :: Model -> H.Html Msg
+renderAppStatus model = H.div [H.classes ["app-status"]] [H.text $ appStatusMessage $ L.view _appStatus model]
+
 render :: Model -> H.Html Msg
-render model = renderPage (L.view _page model) model
+render model = H.div [] [
+  renderAppStatus model
+, renderPage (L.view _page model) model
+]
+
+store :: AppendStore Event
+store = localStorageAppendStore "goals"
 
 storageKey :: String
 storageKey = "goals"
 
-loadEvents :: Effect (List Event)
+loadEvents :: Aff (Array Event)
 loadEvents = do
-  eventsE <- JsonStorage.load storageKey
-  let eventsM = either unsafeThrow identity eventsE
-  pure $ fromMaybe Nil eventsM
+  eventsE <- store.retrieveAll
+  pure $ either (unsafeThrow <<< show) identity eventsE
 
-storeEvents :: List Event -> Effect Unit
-storeEvents = JsonStorage.store storageKey
+storeEvent :: Event -> Aff Unit
+storeEvent event = void $ store.append event
 
-storeEvent :: Event -> Effect Unit
-storeEvent event = do
-  events <- loadEvents
-  storeEvents $ event : events
-
-deleteEvent :: Int -> Effect Unit
-deleteEvent idx = do
-  events <- loadEvents
-  case List.deleteAt idx events of
-    (Just updated) -> storeEvents updated
-    Nothing -> pure unit
-
-refreshEvents :: Effect Unit
-refreshEvents = do
-  events <- loadEvents
-  storeEvents events
-
-fireStateEvent :: Model -> Event -> App.Transition Effect Model Msg
+fireStateEvent :: Model -> Event -> App.Transition Aff Model Msg
 fireStateEvent model event = {effects, model: updatedModel}
-  where effects = App.lift $ pure $ StoreEvent event
-        updatedModel = L.set stateL updatedState $
-                       L.over _events ((:) event) $
+  where effects = App.lift $ async $ pure $ StoreEvent event
+        updatedModel = L.set _state updatedState $
+                       L.over _events ((<>) [event]) $
                        model
         updatedState = St.processEvent event model.state
 -- store event in local storage, fire event to update model and stats
 
-addTimestamp :: Model -> (Maybe Instant -> Msg) -> App.Transition Effect Model Msg
+addTimestamp :: Model -> (Maybe Instant -> Msg) -> App.Transition Aff Model Msg
 addTimestamp model ctor = {effects, model}
-  where effects = App.lift $ do
+  where effects = App.lift $ async $ do
           nowInst <- now
           pure $ ctor (Just nowInst)
 
-update :: Model → Msg → App.Transition Effect Model Msg
+update :: Model → Msg → App.Transition Aff Model Msg
 update model (Tick instant) = App.purely $
   L.set _lastUpdate instant $
   model
-update model (StoreEvent event) = {effects, model}
+update model LoadEvents = {effects, model: L.set _appStatus Loading model}
+  where effects = App.lift $ do
+          LoadedEvents <$> loadEvents
+-- update model LoadEvents = App.purely $ L.set _appStatus Loading model
+update model (LoadedEvents events) = App.purely $
+  L.set _appStatus Loaded $
+  L.set _events events $
+  L.set _state (foldr St.processEvent St.newGoalState events) $
+  model
+update model (StoreEvent event) = {effects, model: L.set _appStatus Saving model}
   where effects = App.lift $ do
           storeEvent event
-          pure $ DoNothing
+          pure $ StoredEvent
+update model StoredEvent = App.purely $ L.set _appStatus Loaded model
 update model (UndoEvent idx) = fireStateEvent model undo
-  where event = case List.index model.events idx of
+  where event = case Array.index model.events idx of
                   (Just e) -> e
                   Nothing -> unsafeThrow ("DOH: " <> show idx)
         undo = undoEvent event
@@ -400,12 +418,12 @@ update model (UpdateStringInput stringL input) = App.purely $ Input.updateInput 
 subs :: Model -> App.Batch Sub Msg
 subs model = App.lift (tickSub Tick)
 
-app :: Page -> List Event -> Instant -> App.App Effect Sub Model Msg
-app page events now = {
+app :: Page -> Instant -> App.App Aff Sub Model Msg
+app page now = {
     render
   , update
   , subs: subs
-  , init: init page events now
+  , init: init page now
 }
 
 pageFromQueryParams :: M.Map String String -> Page
@@ -414,14 +432,15 @@ pageFromQueryParams queryParams =
     (Just "events") -> EventsPage
     _ -> GoalPage
 
+affErrorHandler :: Error -> Effect Unit
+affErrorHandler err = Console.log (show err)
+
 runApp :: Effect Unit
 runApp = do
-  -- refreshEvents
-  events <- loadEvents
   currentTime <- now
   url <- Url.getWindowUrl
   let queryParams = Url.getQueryParams url
-  Console.log (show queryParams)
   let page = pageFromQueryParams queryParams
-  inst <- App.makeWithSelector (basicEffect `merge` runSubscriptions) (app page events currentTime) "#app"
+  inst <- App.makeWithSelector (basicAff affErrorHandler `merge` runSubscriptions) (app page currentTime) "#app"
+  Console.log "App set up"
   inst.run

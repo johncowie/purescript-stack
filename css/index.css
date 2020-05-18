@@ -2,6 +2,15 @@ body {
   font-family: courier, sans-serif;
 }
 
+.app-status {
+  display: block;
+  width: 100%;
+  margin: 0px;
+  padding: 5px;
+  background: #CCCCCC;
+  text-align: center;
+}
+
 .goal-label {
   width: 250px;
   display: inline-block;

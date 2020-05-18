@@ -6,25 +6,28 @@ import Data.Tuple (Tuple(..))
 import Data.Map as M
 import Data.Either (either)
 import Data.Symbol (SProxy(..))
-import Data.List (List(..), (:))
-import Data.Foldable (foldr)
 import Data.Array as Array
-import Data.Maybe (Maybe(..), fromMaybe, maybe)
+import Data.Maybe (Maybe(..), maybe)
+import Data.Foldable (foldr)
 import Effect (Effect)
+import Effect.Aff (Aff)
+import Effect.Exception (Error)
 import Effect.Exception.Unsafe (unsafeThrow)
 import Effect.Now (now)
+import Effect.Console as Console
 import Spork.App as App
 import Spork.Html as H
 import Spork.Html.Events as E
-import Spork.Interpreter (merge, basicEffect)
+import Spork.Interpreter (merge, basicAff)
 import Spork.Html.Elements.Keyed as Keyed
 import Utils.Spork.TimerSubscription (runSubscriptions, tickSub, Sub)
 import Utils.Lens as L
 import Utils.Components.Input as Input
 import Utils.Components.Input (StringInput, Inputs)
-import Utils.LocalJsonStorage (load, store) as JsonStorage
+import Utils.AppendStore (AppendStore, localStorageAppendStore)
 import Utils.IdMap as IdMap
 import Utils.DateTime as UDT
+import Utils.Async (async)
 
 import Dunbar.Friend (Friend)
 import Dunbar.Friend as Friend
@@ -59,12 +62,16 @@ data Msg = Tick Instant
          | DoNothing
          | JustSeen IdMap.Id (Maybe Instant)
          | Navigate Page
+         | LoadEvents
+         | LoadedEvents (Array Event)
 
-init :: Instant -> List Event -> App.Transition Effect Model Msg
-init now events = App.purely {friendships, inputs, now, page}
-  where friendships = foldr State.processEvent State.empty events
+init :: Instant -> App.Transition Aff Model Msg
+init now = {effects, model}
+  where friendships = State.empty
         inputs = M.empty
         page = Dashboard
+        model = {friendships, inputs, now, page}
+        effects = App.lift $ pure $ LoadEvents
 
 renderFriendRow :: Instant -> Tuple IdMap.Id Friend -> Tuple String (H.Html Msg)
 renderFriendRow now (Tuple id friend) =
@@ -146,17 +153,17 @@ render model = case model.page of
     where friendM = IdMap.get id model.friendships
 
 -- TODO abstract out
-fireStateEvent :: Event -> Msg -> Model -> App.Transition Effect Model Msg
+fireStateEvent :: Event -> Msg -> Model -> App.Transition Aff Model Msg
 fireStateEvent event msg model = {effects, model: updatedModel}
   where effects = App.lift $ do
-          storeEvent event
+          void $ store.append event
           pure msg
         updatedModel = L.over _friendships (State.processEvent event) model
 
 -- TODO abstract out
-addTimestamp :: Model -> (Maybe Instant -> Msg) -> App.Transition Effect Model Msg
+addTimestamp :: Model -> (Maybe Instant -> Msg) -> App.Transition Aff Model Msg
 addTimestamp model ctor = {effects, model}
-  where effects = App.lift $ do
+  where effects = App.lift $ async $ do
           nowInst <- now
           pure $ ctor (Just nowInst)
 
@@ -171,8 +178,14 @@ navigate (UpdateFriendForm id) model =
           contactFreqDays <- L.view Friend._desiredContactFrequency friend
           pure $ UDT.daysToInt contactFreqDays
 
-update :: Model → Msg → App.Transition Effect Model Msg
+update :: Model → Msg → App.Transition Aff Model Msg
 update model (DoNothing) = App.purely model
+update model (LoadEvents) = {effects, model}
+  where effects = App.lift $ do
+          eventsE <- store.retrieveAll
+          pure $ either (unsafeThrow <<< show) LoadedEvents eventsE
+update model (LoadedEvents events) = App.purely updatedModel
+  where updatedModel = L.over _friendships (\s -> foldr State.processEvent s events) model
 update model (Tick instant) = App.purely $ L.set _now instant model
 update model (Navigate page) = App.purely $ navigate page model
 update model (UpdateInput lens val) = App.purely $ Input.updateInput lens val model
@@ -191,43 +204,25 @@ update model (JustSeen id Nothing) = addTimestamp model (JustSeen id)
 update model (JustSeen id (Just timestamp)) = fireStateEvent event DoNothing model
   where event = State.justSeenEvent id timestamp
 
-storageKey :: String
-storageKey = "dunbar"
-
-loadEvents :: Effect (List Event)
-loadEvents = do
-  eventsE <- JsonStorage.load storageKey
-  let eventsM = either unsafeThrow identity eventsE
-  pure $ fromMaybe Nil eventsM
-
-storeEvents :: List Event -> Effect Unit
-storeEvents = JsonStorage.store storageKey
-
-storeEvent :: Event -> Effect Unit
-storeEvent event = do
-  events <- loadEvents
-  storeEvents $ event : events
-
-refreshEvents :: Effect Unit
-refreshEvents = do
-  events <- loadEvents
-  storeEvents events
+store :: AppendStore Event
+store = localStorageAppendStore "dunbar"
 
 subs :: Model -> App.Batch Sub Msg
 subs model = App.lift (tickSub Tick)
 
-app :: Instant -> List Event -> App.App Effect Sub Model Msg
-app currentTime events = {
+app :: Instant -> App.App Aff Sub Model Msg
+app currentTime = {
   render
 , update
 , subs
-, init: init currentTime events
+, init: init currentTime
 }
+
+affErrorHandler :: Error -> Effect Unit
+affErrorHandler err = Console.log (show err)
 
 runApp :: Effect Unit
 runApp = do
-  refreshEvents
-  events <- loadEvents
   currentTime <- now
-  inst <- App.makeWithSelector (basicEffect `merge` runSubscriptions) (app currentTime events) "#app"
+  inst <- App.makeWithSelector (basicAff affErrorHandler `merge` runSubscriptions) (app currentTime) "#app"
   inst.run

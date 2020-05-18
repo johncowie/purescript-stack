@@ -16,6 +16,7 @@ import Data.Foldable (traverse_)
 import Effect.Timer as Timer
 
 data Sub a = TickTime (Date.Instant -> a)
+
 derive instance functorSub :: Functor Sub
 
 tickSub :: forall a. (Date.Instant -> a) -> Sub a

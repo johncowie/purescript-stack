@@ -5,6 +5,7 @@ import Goals.App as Goals
 import Couplit.App as Couplit
 import Dunbar.App as Dunbar
 import Utils.Components.Lib as ComponentLib
+import Demo.AffApp as AffApp
 import Effect (Effect)
 import Data.Maybe(Maybe(..))
 import Data.Array as Array
@@ -20,6 +21,7 @@ routeApp url = case Array.head $ Url.getPath url of
   (Just "tiny") -> TinyUrl.main
   (Just "exp") ->  Exp.main
   (Just "lib") -> ComponentLib.main
+  (Just "aff") -> AffApp.main
   _ -> Goals.runApp
 
 main :: Effect Unit
