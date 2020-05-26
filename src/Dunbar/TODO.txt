@@ -36,7 +36,12 @@ Dunbar
 
 Dunbar Event server
 [X] Setup helloworld server
-[ ] Set up a basic postgres query  - either install postgres-client (not in package set) or node-postgres (in package set) 
-[ ] Write sql script to create table for storing events
+[ ] Serve frontend app through server so that they can coexist on the same port - is there some sort of spago watch this could work with?
+[X] Set up a basic postgres query  - either install postgres-client (not in package set) or node-postgres (in package set)
+[X] Write sql script to create table for storing events
+[ ] Figure out to POST JSON to server
 [ ] Create function for inserting event into database
-[ ] Create function for retrieving all events
+[ ] Implement POST correctly in append store
+[ ] Implement POST endpoint correctly
+[ ] Create function for retrieving all events from database
+[ ] Create GET endpoint for retrieving events from databasse

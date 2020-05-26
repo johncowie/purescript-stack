@@ -9,7 +9,8 @@
   "scripts": {
     "watch": "parcel dev.html",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "server": "spago run -m Server.Main"
+    "server": "spago run -m Server.Main",
+    "migrate": "spago run -m Server.DB"
   },
   "author": "",
   "license": "ISC",

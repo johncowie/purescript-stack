@@ -17,6 +17,7 @@ import Data.String as Str
 
 data Event =
   AddGoal { title :: String, start :: JsonDateTime, end :: JsonDateTime, target :: Int} |
+  AddTodo { name :: String, due :: JsonDateTime, comments :: String} |
   AddProgress {id :: Id, time :: JsonDateTime, amount :: Number, comment :: Maybe String } |
   RestartGoal { title :: String, start :: JsonDateTime, end :: JsonDateTime, target :: Int, predecessor :: Id} |
   UndoEvent { event :: Event }
@@ -26,6 +27,9 @@ addGoalEvent title start end target = AddGoal { title: title,
                                                 start: wrap start,
                                                 end: wrap end,
                                                 target: target}
+
+addTodoEvent :: String -> DateTime -> String -> Event
+addTodoEvent name due comments = AddTodo {name, due: wrap due, comments}                                              
 
 restartGoalEvent :: Id -> String -> DateTime -> DateTime -> Int -> Event
 restartGoalEvent predecessor title start end target =
@@ -62,6 +66,7 @@ instance decodeJsonEvent :: DecodeJson Event where
       "addProgress" -> AddProgress <$> decodeJson json
       "restartGoal" -> RestartGoal <$> decodeJson json
       "undoEvent" -> UndoEvent <$> decodeJson json
+      "addTodo" -> AddTodo <$> decodeJson json
       other -> (Left "Uknown event type")
 
 instance encodeJsonEvent :: EncodeJson Event where
@@ -69,3 +74,4 @@ instance encodeJsonEvent :: EncodeJson Event where
   encodeJson (AddProgress r) = encodeJson (Record.insert type_ "addProgress" r)
   encodeJson (RestartGoal r) = encodeJson (Record.insert type_ "restartGoal" r)
   encodeJson (UndoEvent r) = encodeJson (Record.insert type_ "undoEvent" r)
+  encodeJson (AddTodo r) = encodeJson (Record.insert type_ "addTodo" r)

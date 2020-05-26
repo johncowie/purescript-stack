@@ -41,7 +41,7 @@ import Utils.Async (async)
 import Utils.Spork.TimerSubscription (runSubscriptions, tickSub, Sub)
 import Utils.DateTime (showDate, showDayMonth, dateToDateTime, nextDateTime)
 import Utils.IdMap as IdMap
-import Utils.AppendStore (localStorageAppendStore, AppendStore)
+import Utils.AppendStore (AppendStore, httpAppendStore)
 
 data AppStatus = Loading | Loaded | Saving
 
@@ -265,7 +265,7 @@ renderFutureGoal model (Tuple id goal) =
 
 renderCurrentGoalList :: Model -> H.Html Msg
 renderCurrentGoalList model = Keyed.div [] $ map (renderLiveGoal model) $
-    Array.sortWith sortF $ IdMap.toArray $ M.filter (Goal.isInProgress now) $ model.state
+    Array.sortWith sortF $ IdMap.toArray $ M.filter (Goal.isInProgress now) $ St.allGoals model.state
     where sortF (Tuple id goal) = tuple3 (toFixed $ -1.0 * (Goal.requiredPercentage now goal)) (L.view Goal._end goal) (L.view Goal._title goal)
           now = model.lastUpdate
           toFixed n = case DF.fromNumber n of
@@ -274,12 +274,12 @@ renderCurrentGoalList model = Keyed.div [] $ map (renderLiveGoal model) $
 
 renderExpiredGoalList :: Model -> H.Html Msg
 renderExpiredGoalList model = Keyed.div [] $ map (renderExpiredGoal model) $
-  Array.filter noSuccessor $ IdMap.toArray $ M.filter (Goal.isExpired model.lastUpdate) model.state
+  Array.filter noSuccessor $ IdMap.toArray $ M.filter (Goal.isExpired model.lastUpdate) $ St.allGoals model.state
     where noSuccessor (Tuple id goal) = not $ St.hasSuccessor id (L.view _state model)
 
 renderFutureGoalList :: Model -> H.Html Msg
 renderFutureGoalList model = Keyed.div [] $ map (renderFutureGoal model) $
-  IdMap.toArray $ M.filter (Goal.isFuture model.lastUpdate) $ model.state
+  IdMap.toArray $ M.filter (Goal.isFuture model.lastUpdate) $ St.allGoals $ model.state
 
 renderGoalForm :: Model -> H.Html Msg
 renderGoalForm m = H.div [] [
@@ -311,7 +311,7 @@ renderEventListPage :: Model -> H.Html Msg
 renderEventListPage model =
   H.div [] [
     H.h3 [] [H.text "Events"],
-    H.div [] $ map renderEvent $ Array.take 20 $ addIndices $ Array.fromFoldable model.events
+    H.div [] $ map renderEvent $ Array.take 100 $ addIndices $ Array.fromFoldable model.events
   ]
   where addIndices l = Array.zip (Array.range 0 (Array.length l - 1)) l
 
@@ -334,10 +334,9 @@ render model = H.div [] [
 ]
 
 store :: AppendStore Event
-store = localStorageAppendStore "goals"
-
-storageKey :: String
-storageKey = "goals"
+-- store = localStorageAppendStore "goals"
+store = httpAppendStore "goals"
+-- store = syncAppendStore "goals"
 
 loadEvents :: Aff (Array Event)
 loadEvents = do

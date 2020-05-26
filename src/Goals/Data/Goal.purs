@@ -10,7 +10,7 @@ module Goals.Data.Goal
 , isExpired
 , isFuture
 , isCurrent
-, newUnitGoal
+, newGoal
 , progressPercentage
 , onTrackRequired
 , timeElapsedPercentage
@@ -41,8 +41,8 @@ newtype Goal = Goal {
 
 derive instance newtypeGoal :: Newtype Goal _
 
-newUnitGoal :: String -> DateTime -> DateTime -> Int -> Goal
-newUnitGoal title start end target =
+newGoal :: String -> DateTime -> DateTime -> Int -> Goal
+newGoal title start end target =
   Goal {start: start,
         end: end,
         title: title,

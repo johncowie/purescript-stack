@@ -11,6 +11,8 @@ import Data.Maybe (fromMaybe)
 
 data Lens' a b = Lens (a -> b) (a -> b -> a)
 
+infixr 6 type Lens' as :->
+
 lens :: forall a b. (a -> b) -> (a -> b -> a) -> Lens' a b
 lens = Lens
 
