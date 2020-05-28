@@ -28,11 +28,17 @@ stringInput1 = I.stringInput _inputs "input1"
 stringInput2 :: I.StringInput Model Int
 stringInput2 = I.stringInput _inputs "input2"
 
+textAreaInput :: I.StringInput Model (Maybe String)
+textAreaInput = I.stringInput _inputs "input3"
+
 blankInputExample :: Model -> H.Html Action
 blankInputExample = I.renderStringInput UpdateInput stringInput1 "fillMeIn"
 
 invalidInputExample :: Model -> H.Html Action
 invalidInputExample = I.renderStringInput UpdateInput stringInput2 "fillMeIn"
+
+textAreaExample :: Model -> H.Html Action
+textAreaExample = I.renderTextArea UpdateInput textAreaInput ""
 
 componentExample :: String -> H.Html Action -> H.Html Action
 componentExample title component = H.div [] [
@@ -44,6 +50,7 @@ render :: Model -> H.Html Action
 render m = H.div [] [
   componentExample "Blank String Input" (blankInputExample m)
 , componentExample "Invalid String Input" (invalidInputExample m)
+, componentExample "Text Area" (textAreaExample m)
 ]
 
 update :: Model -> Action -> Model

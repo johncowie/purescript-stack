@@ -11,6 +11,7 @@ module Utils.Components.Input
 , stringInput
 , stringInput_
 , renderStringInput
+, renderTextArea
 , renderDropdown
 , renderDropdown_
 , clearInput
@@ -175,15 +176,31 @@ renderStringInput actionF (Input input) placeholder model =
   where inputData = L.view input.lens model
         classes = if hasError inputData then ["invalid"] else []
 
--- TODO selectedVal should be of type A
-renderOption :: forall msg a. (InputType a) => String -> Tuple String a -> H.Html msg
+renderTextArea :: forall model msg a.
+                  (InputType a)
+               => (InputSetter model -> String -> msg)
+               -> StringInput model a
+               -> String
+               -> model
+               -> H.Html msg
+renderTextArea actionF (Input input) placeholder model =
+  H.textarea [ P.placeholder placeholder
+             , P.value $ inputData.rawValue
+             , E.onValueInput (E.always (actionF (mkInputSetter (Input input))))
+             , H.classes classes]
+  where inputData = L.view input.lens model
+        classes = if hasError inputData then ["invalid"] else []
+
+
+renderOption :: forall msg a. (Eq a) => (InputType a) => Maybe a -> Tuple String a -> H.Html msg
 renderOption selectedVal (Tuple label val) =
   H.option [ P.value (showInput val)
-           , H.prop "selected" (showInput val == selectedVal)]
+           , H.prop "selected" (Just val == selectedVal)]
            [H.text label]
 
 renderDropdown :: forall model msg a.
                   (InputType a)
+               => (Eq a)
                => (InputSetter model -> String -> msg)
                -> StringInput model a
                -> Array (Tuple String a)
@@ -191,10 +208,12 @@ renderDropdown :: forall model msg a.
                -> H.Html msg
 renderDropdown actionF (Input input) options model =
   H.select [E.onValueChange (E.always (actionF (mkInputSetter (Input input))))] $ map (renderOption selected) options
-  where selected = _.rawValue $ L.view input.lens model
+  where selected = either (const Nothing) Just $ input.validator currentValue
+        currentValue = _.rawValue $ L.view input.lens model
 
 renderDropdown_ :: forall model msg a.
                    (InputType a)
+                => (Eq a)
                 => (InputSetter model -> String -> msg)
                 -> StringInput model a
                 -> Array a
