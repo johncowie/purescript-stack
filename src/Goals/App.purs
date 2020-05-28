@@ -6,6 +6,7 @@ import Goals.Data.Goal as Goal
 import Goals.Data.Goal (Goal)
 import Goals.Data.State as St
 import Goals.Data.Event (Event, addGoalEvent, addProgressEvent, restartGoalEvent, undoEvent)
+import Goals.Data.Event as Event
 import Data.Date (Date)
 import Data.DateTime (date)
 import Data.DateTime.Instant (Instant)
@@ -28,7 +29,6 @@ import Data.Symbol (SProxy(..))
 import Effect (Effect)
 import Effect.Exception (Error)
 import Effect.Exception.Unsafe (unsafeThrow)
-import Effect.Console as Console
 import Effect.Now (now)
 import Effect.Aff (Aff)
 
@@ -42,6 +42,7 @@ import Utils.Spork.TimerSubscription (runSubscriptions, tickSub, Sub)
 import Utils.DateTime (showDate, showDayMonth, dateToDateTime, nextDateTime)
 import Utils.IdMap as IdMap
 import Utils.AppendStore (AppendStore, httpAppendStore)
+import Utils.Alert (alert)
 
 data AppStatus = Loading | Loaded | Saving
 
@@ -49,12 +50,15 @@ data Msg = Tick Instant |
            UpdateStringInput (Input.InputSetter Model) String |
            LogAmount IdMap.Id (Maybe Instant) |
            AddGoal |
+           AddTodo |
            RestartGoal IdMap.Id Goal.Goal |
            StoreEvent Event |
            StoredEvent |
            UndoEvent Int |
            LoadEvents |
            LoadedEvents (Array Event) |
+           AlertError String |
+           ClearError |
            DoNothing
 
 data Page = GoalPage | EventsPage
@@ -67,6 +71,7 @@ type GoalForm = {
 }
 
 type Model = {
+  error :: Maybe String,
   appStatus :: AppStatus,
   page :: Page,
   lastUpdate :: Instant,
@@ -81,6 +86,7 @@ type Model = {
 -- could use the Data.Default abstraction
 emptyModel :: Instant -> Model
 emptyModel now = {
+  error: Nothing,
   appStatus: Loaded,
   page: GoalPage,
   lastUpdate: now,
@@ -120,6 +126,15 @@ goalStartInput = Input.stringInput _inputs "goalStartDate"
 
 goalEndInput :: StringInput Model Date
 goalEndInput = Input.stringInput _inputs "goalEndDate"
+
+todoNameInput :: StringInput Model String
+todoNameInput = Input.stringInput _inputs "todoName"
+
+todoDueDateInput :: StringInput Model Date
+todoDueDateInput = Input.stringInput _inputs "todoDue"
+
+todoCommentsInput :: StringInput Model (Maybe String)
+todoCommentsInput = Input.stringInput _inputs "todoComments"
 
 amountInput :: IdMap.Id -> StringInput Model Number
 amountInput id = Input.stringInput _inputs ("amount-" <> show id)
@@ -162,6 +177,9 @@ _inputs = L.prop (SProxy :: SProxy "inputs")
 
 _appStatus :: L.Lens' Model AppStatus
 _appStatus = L.prop (SProxy :: SProxy "appStatus")
+
+_error :: L.Lens' Model (Maybe String)
+_error = L.prop (SProxy :: SProxy "error")
 
 mapValL :: forall k v. (Ord k) => v -> k -> L.Lens' (M.Map k v) v
 mapValL default id = L.lens get set
@@ -291,14 +309,24 @@ renderGoalForm m = H.div [] [
   submitButton true "Add Goal" AddGoal
 ] where inputRow label input = H.div [] [H.label [] [(H.text label)], input]
 
+renderTodoForm :: Model -> H.Html Msg
+renderTodoForm m = H.div [] [
+  H.h3 [] [H.text "Add Todo"],
+  inputRow "Todo name: " $ Input.renderStringInput UpdateStringInput todoNameInput "name" m
+, inputRow "Target: " $ Input.renderStringInput UpdateStringInput todoDueDateInput "due date" m
+, inputRow "Comments: " $ Input.renderStringInput UpdateStringInput todoCommentsInput "comments" m
+, submitButton true "Add Todo" AddTodo
+] where inputRow label input = H.div [] [H.label [] [(H.text label)], input]
+
 renderGoalsPage :: Model -> H.Html Msg
-renderGoalsPage model = H.div [] [H.h3 [] [H.text "Current goals"],
-                                  renderCurrentGoalList model,
-                                  H.h3 [] [H.text "Expired goals"],
-                                  renderExpiredGoalList model,
-                                  H.h3 [] [H.text "Future goals"],
-                                  renderFutureGoalList model,
-                                  renderGoalForm model]
+renderGoalsPage model = H.div [] [  H.h3 [] [H.text "Current goals"]
+                                  , renderCurrentGoalList model
+                                  , H.h3 [] [H.text "Expired goals"]
+                                  , renderExpiredGoalList model
+                                  , H.h3 [] [H.text "Future goals"]
+                                  , renderFutureGoalList model
+                                  , renderGoalForm model
+                                  , renderTodoForm model ]
 
 renderEvent :: Tuple Int Event -> H.Html Msg
 renderEvent (Tuple index event) =
@@ -315,9 +343,15 @@ renderEventListPage model =
   ]
   where addIndices l = Array.zip (Array.range 0 (Array.length l - 1)) l
 
+pageTemplate :: (Model -> H.Html Msg) -> Model -> H.Html Msg
+pageTemplate subPage m =
+  H.div [] [
+    subPage m
+  ]
+
 renderPage :: Page -> Model -> H.Html Msg
-renderPage GoalPage = renderGoalsPage
-renderPage EventsPage = renderEventListPage
+renderPage GoalPage = pageTemplate renderGoalsPage
+renderPage EventsPage = pageTemplate renderEventListPage
 
 appStatusMessage :: AppStatus -> String
 appStatusMessage Loaded = " - "
@@ -347,13 +381,16 @@ storeEvent :: Event -> Aff Unit
 storeEvent event = void $ store.append event
 
 fireStateEvent :: Model -> Event -> App.Transition Aff Model Msg
-fireStateEvent model event = {effects, model: updatedModel}
-  where effects = App.lift $ async $ pure $ StoreEvent event
-        updatedModel = L.set _state updatedState $
+fireStateEvent model event = transition updatedModel (StoreEvent event)
+  where updatedModel = L.set _state updatedState $
                        L.over _events ((<>) [event]) $
                        model
         updatedState = St.processEvent event model.state
 -- store event in local storage, fire event to update model and stats
+
+transition :: Model -> Msg -> App.Transition Aff Model Msg
+transition model msg = { effects: App.lift $ async $ pure $ msg
+                        , model}
 
 addTimestamp :: Model -> (Maybe Instant -> Msg) -> App.Transition Aff Model Msg
 addTimestamp model ctor = {effects, model}
@@ -379,40 +416,55 @@ update model (StoreEvent event) = {effects, model: L.set _appStatus Saving model
           storeEvent event
           pure $ StoredEvent
 update model StoredEvent = App.purely $ L.set _appStatus Loaded model
-update model (UndoEvent idx) = fireStateEvent model undo
-  where event = case Array.index model.events idx of
-                  (Just e) -> e
-                  Nothing -> unsafeThrow ("DOH: " <> show idx)
-        undo = undoEvent event
+update model (UndoEvent idx) = case Array.index model.events idx of
+                (Just e) -> fireStateEvent model (undoEvent e)
+                Nothing -> transition model (AlertError $ "No event with ID: " <> show idx)
 update model (LogAmount id Nothing) = addTimestamp model (LogAmount id)
-update model (LogAmount id (Just now)) = fireStateEvent clearedInputs progressEvent
-  where amount = Input.parseStringInputUnsafe (amountInput id) model
-        comment = fromMaybe "" $ Input.parseStringInputUnsafe (commentInput id) model
-        clearedInputs = Input.clearInput (amountInput id) $
+update model (LogAmount id (Just now)) = either alertError (fireStateEvent clearedInputs) progressEvent
+  where clearedInputs = Input.clearInput (amountInput id) $
                         Input.clearInput (commentInput id) $ model
-        progressEvent = addProgressEvent id now amount comment
-update model (AddGoal) = fireStateEvent clearedInputs goalEvent
-  where title = Input.parseStringInputUnsafe goalNameInput model
-        startDate = dateToDateTime $ Input.parseStringInputUnsafe goalStartInput model
-        endDate = dateToDateTime $ Input.parseStringInputUnsafe goalEndInput model
-        target = Input.parseStringInputUnsafe goalTargetInput model
-        goalEvent = addGoalEvent title startDate endDate target
-        clearedInputs = Input.clearInput goalNameInput $
+        progressEvent = addProgressEvent id now <$>
+                        Input.parseStringInput (amountInput id) model <*>
+                        (fromMaybe "" <$> Input.parseStringInput (commentInput id) model)
+        alertError err = transition model (AlertError err)
+update model (AddGoal) = either alertError (fireStateEvent clearedInputs) goalEvent
+  where clearedInputs = Input.clearInput goalNameInput $
                         Input.clearInput goalStartInput $
                         Input.clearInput goalEndInput $
                         Input.clearInput goalTargetInput $ model
-update model (RestartGoal id goal) = fireStateEvent clearedInputs goalEvent
-  where title = Input.parseStringInputUnsafe (restartGoalNameInput id goal) model
-        startDate = dateToDateTime $ Input.parseStringInputUnsafe (restartGoalStartInput id goal) model
-        endDate = dateToDateTime $ Input.parseStringInputUnsafe (restartGoalEndInput id goal) model
-        target = Input.parseStringInputUnsafe (restartGoalTargetInput id goal) model
-        clearedInputs = Input.clearInput (restartGoalNameInput id goal) $
+        goalEvent = addGoalEvent <$>
+                    Input.parseStringInput goalNameInput model <*>
+                    (dateToDateTime <$> Input.parseStringInput goalStartInput model) <*>
+                    (dateToDateTime <$> Input.parseStringInput goalEndInput model) <*>
+                    Input.parseStringInput goalTargetInput model
+        alertError err = transition model (AlertError err)
+update model (AddTodo) = either alertError (fireStateEvent clearedInputs) todoEvent
+  where todoEvent = Event.addTodoEvent <$>
+                    Input.parseStringInput todoNameInput model <*>
+                    (dateToDateTime <$> Input.parseStringInput todoDueDateInput model) <*>
+                    (fromMaybe "" <$> Input.parseStringInput todoCommentsInput model)
+        clearedInputs = Input.clearInput todoNameInput $
+                        Input.clearInput todoDueDateInput $
+                        Input.clearInput todoCommentsInput $ model
+        alertError err = transition model (AlertError err)
+update model (RestartGoal id goal) = either alertError (fireStateEvent clearedInputs) goalEvent
+  where clearedInputs = Input.clearInput (restartGoalNameInput id goal) $
                         Input.clearInput (restartGoalStartInput id goal) $
                         Input.clearInput (restartGoalEndInput id goal) $
                         Input.clearInput (restartGoalTargetInput id goal) $ model
-        goalEvent = restartGoalEvent id title startDate endDate target
+        goalEvent = restartGoalEvent id <$>
+                    Input.parseStringInput (restartGoalNameInput id goal) model <*>
+                    (dateToDateTime <$> Input.parseStringInput (restartGoalStartInput id goal) model) <*>
+                    (dateToDateTime <$> Input.parseStringInput (restartGoalEndInput id goal) model) <*>
+                    Input.parseStringInput (restartGoalTargetInput id goal) model
+        alertError err = transition model (AlertError err)
 update model (DoNothing) = App.purely model
 update model (UpdateStringInput stringL input) = App.purely $ Input.updateInput stringL input model
+update model (AlertError errorMsg) = {effects, model}
+  where effects = App.lift do
+          async (alert errorMsg)
+          pure DoNothing
+update model (ClearError) = App.purely $ L.set _error Nothing model
 
 subs :: Model -> App.Batch Sub Msg
 subs model = App.lift (tickSub Tick)
@@ -432,7 +484,7 @@ pageFromQueryParams queryParams =
     _ -> GoalPage
 
 affErrorHandler :: Error -> Effect Unit
-affErrorHandler err = Console.log (show err)
+affErrorHandler err = alert (show err)
 
 runApp :: Effect Unit
 runApp = do
@@ -441,5 +493,4 @@ runApp = do
   let queryParams = Url.getQueryParams url
   let page = pageFromQueryParams queryParams
   inst <- App.makeWithSelector (basicAff affErrorHandler `merge` runSubscriptions) (app page currentTime) "#app"
-  Console.log "App set up"
   inst.run

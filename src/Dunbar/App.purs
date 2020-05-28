@@ -12,7 +12,6 @@ import Data.Foldable (foldr)
 import Effect (Effect)
 import Effect.Aff (Aff)
 import Effect.Exception (Error)
-import Effect.Exception.Unsafe (unsafeThrow)
 import Effect.Now (now)
 import Effect.Console as Console
 import Spork.App as App
@@ -20,6 +19,7 @@ import Spork.Html as H
 import Spork.Html.Events as E
 import Spork.Interpreter (merge, basicAff)
 import Spork.Html.Elements.Keyed as Keyed
+
 import Utils.Spork.TimerSubscription (runSubscriptions, tickSub, Sub)
 import Utils.Lens as L
 import Utils.Components.Input as Input
@@ -28,6 +28,7 @@ import Utils.AppendStore (AppendStore, localStorageAppendStore)
 import Utils.IdMap as IdMap
 import Utils.DateTime as UDT
 import Utils.Async (async)
+import Utils.Alert (alert)
 
 import Dunbar.Friend (Friend)
 import Dunbar.Friend as Friend
@@ -64,6 +65,7 @@ data Msg = Tick Instant
          | Navigate Page
          | LoadEvents
          | LoadedEvents (Array Event)
+         | AlertError String
 
 init :: Instant -> App.Transition Aff Model Msg
 init now = {effects, model}
@@ -153,12 +155,16 @@ render model = case model.page of
     where friendM = IdMap.get id model.friendships
 
 -- TODO abstract out
-fireStateEvent :: Event -> Msg -> Model -> App.Transition Aff Model Msg
-fireStateEvent event msg model = {effects, model: updatedModel}
+fireStateEvent :: Msg -> Model -> Event -> App.Transition Aff Model Msg
+fireStateEvent msg model event = {effects, model: updatedModel}
   where effects = App.lift $ do
           void $ store.append event
           pure msg
         updatedModel = L.over _friendships (State.processEvent event) model
+
+alertError :: Model -> String -> App.Transition Aff Model Msg
+alertError model s = {effects, model}
+  where effects = pure $ AlertError s
 
 -- TODO abstract out
 addTimestamp :: Model -> (Maybe Instant -> Msg) -> App.Transition Aff Model Msg
@@ -183,26 +189,28 @@ update model (DoNothing) = App.purely model
 update model (LoadEvents) = {effects, model}
   where effects = App.lift $ do
           eventsE <- store.retrieveAll
-          pure $ either (unsafeThrow <<< show) LoadedEvents eventsE
+          pure $ either (AlertError <<< show) LoadedEvents eventsE
 update model (LoadedEvents events) = App.purely updatedModel
   where updatedModel = L.over _friendships (\s -> foldr State.processEvent s events) model
 update model (Tick instant) = App.purely $ L.set _now instant model
 update model (Navigate page) = App.purely $ navigate page model
 update model (UpdateInput lens val) = App.purely $ Input.updateInput lens val model
-update model (AddFriend) = fireStateEvent event DoNothing $
-                           Input.clearInput firstNameInput $
-                           Input.clearInput lastNameInput $
-                           model
-  where event = State.addFriendEvent firstName lastName
-        firstName = Input.parseStringInputUnsafe firstNameInput model
-        lastName = Input.parseStringInputUnsafe lastNameInput model
-update model (UpdateFriend id) = fireStateEvent event (Navigate Dashboard) model
-  where event = State.updateDesiredContactFrequencyEvent id freq
-        freq = Input.parseStringInputUnsafe contactFreqInput model
-
+update model (AddFriend) = either (alertError model) (fireStateEvent DoNothing clearedInputs) event
+  where event = State.addFriendEvent <$>
+                Input.parseStringInput firstNameInput model <*>
+                Input.parseStringInput lastNameInput model
+        clearedInputs = Input.clearInput firstNameInput $
+                        Input.clearInput lastNameInput $ model
+update model (UpdateFriend id) = either (alertError model) (fireStateEvent (Navigate Dashboard) clearedInputs) event
+  where event = State.updateDesiredContactFrequencyEvent id <$> Input.parseStringInput contactFreqInput model
+        clearedInputs = Input.clearInput contactFreqInput model
 update model (JustSeen id Nothing) = addTimestamp model (JustSeen id)
-update model (JustSeen id (Just timestamp)) = fireStateEvent event DoNothing model
+update model (JustSeen id (Just timestamp)) = fireStateEvent DoNothing model event
   where event = State.justSeenEvent id timestamp
+update model (AlertError err) = {effects, model}
+  where effects = App.lift do
+          async $ alert err
+          pure DoNothing
 
 store :: AppendStore Event
 store = localStorageAppendStore "dunbar"

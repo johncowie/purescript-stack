@@ -7,7 +7,7 @@ import Record (get, set) as R
 import Data.Newtype (class Newtype, unwrap, wrap)
 import Data.Map as M
 import Data.Maybe (fromMaybe)
--- import Effect.Exception.Unsafe (unsafeThrow)
+import Effect.Exception.Unsafe (unsafeThrow)
 
 data Lens' a b = Lens (a -> b) (a -> b -> a)
 
@@ -36,6 +36,8 @@ composeLenses lensCD lensBC = lens getter setter
 instance lensSemigroupoid :: Semigroupoid Lens' where
   compose = composeLenses
 
+-- both :: forall a b c. (a :-> b) -> (a :-> c) -> (a :-> (b /\ c))
+-- both = unsafeThrow "implement me"
 
 -- some handy lenses
 _newtype :: forall a b. (Newtype a b) => Lens' a b

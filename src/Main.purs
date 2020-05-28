@@ -11,14 +11,12 @@ import Data.Maybe(Maybe(..))
 import Data.Array as Array
 import Utils.Url as Url
 
-import Utils.TinyUrl as TinyUrl
 import Experiment as Exp
 
 routeApp :: String -> Effect Unit
 routeApp url = case Array.head $ Url.getPath url of
   (Just "couplit") -> Couplit.runApp
   (Just "dunbar") -> Dunbar.runApp
-  (Just "tiny") -> TinyUrl.main
   (Just "exp") ->  Exp.main
   (Just "lib") -> ComponentLib.main
   (Just "aff") -> AffApp.main
