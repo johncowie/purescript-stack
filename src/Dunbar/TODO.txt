@@ -32,3 +32,10 @@ Dunbar
 [ ] Tidy up rendering/labeling of update friend form
 [X] Add 'back' link to update friend form
 [ ] Order by days overdue contacting (then alphabetical)
+
+
+Pain Points
+[ ] Not deployed anywhere
+[ ] For update form inputs have to update in lots of places, to get value from friend into input,
+    clearInput, parseInput, etc..
+[ ] Routing by url doesn't really work very well (update form should be at separate url)    

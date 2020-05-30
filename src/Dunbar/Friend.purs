@@ -5,6 +5,7 @@ module Dunbar.Friend
 , overdueContact
 , _lastSeen
 , _name
+, _birthday
 , _desiredContactFrequency
 , _notes
 )
@@ -24,8 +25,7 @@ import Utils.DateTime as UDT
 
 type Friend = {
   name :: FullName,
-  dateOfBirth :: Maybe Birthday,
-  yearOfBirth :: Maybe Int,
+  birthday :: Maybe Birthday,
   lastSeen :: Maybe Instant,
   desiredContactFrequency :: Maybe Days,
   notes :: Maybe String
@@ -34,11 +34,8 @@ type Friend = {
 _name :: L.Lens' Friend FullName
 _name = L.prop (SProxy :: SProxy "name")
 
-_dateOfBirth :: L.Lens' Friend (Maybe Birthday)
-_dateOfBirth = L.prop (SProxy :: SProxy "dateOfBirth")
-
-_yearOfBirth :: L.Lens' Friend (Maybe Int)
-_yearOfBirth = L.prop (SProxy :: SProxy "yearOfBirth")
+_birthday :: L.Lens' Friend (Maybe Birthday)
+_birthday = L.prop (SProxy :: SProxy "birthday")
 
 _lastSeen :: L.Lens' Friend (Maybe Instant)
 _lastSeen = L.prop (SProxy :: SProxy "lastSeen")
@@ -52,8 +49,7 @@ _notes = L.prop (SProxy :: SProxy "notes")
 newFriend :: String -> String -> Friend
 newFriend firstName lastName = {
   name: fullName firstName lastName,
-  dateOfBirth: Nothing,
-  yearOfBirth: Nothing,
+  birthday: Nothing,
   lastSeen: Nothing,
   desiredContactFrequency: Nothing,
   notes: Nothing

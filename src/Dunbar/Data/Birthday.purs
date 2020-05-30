@@ -16,12 +16,13 @@ import Data.DateTime as DT
 import Data.Either (Either, hush)
 import Data.Formatter.DateTime as F
 import Data.Enum (toEnum)
+import Data.Argonaut.Decode (class DecodeJson, decodeJson)
+import Data.Argonaut.Encode (class EncodeJson, encodeJson)
 
-import Effect.Exception.Unsafe (unsafeThrow)
 
 import Utils.Lens (Lens')
 import Utils.Lens as L
-import Utils.Components.Input (class InputType)
+import Utils.Components.Input (class InputType, showInput, parseInput)
 import Utils.DateTime (dateToDateTime)
 
 newtype Birthday = Birthday {
@@ -32,11 +33,22 @@ newtype Birthday = Birthday {
 
 derive instance newTypeBirthday :: Newtype Birthday _
 
-instance birthdayInputType :: InputType Birthday where
+instance showBirthday :: Show Birthday where
+  show = showInput
+
+instance inputTypeBirthday :: InputType Birthday where
   parseInput s = parseDayMonth s <|> parseDate s
   showInput b = case (L.view yearField b) of
     (Just _) -> showDate b
     Nothing -> showDayMonth b
+
+instance decodeJsonBirthday :: DecodeJson Birthday where
+  decodeJson json = do
+    s <- decodeJson json
+    parseInput s
+
+instance encodeJsonBirthday :: EncodeJson Birthday where
+  encodeJson b = encodeJson $ showInput b
 
 toDate :: Birthday -> Maybe Date
 toDate (Birthday b) = do

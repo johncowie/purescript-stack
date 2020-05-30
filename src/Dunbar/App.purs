@@ -10,10 +10,12 @@ import Data.Array as Array
 import Data.Maybe (Maybe(..), maybe)
 import Data.Foldable (foldr)
 import Data.Traversable (for, sequence)
+
 import Effect (Effect)
 import Effect.Aff (Aff)
 import Effect.Exception (Error)
 import Effect.Now (now)
+
 import Spork.App as App
 import Spork.Html as H
 import Spork.Html.Events as E
@@ -30,6 +32,7 @@ import Utils.DateTime as UDT
 import Utils.Async (async)
 import Utils.Alert (alert)
 
+import Dunbar.Data.Birthday (Birthday)
 import Dunbar.Friend (Friend)
 import Dunbar.Friend as Friend
 import Dunbar.State (Friendships, Event)
@@ -109,6 +112,9 @@ contactFreqInput = Input.stringInput _inputs "contactFreq"
 notesInput :: StringInput Model (Maybe String)
 notesInput = Input.stringInput _inputs "notes"
 
+birthdayInput :: StringInput Model (Maybe Birthday)
+birthdayInput = Input.stringInput _inputs "birthday"
+
 submitButton :: forall m. String -> m -> H.Html m
 submitButton label msg = H.button [E.onClick (E.always_ msg)] [H.text label]
 
@@ -136,6 +142,8 @@ renderUpdateFriendForm :: IdMap.Id -> Model -> Friend -> H.Html Msg
 renderUpdateFriendForm id model friend = renderSection title $
   H.div [] [
     H.div [] [Input.renderDropdown UpdateInput contactFreqInput contactFrequencies model]
+  , H.div [] [ H.text "Birthday: "
+             , Input.renderStringInput UpdateInput birthdayInput "birthday" model] -- TODO
   , H.div [] [Input.renderTextArea UpdateInput notesInput "notes" model]
   , submitButton "Update" (UpdateFriend id)
   , H.div [] $ [H.a [E.onClick (E.always_ (Navigate Dashboard)), H.href ""] [H.text "Back to dashboard"]]
@@ -190,6 +198,7 @@ navigate (UpdateFriendForm id) model =
   L.set _page (UpdateFriendForm id) $
   Input.setInputFromVal (Just contactFreq) contactFreqInput $
   Input.setInputFromVal (Just notes) notesInput $
+  Input.setInputFromVal (Just birthday) birthdayInput $
   model
   where contactFreq = do
           friend <- IdMap.get id model.friendships
@@ -198,6 +207,9 @@ navigate (UpdateFriendForm id) model =
         notes = do
           friend <- IdMap.get id model.friendships
           L.view Friend._notes friend
+        birthday = do
+          friend <- IdMap.get id model.friendships
+          L.view Friend._birthday friend
 
 update :: Model → Msg → App.Transition Aff Model Msg
 update model (DoNothing) = App.purely model
@@ -221,9 +233,12 @@ update model (UpdateFriend id) = either (alertError model) (fireStateEvents (Nav
                   Input.parseStringInput contactFreqInput model
         update2 = State.updateNotesEvent id <$>
                   Input.parseStringInput notesInput model
+        update3 = State.updateBirthdayEvent id <$>
+                  Input.parseStringInput birthdayInput model
         clearedInputs = Input.clearInput contactFreqInput $
-                        Input.clearInput notesInput $ model
-        events = sequence [update1, update2]
+                        Input.clearInput notesInput $
+                        Input.clearInput birthdayInput $ model
+        events = sequence [update1, update2, update3]
 update model (JustSeen id Nothing) = addTimestamp model (JustSeen id)
 update model (JustSeen id (Just timestamp)) = fireStateEvent DoNothing model event
   where event = State.justSeenEvent id timestamp
