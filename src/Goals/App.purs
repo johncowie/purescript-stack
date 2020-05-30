@@ -26,6 +26,8 @@ import Data.Number (fromString) as Number
 import Data.Map as M
 import Data.Array as Array
 import Data.Symbol (SProxy(..))
+import Data.Newtype (wrap)
+
 import Effect (Effect)
 import Effect.Exception (Error)
 import Effect.Exception.Unsafe (unsafeThrow)
@@ -38,7 +40,7 @@ import Utils.Fixed as DF
 import Utils.Components.Input as Input
 import Utils.Components.Input (Inputs, StringInput)
 import Utils.Async (async)
-import Utils.Spork.TimerSubscription (runSubscriptions, tickSub, Sub)
+import Utils.Spork.TimerSubscription (runTicker, tickSub, Sub)
 import Utils.DateTime (showDate, showDayMonth, dateToDateTime, nextDateTime)
 import Utils.IdMap as IdMap
 import Utils.AppendStore (AppendStore, httpAppendStore)
@@ -492,5 +494,5 @@ runApp = do
   url <- Url.getWindowUrl
   let queryParams = Url.getQueryParams url
   let page = pageFromQueryParams queryParams
-  inst <- App.makeWithSelector (basicAff affErrorHandler `merge` runSubscriptions) (app page currentTime) "#app"
+  inst <- App.makeWithSelector (basicAff affErrorHandler `merge` runTicker (Just (wrap 1000.0))) (app page currentTime) "#app"
   inst.run

@@ -10,19 +10,18 @@ import Data.Array as Array
 import Data.Maybe (Maybe(..), maybe)
 import Data.Foldable (foldr)
 import Data.Traversable (for, sequence)
+import Data.Newtype (wrap)
 
 import Effect (Effect)
-import Effect.Aff (Aff)
 import Effect.Exception (Error)
 import Effect.Now (now)
 
-import Spork.App as App
+-- import Spork.App as App
 import Spork.Html as H
 import Spork.Html.Events as E
-import Spork.Interpreter (merge, basicAff)
 import Spork.Html.Elements.Keyed as Keyed
 
-import Utils.Spork.TimerSubscription (runSubscriptions, tickSub, Sub)
+import Utils.Spork.EventApp as App
 import Utils.Lens as L
 import Utils.Components.Input as Input
 import Utils.Components.Input (StringInput, Inputs)
@@ -70,13 +69,13 @@ data Msg = Tick Instant
          | LoadedEvents (Array Event)
          | AlertError String
 
-init :: Instant -> App.Transition Aff Model Msg
+init :: Instant -> App.Transition Model Msg
 init now = {effects, model}
   where friendships = State.empty
         inputs = M.empty
         page = Dashboard
         model = {friendships, inputs, now, page}
-        effects = App.lift $ pure $ LoadEvents
+        effects = [pure $ LoadEvents]
 
 renderFriendRow :: Instant -> Tuple IdMap.Id Friend -> Tuple String (H.Html Msg)
 renderFriendRow now (Tuple id friend) =
@@ -167,28 +166,28 @@ render model = case model.page of
     where friendM = IdMap.get id model.friendships
 
 -- TODO abstract out
-fireStateEvent :: Msg -> Model -> Event -> App.Transition Aff Model Msg
-fireStateEvent msg model event = {effects, model: updatedModel}
-  where effects = App.lift $ do
+fireStateEvent :: Msg -> Model -> Event -> App.Transition Model Msg
+fireStateEvent msg model event = {effects: [effect], model: updatedModel}
+  where effect = do
           void $ store.append event
           pure msg
         updatedModel = L.over _friendships (State.processEvent event) model
 
-fireStateEvents :: Msg -> Model -> Array Event -> App.Transition Aff Model Msg
-fireStateEvents msg model events = {effects, model: updatedModel}
-  where effects = App.lift $ do
+fireStateEvents :: Msg -> Model -> Array Event -> App.Transition Model Msg
+fireStateEvents msg model events = {effects: [effect], model: updatedModel}
+  where effect = do
           void $ for events store.append
           pure msg
         updatedModel = L.over _friendships (\f -> foldr State.processEvent f events) model
 
-alertError :: Model -> String -> App.Transition Aff Model Msg
+alertError :: Model -> String -> App.Transition Model Msg
 alertError model s = {effects, model}
-  where effects = pure $ AlertError s
+  where effects = [pure $ AlertError s]
 
 -- TODO abstract out
-addTimestamp :: Model -> (Maybe Instant -> Msg) -> App.Transition Aff Model Msg
-addTimestamp model ctor = {effects, model}
-  where effects = App.lift $ async $ do
+addTimestamp :: Model -> (Maybe Instant -> Msg) -> App.Transition Model Msg
+addTimestamp model ctor = {effects: [effect], model}
+  where effect = async $ do
           nowInst <- now
           pure $ ctor (Just nowInst)
 
@@ -211,10 +210,10 @@ navigate (UpdateFriendForm id) model =
           friend <- IdMap.get id model.friendships
           L.view Friend._birthday friend
 
-update :: Model → Msg → App.Transition Aff Model Msg
+update :: Model → Msg → App.Transition Model Msg
 update model (DoNothing) = App.purely model
-update model (LoadEvents) = {effects, model}
-  where effects = App.lift $ do
+update model (LoadEvents) = {effects: [effect], model}
+  where effect = do
           eventsE <- store.retrieveAll
           pure $ either (AlertError <<< show) LoadedEvents eventsE
 update model (LoadedEvents events) = App.purely updatedModel
@@ -242,23 +241,20 @@ update model (UpdateFriend id) = either (alertError model) (fireStateEvents (Nav
 update model (JustSeen id Nothing) = addTimestamp model (JustSeen id)
 update model (JustSeen id (Just timestamp)) = fireStateEvent DoNothing model event
   where event = State.justSeenEvent id timestamp
-update model (AlertError err) = {effects, model}
-  where effects = App.lift do
+update model (AlertError err) = {effects: [effect], model}
+  where effect = do
           async $ alert err
           pure DoNothing
 
 store :: AppendStore Event
 store = httpAppendStore "dunbar"
 
-subs :: Model -> App.Batch Sub Msg
-subs model = App.lift (tickSub Tick)
-
-app :: Instant -> App.App Aff Sub Model Msg
+app :: Instant -> App.App Model Msg
 app currentTime = {
   render
 , update
-, subs
 , init: init currentTime
+, tick: Just (Tuple Tick (wrap 5000.0))
 }
 
 affErrorHandler :: Error -> Effect Unit
@@ -267,5 +263,5 @@ affErrorHandler err = alert (show err)
 runApp :: Effect Unit
 runApp = do
   currentTime <- now
-  inst <- App.makeWithSelector (basicAff affErrorHandler `merge` runSubscriptions) (app currentTime) "#app"
+  inst <- App.makeWithSelector (app currentTime) "#app"
   inst.run
