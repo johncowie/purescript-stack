@@ -106,14 +106,14 @@ firstNameInput = Input.stringInput _inputs "firstName"
 lastNameInput :: StringInput Model String
 lastNameInput = Input.stringInput _inputs "lastName"
 
-contactFreqInput :: StringInput Model (Maybe Int)
-contactFreqInput = Input.stringInput _inputs "contactFreq"
+contactFreqInput :: IdMap.Id -> StringInput Model (Maybe Int)
+contactFreqInput id = Input.stringInput _inputs $ "contactFreq" <> show id
 
-notesInput :: StringInput Model (Maybe String)
-notesInput = Input.stringInput _inputs "notes"
+notesInput :: IdMap.Id -> StringInput Model (Maybe String)
+notesInput id = Input.stringInput _inputs $ "notes" <> show id
 
-birthdayInput :: StringInput Model (Maybe Birthday)
-birthdayInput = Input.stringInput _inputs "birthday"
+birthdayInput :: IdMap.Id -> StringInput Model (Maybe Birthday)
+birthdayInput id = Input.stringInput _inputs $ "birthday" <> show id
 
 submitButton :: forall m. String -> m -> H.Html m
 submitButton label msg = H.button [E.onClick (E.always_ msg)] [H.text label]
@@ -141,10 +141,10 @@ renderFriendNotFound = H.div [] [H.h3 [] [H.text "Friend 404"]]
 renderUpdateFriendForm :: IdMap.Id -> Model -> Friend -> H.Html Msg
 renderUpdateFriendForm id model friend = renderSection title $
   H.div [] [
-    H.div [] [Input.renderDropdown UpdateInput contactFreqInput contactFrequencies model]
+    H.div [] [Input.renderDropdown UpdateInput (contactFreqInput id) contactFrequencies model]
   , H.div [] [ H.text "Birthday: "
-             , Input.renderStringInput UpdateInput birthdayInput "birthday" model] -- TODO
-  , H.div [] [Input.renderTextArea UpdateInput notesInput "notes" model]
+             , Input.renderStringInput UpdateInput (birthdayInput id) "birthday" model] -- TODO
+  , H.div [] [Input.renderTextArea UpdateInput (notesInput id) "notes" model]
   , submitButton "Update" (UpdateFriend id)
   , H.div [] $ [H.a [E.onClick (E.always_ (Navigate Dashboard)), H.href ""] [H.text "Back to dashboard"]]
   ]
@@ -196,9 +196,9 @@ navigate :: Page -> Model -> Model
 navigate (Dashboard) model = L.set _page Dashboard model
 navigate (UpdateFriendForm id) model =
   L.set _page (UpdateFriendForm id) $
-  Input.setInputFromVal (Just contactFreq) contactFreqInput $
-  Input.setInputFromVal (Just notes) notesInput $
-  Input.setInputFromVal (Just birthday) birthdayInput $
+  Input.setInputFromVal (Just contactFreq) (contactFreqInput id) $
+  Input.setInputFromVal (Just notes) (notesInput id) $
+  Input.setInputFromVal (Just birthday) (birthdayInput id) $
   model
   where contactFreq = do
           friend <- IdMap.get id model.friendships
@@ -230,14 +230,14 @@ update model (AddFriend) = either (alertError model) (fireStateEvent DoNothing c
                         Input.clearInput lastNameInput $ model
 update model (UpdateFriend id) = either (alertError model) (fireStateEvents (Navigate Dashboard) clearedInputs) events
   where update1 = State.updateDesiredContactFrequencyEvent id <$>
-                  Input.parseStringInput contactFreqInput model
+                  Input.parseStringInput (contactFreqInput id) model
         update2 = State.updateNotesEvent id <$>
-                  Input.parseStringInput notesInput model
+                  Input.parseStringInput (notesInput id) model
         update3 = State.updateBirthdayEvent id <$>
-                  Input.parseStringInput birthdayInput model
-        clearedInputs = Input.clearInput contactFreqInput $
-                        Input.clearInput notesInput $
-                        Input.clearInput birthdayInput $ model
+                  Input.parseStringInput (birthdayInput id) model
+        clearedInputs = Input.clearInput (contactFreqInput id) $
+                        Input.clearInput (notesInput id) $
+                        Input.clearInput (birthdayInput id) $ model
         events = sequence [update1, update2, update3]
 update model (JustSeen id Nothing) = addTimestamp model (JustSeen id)
 update model (JustSeen id (Just timestamp)) = fireStateEvent DoNothing model event
