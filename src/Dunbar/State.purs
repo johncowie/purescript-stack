@@ -4,6 +4,7 @@ module Dunbar.State
 , addFriendEvent
 , justSeenEvent
 , updateDesiredContactFrequencyEvent
+, updateNotesEvent
 , processEvent
 , friendList
 , empty
@@ -34,12 +35,16 @@ data Event =
   | JustSeen {id :: IdMap.Id, timeSeen :: JsonDateTime}
   | DeleteFriend {id :: IdMap.Id}
   | UpdateDesiredContactFrequency {id :: IdMap.Id, desiredContactFrequencyDays :: Maybe Int}
+  | UpdateNotes {id :: IdMap.Id, notes :: Maybe String}
 
 addFriendEvent :: String -> String -> Event
 addFriendEvent firstName lastName = AddFriend {firstName, lastName}
 
 justSeenEvent :: IdMap.Id -> Instant -> Event
 justSeenEvent id instant = JustSeen {id, timeSeen: wrap (toDateTime instant)}
+
+updateNotesEvent :: IdMap.Id -> (Maybe String) -> Event
+updateNotesEvent id notes = UpdateNotes {id, notes}
 
 updateDesiredContactFrequencyEvent :: IdMap.Id -> Maybe Int -> Event
 updateDesiredContactFrequencyEvent id desiredContactFrequencyDays =
@@ -59,13 +64,15 @@ instance decodeJsonEvent :: DecodeJson Event where
       "justSeen" -> JustSeen <$> decodeJson json
       "deleteFriend" -> DeleteFriend <$> decodeJson json
       "updateDesiredContactFrequency" -> UpdateDesiredContactFrequency <$> decodeJson json
-      other -> (Left "Uknown event type")
+      "updateNotes" -> UpdateNotes <$> decodeJson json
+      other -> (Left "Unknown event type")
 
 instance encodeJsonEvent :: EncodeJson Event where
   encodeJson (AddFriend r) = encodeJson (Record.insert type_ "addFriend" r)
   encodeJson (JustSeen r) = encodeJson (Record.insert type_ "justSeen" r)
   encodeJson (DeleteFriend r) = encodeJson (Record.insert type_ "deleteFriend" r)
   encodeJson (UpdateDesiredContactFrequency r) = encodeJson (Record.insert type_ "updateDesiredContactFrequency" r)
+  encodeJson (UpdateNotes r) = encodeJson (Record.insert type_ "updateNotes" r)
 
 empty :: Friendships
 empty = IdMap.new
@@ -76,6 +83,7 @@ processEvent (JustSeen r) = IdMap.update r.id (L.set Friend._lastSeen (Just $ fr
 processEvent (DeleteFriend r) = IdMap.delete r.id
 processEvent (UpdateDesiredContactFrequency r) = IdMap.update r.id (L.set Friend._desiredContactFrequency days)
   where days = wrap <$> toNumber <$> r.desiredContactFrequencyDays
+processEvent (UpdateNotes r) = IdMap.update r.id (L.set Friend._notes r.notes)
 
 friendList :: Friendships -> Array (Tuple IdMap.Id Friend)
 friendList = IdMap.toArray

@@ -28,6 +28,9 @@ set (Lens _getter setter) b a = setter a b
 prop :: forall l r1 r a. IsSymbol l => Cons l a r r1 => SProxy l -> Lens' (Record r1) a
 prop l = lens (R.get l) (flip (R.set l))
 
+newtypeProp :: forall n l r1 r a. (Newtype n (Record r1)) => IsSymbol l => Cons l a r r1 => SProxy l -> Lens' n a
+newtypeProp s = _newtype >>> prop s
+
 composeLenses :: forall b c d. Lens' c d -> Lens' b c -> Lens' b d
 composeLenses lensCD lensBC = lens getter setter
   where getter b = view lensCD (view lensBC b)

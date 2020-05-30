@@ -25,23 +25,10 @@ Dunbar
 [X] Determine app type from path param
 [X] Change notes type to Maybe
 [X] Create text area input type
-[ ] Add notes field to form
-[ ] Generalise rendering of list of events
+[X] Switch over to HTTP store
+[X] Add notes field to form
 [ ] Indicate if contact frequency hasn't been set
-[ ] Support field validation
+[ ] Generalise rendering of list of events
 [ ] Tidy up rendering/labeling of update friend form
 [X] Add 'back' link to update friend form
 [ ] Order by days overdue contacting (then alphabetical)
-
-
-Dunbar Event server
-[X] Setup helloworld server
-[ ] Serve frontend app through server so that they can coexist on the same port - is there some sort of spago watch this could work with?
-[X] Set up a basic postgres query  - either install postgres-client (not in package set) or node-postgres (in package set)
-[X] Write sql script to create table for storing events
-[ ] Figure out to POST JSON to server
-[ ] Create function for inserting event into database
-[ ] Implement POST correctly in append store
-[ ] Implement POST endpoint correctly
-[ ] Create function for retrieving all events from database
-[ ] Create GET endpoint for retrieving events from databasse

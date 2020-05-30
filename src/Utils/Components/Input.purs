@@ -238,12 +238,12 @@ setInputFromVal val = setInput (maybe "" showInput val)
 inputValue :: forall model a.StringInput model a -> model -> String
 inputValue (Input input) = L.view input.lens >>> _.rawValue
 
-readInput :: forall model v. (InputType v) => Input model v -> model -> Either (String /\ model) (v /\ model)
-readInput (Input input) m =
-  case input.validator val of
-    (Left err) -> Left (err /\ m)
-    (Right v) -> Right (v /\ clearInput (Input input) m)
-  where val = inputValue (Input input) m
+-- readInput :: forall model v. (InputType v) => Input model v -> model -> Either (String /\ model) (v /\ model)
+-- readInput (Input input) m =
+--   case input.validator val of
+--     (Left err) -> Left (err /\ m)
+--     (Right v) -> Right (v /\ clearInput (Input input) m)
+--   where val = inputValue (Input input) m
 --
 -- joinInputVals :: forall model a b.
 --                     (model -> (Either String a) /\ model)

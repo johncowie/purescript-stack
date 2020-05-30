@@ -9,11 +9,11 @@ import Data.Symbol (SProxy(..))
 import Data.Array as Array
 import Data.Maybe (Maybe(..), maybe)
 import Data.Foldable (foldr)
+import Data.Traversable (for, sequence)
 import Effect (Effect)
 import Effect.Aff (Aff)
 import Effect.Exception (Error)
 import Effect.Now (now)
-import Effect.Console as Console
 import Spork.App as App
 import Spork.Html as H
 import Spork.Html.Events as E
@@ -24,7 +24,7 @@ import Utils.Spork.TimerSubscription (runSubscriptions, tickSub, Sub)
 import Utils.Lens as L
 import Utils.Components.Input as Input
 import Utils.Components.Input (StringInput, Inputs)
-import Utils.AppendStore (AppendStore, localStorageAppendStore)
+import Utils.AppendStore (AppendStore, httpAppendStore)
 import Utils.IdMap as IdMap
 import Utils.DateTime as UDT
 import Utils.Async (async)
@@ -106,6 +106,9 @@ lastNameInput = Input.stringInput _inputs "lastName"
 contactFreqInput :: StringInput Model (Maybe Int)
 contactFreqInput = Input.stringInput _inputs "contactFreq"
 
+notesInput :: StringInput Model (Maybe String)
+notesInput = Input.stringInput _inputs "notes"
+
 submitButton :: forall m. String -> m -> H.Html m
 submitButton label msg = H.button [E.onClick (E.always_ msg)] [H.text label]
 
@@ -133,6 +136,7 @@ renderUpdateFriendForm :: IdMap.Id -> Model -> Friend -> H.Html Msg
 renderUpdateFriendForm id model friend = renderSection title $
   H.div [] [
     H.div [] [Input.renderDropdown UpdateInput contactFreqInput contactFrequencies model]
+  , H.div [] [Input.renderTextArea UpdateInput notesInput "notes" model]
   , submitButton "Update" (UpdateFriend id)
   , H.div [] $ [H.a [E.onClick (E.always_ (Navigate Dashboard)), H.href ""] [H.text "Back to dashboard"]]
   ]
@@ -162,6 +166,13 @@ fireStateEvent msg model event = {effects, model: updatedModel}
           pure msg
         updatedModel = L.over _friendships (State.processEvent event) model
 
+fireStateEvents :: Msg -> Model -> Array Event -> App.Transition Aff Model Msg
+fireStateEvents msg model events = {effects, model: updatedModel}
+  where effects = App.lift $ do
+          void $ for events store.append
+          pure msg
+        updatedModel = L.over _friendships (\f -> foldr State.processEvent f events) model
+
 alertError :: Model -> String -> App.Transition Aff Model Msg
 alertError model s = {effects, model}
   where effects = pure $ AlertError s
@@ -178,11 +189,15 @@ navigate (Dashboard) model = L.set _page Dashboard model
 navigate (UpdateFriendForm id) model =
   L.set _page (UpdateFriendForm id) $
   Input.setInputFromVal (Just contactFreq) contactFreqInput $
+  Input.setInputFromVal (Just notes) notesInput $
   model
   where contactFreq = do
           friend <- IdMap.get id model.friendships
           contactFreqDays <- L.view Friend._desiredContactFrequency friend
           pure $ UDT.daysToInt contactFreqDays
+        notes = do
+          friend <- IdMap.get id model.friendships
+          L.view Friend._notes friend
 
 update :: Model → Msg → App.Transition Aff Model Msg
 update model (DoNothing) = App.purely model
@@ -201,9 +216,14 @@ update model (AddFriend) = either (alertError model) (fireStateEvent DoNothing c
                 Input.parseStringInput lastNameInput model
         clearedInputs = Input.clearInput firstNameInput $
                         Input.clearInput lastNameInput $ model
-update model (UpdateFriend id) = either (alertError model) (fireStateEvent (Navigate Dashboard) clearedInputs) event
-  where event = State.updateDesiredContactFrequencyEvent id <$> Input.parseStringInput contactFreqInput model
-        clearedInputs = Input.clearInput contactFreqInput model
+update model (UpdateFriend id) = either (alertError model) (fireStateEvents (Navigate Dashboard) clearedInputs) events
+  where update1 = State.updateDesiredContactFrequencyEvent id <$>
+                  Input.parseStringInput contactFreqInput model
+        update2 = State.updateNotesEvent id <$>
+                  Input.parseStringInput notesInput model
+        clearedInputs = Input.clearInput contactFreqInput $
+                        Input.clearInput notesInput $ model
+        events = sequence [update1, update2]
 update model (JustSeen id Nothing) = addTimestamp model (JustSeen id)
 update model (JustSeen id (Just timestamp)) = fireStateEvent DoNothing model event
   where event = State.justSeenEvent id timestamp
@@ -213,7 +233,7 @@ update model (AlertError err) = {effects, model}
           pure DoNothing
 
 store :: AppendStore Event
-store = localStorageAppendStore "dunbar"
+store = httpAppendStore "dunbar"
 
 subs :: Model -> App.Batch Sub Msg
 subs model = App.lift (tickSub Tick)
@@ -227,7 +247,7 @@ app currentTime = {
 }
 
 affErrorHandler :: Error -> Effect Unit
-affErrorHandler err = Console.log (show err)
+affErrorHandler err = alert (show err)
 
 runApp :: Effect Unit
 runApp = do

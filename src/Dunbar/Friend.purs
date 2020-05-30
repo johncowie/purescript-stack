@@ -1,11 +1,12 @@
 module Dunbar.Friend
-( Friend,
-  newFriend,
-  timeSinceLastSeen,
-  overdueContact,
-  _lastSeen,
-  _name,
-  _desiredContactFrequency
+( Friend
+, newFriend
+, timeSinceLastSeen
+, overdueContact
+, _lastSeen
+, _name
+, _desiredContactFrequency
+, _notes
 )
 where
 

@@ -63,12 +63,14 @@ processEvent (AddProgress r) = addProgress r.id (unwrap r.time) r.amount
 processEvent (RestartGoal r) = L.over _goals $ IdMap.add $ L.set Goal._predecessor (Just r.predecessor) $ goalFromEventRecord r
 processEvent (UndoEvent r) = rollbackEvent r.event
 processEvent (AddTodo r) = L.over _todos $ IdMap.add (todoFromEventRecord r)
+processEvent (CompletedTodo r) = unsafeThrow "implement me"
 
 rollbackEvent :: Event -> GoalState -> GoalState
 rollbackEvent (UndoEvent _) = unsafeThrow "can't undo an undo" -- TODO figure out how to deal with this
 rollbackEvent (AddGoal r) = unsafeThrow "implement me" -- TODO what to do here?
 rollbackEvent (RestartGoal r) = unsafeThrow "implement me" -- TODO what to do here?
 rollbackEvent (AddTodo r) = unsafeThrow "implement me" -- TODO what to do here
+rollbackEvent (CompletedTodo r) = unsafeThrow "implement me" -- TODO
 rollbackEvent (AddProgress r) = addProgress r.id (unwrap r.time) (r.amount * -1.0)
 
 hasSuccessor :: IdMap.Id -> GoalState -> Boolean

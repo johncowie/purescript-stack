@@ -11,14 +11,15 @@ import Effect.Aff (Aff)
 import Affjax as AX
 import Affjax.ResponseFormat as ResponseFormat
 import Affjax.RequestBody as RequestBody
+import Affjax.RequestHeader (RequestHeader(..))
 import Control.Monad.Except.Trans (ExceptT(..), runExceptT)
 import Data.Argonaut.Decode (class DecodeJson, decodeJson) as JSON
 import Data.Argonaut.Encode (class EncodeJson, encodeJson) as JSON
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Array (length, reverse)
+import Data.HTTP.Method (Method(..))
 import Effect.Exception (Error, error)
-import Effect.Exception.Unsafe (unsafeThrow)
 import Utils.LocalJsonStorage as LS
 import Utils.Async (async)
 
@@ -45,30 +46,38 @@ localStorageAppendStore k = {
 , retrieveAll: async $ retrieveFromLocalStorage k
 }
 
-appendHTTP :: forall e. (JSON.EncodeJson e) => String -> e -> Aff (Either Error Unit)
-appendHTTP s event = do
-  result <- AX.post ResponseFormat.json ("http://lvh.me:8080?app=" <> s) body
-  case result of
-    Left err -> pure $ Left $ error $ AX.printError err
-    Right response -> pure $ Right unit
-  where body = Just $ RequestBody.json $ JSON.encodeJson event
-
-syncHTTP :: forall e. (JSON.EncodeJson e) => String -> Array e -> Aff (Either Error Unit)
-syncHTTP s events = do
-  result <- AX.post ResponseFormat.json ("http://lvh.me:8080/sync?app=" <> s) body
-  case result of
-    Left err -> pure $ Left $ error $ AX.printError err
-    Right response -> pure $ Right unit
-  where body = Just $ RequestBody.json $ JSON.encodeJson events
-
-retrieveAllHTTP :: forall e. (JSON.DecodeJson e) => String -> Aff (Either Error (Array e))
-retrieveAllHTTP s = do
-  result <- AX.get ResponseFormat.json ("http://lvh.me:8080?app=" <> s)
+apiGet :: forall e. (JSON.DecodeJson e) => String -> Aff (Either Error e)
+apiGet url = do
+  result <- AX.request $ AX.defaultRequest { responseFormat = ResponseFormat.json
+                                           , method = Left GET
+                                           , url = url
+                                           , headers = [RequestHeader "Authorization" "john:bobbydazzler"]}
   case result of
     Left err -> pure $ Left $ error $ AX.printError err
     Right response -> case JSON.decodeJson response.body of
       Left jsonErr -> pure $ Left $ error jsonErr
       Right events -> pure $ Right $ events
+
+apiPost :: forall e. (JSON.EncodeJson e) => String -> e -> Aff (Either Error Unit)
+apiPost url e = do
+  result <- AX.request $ AX.defaultRequest { responseFormat = ResponseFormat.json
+                                           , method = Left POST
+                                           , url = url
+                                           , content = body
+                                           , headers = [RequestHeader "Authorization" "john:bobbydazzler"]}
+  case result of
+    Left err -> pure $ Left $ error $ AX.printError err
+    Right response -> pure $ Right unit
+  where body = Just $ RequestBody.json $ JSON.encodeJson e
+
+appendHTTP :: forall e. (JSON.EncodeJson e) => String -> e -> Aff (Either Error Unit)
+appendHTTP s event = apiPost ("http://lvh.me:8080?app=" <> s) event
+
+syncHTTP :: forall e. (JSON.EncodeJson e) => String -> Array e -> Aff (Either Error Unit)
+syncHTTP s events = apiPost ("http://lvh.me:8080/sync?app=" <> s) events
+
+retrieveAllHTTP :: forall e. (JSON.DecodeJson e) => String -> Aff (Either Error (Array e))
+retrieveAllHTTP s = apiGet ("http://lvh.me:8080?app=" <> s)
 
 httpAppendStore :: forall e. (JSON.DecodeJson e) => (JSON.EncodeJson e) => String -> AppendStore e
 httpAppendStore k = {

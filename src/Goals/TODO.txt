@@ -1,6 +1,6 @@
 [X] Render goal form
 [X] Support submitting goal form
-[X] Show ID n ext to goal
+[X] Show ID next to goal
 [X] Greyed out Xs for required progress
 [X] Support floats for amount done
 [X] Hide goal when it is expired
@@ -8,8 +8,10 @@
 [X] Treat completed goal as expired
 [X] Add button for submitting restart goal form
 [X] Separate page with list of events - use query param for toggling page - just show last 10 events
-[ ] Only enable log button if amount field is populated
-[ ] Support show validation errors for text fields
+[X] Only enable log button if amount field is populated
+[X] Support show validation errors for text fields
+[X] API middleware for verifying username and password in basic authorization header
+[ ] Add support for event type for marking a todo as done
 [ ] Fix textbox for comment
 [ ] Show which goals are completed
 [X] Abstract out input string stuff into utils

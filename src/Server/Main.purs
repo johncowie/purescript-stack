@@ -5,20 +5,21 @@ import Prelude
 import Data.Array as Array
 import Data.Symbol (SProxy(..))
 import Data.Map as M
-import Data.Newtype (wrap)
+import Data.Newtype (wrap, unwrap)
 import Data.Argonaut.Core (Json, stringify) as JSON
 import Data.Argonaut.Parser (jsonParser) as JSON
 import Data.Argonaut.Decode (class DecodeJson, decodeJson) as JSON
 import Data.Argonaut.Encode (class EncodeJson, encodeJson) as JSON
 import Data.DateTime.Instant (fromDateTime)
 import Data.Either (Either(..))
-import Data.Maybe (Maybe(..))
+import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Tuple (Tuple(..), fst, snd)
 import Data.Tuple.Nested (type (/\), (/\), get1, get2)
 
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Effect.Console as Console
+import Effect.Exception.Unsafe (unsafeThrow)
 
 import Utils.Lens as L
 import Utils.DateTime as UDT
@@ -153,6 +154,21 @@ wrapCors router req = do
   pure $ addResponseHeader "Access-Control-Allow-Origin" "*" $
          addResponseHeader "Access-Control-Allow-Headers" "*" $ res
 
+wrapBasicAuth :: forall res a.
+                 String
+              -> String
+              -> (String -> Aff res)
+              -> (Request a -> Aff res)
+              -> Request a
+              -> Aff res
+wrapBasicAuth username password errorHandler router req =
+  if isAuthed
+    then router req
+    else errorHandler "Unauthorized"
+  where isAuthed = fromMaybe false $ do
+          authHeader <- M.lookup (wrap "Authorization") (unwrap req.headers)
+          pure $ authHeader == username <> ":" <> password
+
 successResponse :: JSONResponse
 successResponse = okJsonResponse $ JSON.encodeJson {message: "Success"}
 
@@ -175,21 +191,24 @@ syncEventsHandler req = do
         jsonArr = get1 req.val
 
 baseRouter :: Request Unit -> Aff (Response String)
-baseRouter req@{method: HP.Get} = (wrapJsonResponse $
+baseRouter req@{method: HP.Get} = (wrapBasicAuth "john" "bobbydazzler" plainErrorHandler $
+                                   wrapJsonResponse $
                                    wrapGetQueryParam "app" jsonBadRequestHandler $
                                    wrapResponseErrors jsonErrorHandler $
                                    retrieveEventsHandler)
                                    req
 baseRouter req@{method: HP.Options} = pure $ response 200 ""
 baseRouter req@{method: HP.Post, path: ["sync"]} =
-  (wrapJsonResponse $
+  (wrapBasicAuth "john" "bobbydazzler" plainErrorHandler $
+   wrapJsonResponse $
    wrapGetQueryParam "app" jsonBadRequestHandler $
    wrapJsonRequest jsonBadRequestHandler $
-   wrapDecodeJson jsonBadRequestHandler $ 
+   wrapDecodeJson jsonBadRequestHandler $
    wrapResponseErrors jsonErrorHandler $
    syncEventsHandler)
    req
-baseRouter req@{method: HP.Post} = (wrapJsonResponse $
+baseRouter req@{method: HP.Post} = (wrapBasicAuth "john" "bobbydazzler" plainErrorHandler $
+                                    wrapJsonResponse $
                                     wrapGetQueryParam "app" jsonBadRequestHandler $
                                     wrapJsonRequest jsonBadRequestHandler $
                                     wrapResponseErrors jsonErrorHandler $
@@ -202,6 +221,9 @@ wrapCustom :: (Request Unit -> Aff (Response String)) -> HP.Request -> Aff HP.Re
 wrapCustom router request = do
   res <- router (toCustomRequest request)
   fromCustomResponse res
+
+plainErrorHandler :: String -> Aff (Response String)
+plainErrorHandler msg = pure $ response 401 msg
 
 app :: HP.Request -> HP.ResponseM
 app = wrapCustom $
