@@ -9,13 +9,11 @@ import Data.DateTime.Instant (Instant)
 
 import Effect (Effect)
 import Effect.Aff (Aff)
-import Effect.Now (now)
 
 import Spork.App as App
 import Spork.Interpreter (basicAff, merge)
 import Spork.Html as H
 
-import Effect.Exception.Unsafe (unsafeThrow)
 
 import Utils.Spork.TimerSubscription (runTicker, Sub, tickSub)
 import Utils.Alert (alert)
@@ -57,18 +55,6 @@ makeWithSelector eventApp selector =
   where interpreter = basicAff affErrorHandler `merge` (runTicker tickSecs)
         app = toApp eventApp
         tickSecs = snd <$> eventApp.tick
-
-type Model = Unit
-type Msg = Unit
-
-exampleEventApp :: App Model Msg
-exampleEventApp = unsafeThrow "implement me"
-
-runApp :: Effect Unit
-runApp = do
-  currentTime <- now
-  inst <- makeWithSelector exampleEventApp "#app"
-  inst.run
 
 {-
   Thoughts

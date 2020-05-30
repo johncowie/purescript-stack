@@ -1,21 +1,21 @@
 module Goals.App where
 
 import Prelude
-import Utils.Lens as L
+
 import Goals.Data.Goal as Goal
 import Goals.Data.Goal (Goal)
 import Goals.Data.State as St
 import Goals.Data.Event (Event, addGoalEvent, addProgressEvent, restartGoalEvent, undoEvent)
 import Goals.Data.Event as Event
-import Data.Date (Date)
-import Data.DateTime (date)
-import Data.DateTime.Instant (Instant)
-import Spork.App as App
+
 import Spork.Html as H
 import Spork.Html.Elements.Keyed as Keyed
 import Spork.Html.Properties as P
 import Spork.Html.Events as E
-import Spork.Interpreter (basicAff, merge)
+
+import Data.Date (Date)
+import Data.DateTime (date)
+import Data.DateTime.Instant (Instant)
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Either (Either(..), either)
 import Data.Foldable (foldr)
@@ -40,11 +40,12 @@ import Utils.Fixed as DF
 import Utils.Components.Input as Input
 import Utils.Components.Input (Inputs, StringInput)
 import Utils.Async (async)
-import Utils.Spork.TimerSubscription (runTicker, tickSub, Sub)
 import Utils.DateTime (showDate, showDayMonth, dateToDateTime, nextDateTime)
 import Utils.IdMap as IdMap
 import Utils.AppendStore (AppendStore, httpAppendStore)
 import Utils.Alert (alert)
+import Utils.Lens as L
+import Utils.Spork.EventApp as App
 
 data AppStatus = Loading | Loaded | Saving
 
@@ -188,10 +189,10 @@ mapValL default id = L.lens get set
   where get m = fromMaybe default $ M.lookup id m
         set m v = M.insert id v m
 
-init :: Page -> Instant -> App.Transition Aff Model Msg
+init :: Page -> Instant -> App.Transition Model Msg
 init page dt = {effects, model}
   where model = ((emptyModel dt) {page = page})
-        effects = pure LoadEvents
+        effects = [pure LoadEvents]
 
 wrapWithClass :: forall a. String -> H.Html a -> H.Html a
 wrapWithClass clazz node = H.div [P.classes [clazz]] [node]
@@ -382,7 +383,7 @@ loadEvents = do
 storeEvent :: Event -> Aff Unit
 storeEvent event = void $ store.append event
 
-fireStateEvent :: Model -> Event -> App.Transition Aff Model Msg
+fireStateEvent :: Model -> Event -> App.Transition Model Msg
 fireStateEvent model event = transition updatedModel (StoreEvent event)
   where updatedModel = L.set _state updatedState $
                        L.over _events ((<>) [event]) $
@@ -390,31 +391,30 @@ fireStateEvent model event = transition updatedModel (StoreEvent event)
         updatedState = St.processEvent event model.state
 -- store event in local storage, fire event to update model and stats
 
-transition :: Model -> Msg -> App.Transition Aff Model Msg
-transition model msg = { effects: App.lift $ async $ pure $ msg
+transition :: Model -> Msg -> App.Transition Model Msg
+transition model msg = { effects: [async $ pure $ msg]
                         , model}
 
-addTimestamp :: Model -> (Maybe Instant -> Msg) -> App.Transition Aff Model Msg
-addTimestamp model ctor = {effects, model}
-  where effects = App.lift $ async $ do
+addTimestamp :: Model -> (Maybe Instant -> Msg) -> App.Transition Model Msg
+addTimestamp model ctor = {effects: [effect], model}
+  where effect = async $ do
           nowInst <- now
           pure $ ctor (Just nowInst)
 
-update :: Model → Msg → App.Transition Aff Model Msg
+update :: Model → Msg → App.Transition Model Msg
 update model (Tick instant) = App.purely $
   L.set _lastUpdate instant $
   model
-update model LoadEvents = {effects, model: L.set _appStatus Loading model}
-  where effects = App.lift $ do
-          LoadedEvents <$> loadEvents
+update model LoadEvents = {effects: [effect], model: L.set _appStatus Loading model}
+  where effect = LoadedEvents <$> loadEvents
 -- update model LoadEvents = App.purely $ L.set _appStatus Loading model
 update model (LoadedEvents events) = App.purely $
   L.set _appStatus Loaded $
   L.set _events events $
   L.set _state (foldr St.processEvent St.newGoalState events) $
   model
-update model (StoreEvent event) = {effects, model: L.set _appStatus Saving model}
-  where effects = App.lift $ do
+update model (StoreEvent event) = {effects: [effect], model: L.set _appStatus Saving model}
+  where effect = do
           storeEvent event
           pure $ StoredEvent
 update model StoredEvent = App.purely $ L.set _appStatus Loaded model
@@ -462,21 +462,18 @@ update model (RestartGoal id goal) = either alertError (fireStateEvent clearedIn
         alertError err = transition model (AlertError err)
 update model (DoNothing) = App.purely model
 update model (UpdateStringInput stringL input) = App.purely $ Input.updateInput stringL input model
-update model (AlertError errorMsg) = {effects, model}
-  where effects = App.lift do
+update model (AlertError errorMsg) = {effects: [effect], model}
+  where effect = do
           async (alert errorMsg)
           pure DoNothing
 update model (ClearError) = App.purely $ L.set _error Nothing model
 
-subs :: Model -> App.Batch Sub Msg
-subs model = App.lift (tickSub Tick)
-
-app :: Page -> Instant -> App.App Aff Sub Model Msg
+app :: Page -> Instant -> App.App Model Msg
 app page now = {
     render
   , update
-  , subs: subs
   , init: init page now
+  , tick: Just (Tuple Tick (wrap 1000.0))
 }
 
 pageFromQueryParams :: M.Map String String -> Page
@@ -494,5 +491,5 @@ runApp = do
   url <- Url.getWindowUrl
   let queryParams = Url.getQueryParams url
   let page = pageFromQueryParams queryParams
-  inst <- App.makeWithSelector (basicAff affErrorHandler `merge` runTicker (Just (wrap 1000.0))) (app page currentTime) "#app"
+  inst <- App.makeWithSelector (app page currentTime) "#app"
   inst.run
