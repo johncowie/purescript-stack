@@ -42,6 +42,9 @@ lookupGoal id = allGoals >>> IdMap.get id
 allGoals :: GoalState -> IdMap.IdMap Goal
 allGoals = unwrap >>> _.goals
 
+allTodos :: GoalState -> IdMap.IdMap Todo
+allTodos = unwrap >>> _.todos
+
 goalFromEventRecord :: forall r. {title :: String, start :: JsonDateTime, end :: JsonDateTime, target :: Int | r} -> Goal
 goalFromEventRecord r = newGoal r.title (unwrap r.start) (unwrap r.end) r.target
 
