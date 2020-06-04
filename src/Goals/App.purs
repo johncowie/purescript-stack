@@ -54,6 +54,7 @@ data Msg = Tick Instant |
            LogAmount IdMap.Id (Maybe Instant) |
            AddGoal |
            AddTodo |
+           CompletedTodo IdMap.Id (Maybe Instant)|
            RestartGoal IdMap.Id Goal.Goal |
            UndoEvent Int |
            AlertError String |
@@ -183,11 +184,6 @@ _appStatus = L.prop (SProxy :: SProxy "appStatus")
 _error :: L.Lens' Model (Maybe String)
 _error = L.prop (SProxy :: SProxy "error")
 
-mapValL :: forall k v. (Ord k) => v -> k -> L.Lens' (M.Map k v) v
-mapValL default id = L.lens get set
-  where get m = fromMaybe default $ M.lookup id m
-        set m v = M.insert id v m
-
 init :: Page -> Instant -> App.Transition Event Model Msg
 init page dt = {effects: [], model, events: []}
   where model = ((emptyModel dt) {page = page})
@@ -304,10 +300,16 @@ renderCurrentTodo :: Model -> Tuple IdMap.Id Todo -> Tuple String (H.Html Msg)
 renderCurrentTodo model (Tuple id todo) =
   Tuple (show id) $ H.div [P.classes ["current-todo"]] $ [
     H.text $  L.view Todo._name todo
+  , H.text $ " - "
+  , H.text $ showDate $ date $ L.view Todo._due todo
+  , H.text $ " - "
+  , submitButton true "Done" (CompletedTodo id Nothing)
   ]
 
 renderCurrentTodoList :: Model -> H.Html Msg
-renderCurrentTodoList model = Keyed.div [] $ map (renderCurrentTodo model) $ IdMap.toArray $ St.allTodos model.state
+renderCurrentTodoList model = Keyed.div [] $ map (renderCurrentTodo model) $
+  Array.filter isNotDone $ IdMap.toArray $ St.allTodos model.state
+    where isNotDone (Tuple id todo) = not $ Todo.isDone todo
 
 renderGoalForm :: Model -> H.Html Msg
 renderGoalForm m = H.div [] [
@@ -430,6 +432,9 @@ update model (AddTodo) = either alertError (justEvent clearedInputs) todoEvent
                         Input.clearInput todoDueDateInput $
                         Input.clearInput todoCommentsInput $ model
         alertError err = transition model (AlertError err)
+update model (CompletedTodo id Nothing) = addTimestamp model (CompletedTodo id)
+update model (CompletedTodo id (Just ts)) = justEvent model (Event.completedTodoEvent id ts)
+
 update model (RestartGoal id goal) = either alertError (justEvent clearedInputs) goalEvent
   where clearedInputs = Input.clearInput (restartGoalNameInput id goal) $
                         Input.clearInput (restartGoalStartInput id goal) $

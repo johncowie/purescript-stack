@@ -13,8 +13,9 @@ import Utils.Lens as L
 import Utils.IdMap as IdMap
 import Utils.JsonDateTime (JsonDateTime)
 import Goals.Data.Goal (Goal, newGoal)
-import Goals.Data.Todo (Todo, newTodo)
 import Goals.Data.Goal as Goal
+import Goals.Data.Todo (Todo, newTodo)
+import Goals.Data.Todo as Todo
 import Goals.Data.Event (Event(..))
 import Effect.Exception.Unsafe (unsafeThrow)
 
@@ -66,7 +67,7 @@ processEvent (AddProgress r) = addProgress r.id (unwrap r.time) r.amount
 processEvent (RestartGoal r) = L.over _goals $ IdMap.add $ L.set Goal._predecessor (Just r.predecessor) $ goalFromEventRecord r
 processEvent (UndoEvent r) = rollbackEvent r.event
 processEvent (AddTodo r) = L.over _todos $ IdMap.add (todoFromEventRecord r)
-processEvent (CompletedTodo r) = unsafeThrow "implement me"
+processEvent (CompletedTodo r) = L.over (_todos >>> L._mapValMaybe r.id) (map (Todo.markAsDone (unwrap r.completedAt)))
 
 rollbackEvent :: Event -> GoalState -> GoalState
 rollbackEvent (UndoEvent _) = unsafeThrow "can't undo an undo" -- TODO figure out how to deal with this

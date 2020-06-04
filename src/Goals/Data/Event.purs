@@ -32,8 +32,8 @@ addGoalEvent title start end target = AddGoal { title: title,
 addTodoEvent :: String -> DateTime -> String -> Event
 addTodoEvent name due comments = AddTodo {name, due: wrap due, comments}
 
-completedTodoEvent :: Id -> DateTime -> Event
-completedTodoEvent id time = CompletedTodo {id, completedAt: wrap time}
+completedTodoEvent :: Id -> Instant -> Event
+completedTodoEvent id time = CompletedTodo {id, completedAt: wrap (toDateTime time)}
 
 restartGoalEvent :: Id -> String -> DateTime -> DateTime -> Int -> Event
 restartGoalEvent predecessor title start end target =

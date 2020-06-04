@@ -6,7 +6,7 @@ import Prim.Row (class Cons)
 import Record (get, set) as R
 import Data.Newtype (class Newtype, unwrap, wrap)
 import Data.Map as M
-import Data.Maybe (fromMaybe)
+import Data.Maybe (Maybe(..), fromMaybe)
 import Effect.Exception.Unsafe (unsafeThrow)
 
 data Lens' a b = Lens (a -> b) (a -> b -> a)
@@ -52,3 +52,10 @@ _mapVal :: forall k v. (Ord k) => v -> k -> Lens' (M.Map k v) v
 _mapVal default id = lens getter setter
   where getter m = fromMaybe default $ M.lookup id m
         setter m v = M.insert id v m
+
+_mapValMaybe :: forall k v. (Ord k) => k -> Lens' (M.Map k v) (Maybe v)
+_mapValMaybe id = lens getter setter
+  where getter m = M.lookup id m
+        setter m vM = case vM of
+          (Just v) -> M.insert id v m
+          (Nothing) -> m
