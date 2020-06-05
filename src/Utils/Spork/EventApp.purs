@@ -1,4 +1,13 @@
-module Utils.Spork.EventApp where
+module Utils.Spork.EventApp
+( EventAppState
+, makeWithSelector
+, App
+, Transition
+, InternalMsg
+, purely
+, emptyState
+)
+where
 
 import Prelude
 
@@ -9,9 +18,12 @@ import Data.DateTime.Instant (Instant)
 import Data.Either (Either(..))
 import Data.Foldable (foldr)
 import Data.Functor (mapFlipped)
+import Data.Newtype (class Newtype)
+import Data.Map as M
 
 import Effect (Effect)
 import Effect.Aff (Aff)
+import Effect.Exception.Unsafe (unsafeThrow)
 
 import Spork.App as App
 import Spork.Interpreter (basicAff, merge)
@@ -22,6 +34,8 @@ import Utils.Alert (alert)
 import Utils.AppendStore (AppendStore)
 import Utils.Lens (type (:->))
 import Utils.Lens as L
+import Utils.Components.Input (Inputs, StringInput)
+import Utils.Components.Input as Input
 
 data InternalMsg ev =
     LoadEvents
@@ -34,6 +48,15 @@ type Transition ev model msg = {
 , events :: Array ev
 }
 
+newtype EventAppState = EventAppState {
+  inputs :: Inputs
+}
+
+emptyState :: EventAppState
+emptyState = EventAppState {inputs: M.empty}
+
+derive instance newtypeEventAppState :: Newtype EventAppState _
+
 type App st ev model msg = {
   render :: model -> H.Html msg
 , update :: model -> msg -> Transition ev model msg
@@ -42,6 +65,7 @@ type App st ev model msg = {
 , eventStore :: AppendStore ev
 , reducer :: ev -> st -> st
 , _state :: model :-> st
+, _eventAppState :: model :-> EventAppState
 }
 
 purely :: forall ev model msg. model -> Transition ev model msg
@@ -106,6 +130,18 @@ makeWithSelector eventApp selector =
   where interpreter = basicAff affErrorHandler `merge` (runTicker tickSecs)
         app = toApp eventApp
         tickSecs = snd <$> eventApp.tick
+
+
+-- Input stuff
+
+input :: forall model a. String -> StringInput model a
+input = unsafeThrow ""
+
+input_ :: forall model a. String -> StringInput model a
+input_ = unsafeThrow ""
+
+-- hmmm how's this msg business going to work - configure InputSet in app?
+-- renderInput :: forall model a. StringInput model a -> String -> model -> H.Html msg
 
 {-
   Thoughts

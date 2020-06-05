@@ -43,7 +43,8 @@ type Model = {
   page :: Page,
   friendships :: Friendships,
   inputs :: Inputs,
-  now :: Instant
+  now :: Instant,
+  eventAppState :: App.EventAppState
 }
 
 _friendships :: L.Lens' Model Friendships
@@ -57,6 +58,9 @@ _now = L.prop (SProxy :: SProxy "now")
 
 _page :: L.Lens' Model Page
 _page = L.prop (SProxy :: SProxy "page")
+
+_eventAppState :: L.Lens' Model App.EventAppState
+_eventAppState = L.prop (SProxy :: SProxy "eventAppState")
 
 data Msg = Tick Instant
          | UpdateInput (Input.InputSetter Model) String
@@ -76,7 +80,8 @@ init now = {effects, model, events: []}
   where friendships = State.empty
         inputs = M.empty
         page = Dashboard
-        model = {friendships, inputs, now, page}
+        eventAppState = App.emptyState
+        model = {friendships, inputs, now, page, eventAppState}
         effects = [pure $ LoadEvents]
 
 renderFriendRow :: Instant -> Tuple IdMap.Id Friend -> Tuple String (H.Html Msg)
@@ -258,6 +263,7 @@ app currentTime = {
 , init: init currentTime
 , tick: Just (Tuple Tick (wrap 5000.0))
 , _state: _friendships
+, _eventAppState
 , reducer: State.processEvent
 , eventStore: httpAppendStore "dunbar"
 }

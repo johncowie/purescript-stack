@@ -80,8 +80,8 @@ type Model = {
   events :: Array Event,
   amountInputs :: IdMap.IdMap String,
   goalForm :: GoalForm,
-  inputs ::  Input.Inputs
-  -- inputs :: M.Map String StringInputState
+  inputs ::  Input.Inputs,
+  eventAppState :: App.EventAppState
 }
 
 type Transition = App.Transition Event Model Msg
@@ -102,7 +102,8 @@ emptyModel now = {
     startDate: "",
     endDate: ""
   },
-  inputs: M.empty
+  inputs: M.empty,
+  eventAppState: App.emptyState
 }
 
 parseInt :: String -> Either String Int
@@ -183,6 +184,9 @@ _appStatus = L.prop (SProxy :: SProxy "appStatus")
 
 _error :: L.Lens' Model (Maybe String)
 _error = L.prop (SProxy :: SProxy "error")
+
+_eventAppState :: L.Lens' Model App.EventAppState
+_eventAppState = L.prop (SProxy :: SProxy "eventAppState")
 
 init :: Page -> Instant -> App.Transition Event Model Msg
 init page dt = {effects: [], model, events: []}
@@ -461,6 +465,7 @@ app page now = {
   , init: init page now
   , tick: Just (Tuple Tick (wrap 1000.0))
   , _state
+  , _eventAppState
   , eventStore: httpAppendStore "goals"
   , reducer: St.processEvent
 }
