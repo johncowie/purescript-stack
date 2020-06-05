@@ -134,11 +134,11 @@ makeWithSelector eventApp selector =
 
 -- Input stuff
 
-input :: forall model a. String -> StringInput model a
-input = unsafeThrow ""
-
-input_ :: forall model a. String -> StringInput model a
-input_ = unsafeThrow ""
+-- input :: forall model a. String -> StringInput model a
+-- input = unsafeThrow ""
+--
+-- input_ :: forall model a. String -> StringInput model a
+-- input_ = unsafeThrow ""
 
 -- hmmm how's this msg business going to work - configure InputSet in app?
 -- renderInput :: forall model a. StringInput model a -> String -> model -> H.Html msg

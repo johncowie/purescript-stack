@@ -2,7 +2,6 @@ module Server.Main where
 
 import Prelude
 
-import Data.Array as Array
 import Data.Symbol (SProxy(..))
 import Data.Map as M
 import Data.Newtype (wrap, unwrap)
@@ -10,27 +9,33 @@ import Data.Argonaut.Core (Json, stringify) as JSON
 import Data.Argonaut.Parser (jsonParser) as JSON
 import Data.Argonaut.Decode (class DecodeJson, decodeJson) as JSON
 import Data.Argonaut.Encode (class EncodeJson, encodeJson) as JSON
-import Data.DateTime.Instant (fromDateTime)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Tuple (Tuple(..), fst, snd)
 import Data.Tuple.Nested (type (/\), (/\), get1, get2)
 
+import Type.Data.Row (RProxy(..))
+
+import Node.Process (getEnv)
+
+import Effect (Effect)
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Effect.Console as Console
-import Effect.Exception.Unsafe (unsafeThrow)
 
 import Utils.Lens as L
-import Utils.DateTime as UDT
-import Utils.IdMap (Id(..))
 
 import HTTPure as HP
 import HTTPure.Headers as Headers
 import HTTPure.Version (Version)
 
+
+
+
+import TypedEnv (type (<:), envErrorMessage, fromEnv)
+
+
 import Server.DB as DB
-import Goals.Data.Event as Goals
 
 
 _headers :: forall r. L.Lens' {headers :: HP.Headers | r} HP.Headers
@@ -131,14 +136,11 @@ jsonBadRequestHandler :: String -> Aff (Response JSON.Json)
 jsonBadRequestHandler error = pure $ jsonResponse 400 json
   where json = JSON.encodeJson {error}
 
-sampleEvents :: Array Goals.Event
-sampleEvents = Array.reverse $
-  [ Goals.addGoalEvent "Wanking" (UDT.dateToDateTime $ UDT.newDate 2020 1 1) (UDT.dateToDateTime $ UDT.newDate 2021 1 1) 100
-  , Goals.addProgressEvent (Id 0) (fromDateTime $ UDT.dateToDateTime $ UDT.newDate 2020 2 2) 20.0 "Great wank" ]
-
-retrieveEventsHandler :: Request (Tuple String Unit) -> Aff (Either String (Response JSON.Json))
-retrieveEventsHandler req = do
-  events <- showError <$> DB.retrieveEvents eventApp
+retrieveEventsHandler :: DB.Pool
+                      -> Request (Tuple String Unit)
+                      -> Aff (Either String (Response JSON.Json))
+retrieveEventsHandler pool req = do
+  events <- showError <$> DB.retrieveEvents eventApp pool
   pure $ okJsonResponse <$> events
   where eventApp = fst req.val
 
@@ -176,46 +178,53 @@ showError :: forall a b. (Show a) => Either a b -> Either String b
 showError (Left e) = Left (show e)
 showError (Right e) = Right e
 
-addEventsHandler :: forall a. Request (JSON.Json /\ String /\ a) -> Aff (Either String (Response JSON.Json))
-addEventsHandler req = do
-  result <- showError <$> DB.addEvent eventApp json
+addEventsHandler :: forall a.
+                    DB.Pool
+                 -> Request (JSON.Json /\ String /\ a)
+                 -> Aff (Either String (Response JSON.Json))
+addEventsHandler pool req = do
+  result <- showError <$> DB.addEvent eventApp json pool
   pure $ const successResponse <$> result
   where eventApp = get2 req.val
         json = get1 req.val
 
-syncEventsHandler :: forall a. Request (Array JSON.Json /\ String /\ a) -> Aff (Either String (Response JSON.Json))
-syncEventsHandler req = do
-  result <- showError <$> DB.syncAll eventApp jsonArr
+syncEventsHandler :: forall a.
+                     DB.Pool
+                  -> Request (Array JSON.Json /\ String /\ a)
+                  -> Aff (Either String (Response JSON.Json))
+syncEventsHandler pool req = do
+  result <- showError <$> DB.syncAll eventApp jsonArr pool
   pure $ const successResponse <$> result
   where eventApp = get2 req.val
         jsonArr = get1 req.val
 
-baseRouter :: Request Unit -> Aff (Response String)
-baseRouter req@{method: HP.Get} = (wrapBasicAuth "john" "bobbydazzler" plainErrorHandler $
-                                   wrapJsonResponse $
-                                   wrapGetQueryParam "app" jsonBadRequestHandler $
-                                   wrapResponseErrors jsonErrorHandler $
-                                   retrieveEventsHandler)
-                                   req
-baseRouter req@{method: HP.Options} = pure $ response 200 ""
-baseRouter req@{method: HP.Post, path: ["sync"]} =
+baseRouter :: DB.Pool -> Request Unit -> Aff (Response String)
+baseRouter pool req@{method: HP.Get} =
+  (wrapBasicAuth "john" "bobbydazzler" plainErrorHandler $
+  wrapJsonResponse $
+  wrapGetQueryParam "app" jsonBadRequestHandler $
+  wrapResponseErrors jsonErrorHandler $
+  retrieveEventsHandler pool)
+  req
+baseRouter pool req@{method: HP.Options} = pure $ response 200 ""
+baseRouter pool req@{method: HP.Post, path: ["sync"]} =
   (wrapBasicAuth "john" "bobbydazzler" plainErrorHandler $
    wrapJsonResponse $
    wrapGetQueryParam "app" jsonBadRequestHandler $
    wrapJsonRequest jsonBadRequestHandler $
    wrapDecodeJson jsonBadRequestHandler $
    wrapResponseErrors jsonErrorHandler $
-   syncEventsHandler)
+   syncEventsHandler pool)
    req
-baseRouter req@{method: HP.Post} = (wrapBasicAuth "john" "bobbydazzler" plainErrorHandler $
-                                    wrapJsonResponse $
-                                    wrapGetQueryParam "app" jsonBadRequestHandler $
-                                    wrapJsonRequest jsonBadRequestHandler $
-                                    wrapResponseErrors jsonErrorHandler $
-                                    addEventsHandler)
-                                    req
-baseRouter req = (wrapJsonResponse $
-                 const (pure $ jsonResponse 404 {response: "not found"})) req
+baseRouter pool req@{method: HP.Post} = (wrapBasicAuth "john" "bobbydazzler" plainErrorHandler $
+                                        wrapJsonResponse $
+                                        wrapGetQueryParam "app" jsonBadRequestHandler $
+                                        wrapJsonRequest jsonBadRequestHandler $
+                                        wrapResponseErrors jsonErrorHandler $
+                                        addEventsHandler pool)
+                                        req
+baseRouter pool req = (wrapJsonResponse $
+                      const (pure $ jsonResponse 404 {response: "not found"})) req
 
 wrapCustom :: (Request Unit -> Aff (Response String)) -> HP.Request -> Aff HP.Response
 wrapCustom router request = do
@@ -225,17 +234,26 @@ wrapCustom router request = do
 plainErrorHandler :: String -> Aff (Response String)
 plainErrorHandler msg = pure $ response 401 msg
 
-app :: HP.Request -> HP.ResponseM
-app = wrapCustom $
-      wrapCors $
-      baseRouter
+app :: DB.Pool -> HP.Request -> HP.ResponseM
+app pool =
+  wrapCustom $
+  wrapCors $
+  baseRouter pool
+
+type Config = (
+  port :: Maybe Int <: "PORT"
+)
 
 -- | Boot up the server
-main :: HP.ServerM
-main = HP.serve 8080 app do
-  Console.log $ " ┌────────────────────────────────────────────┐"
-  Console.log $ " │ Server now up on port 8080                 │"
-  Console.log $ " │                                            │"
-  Console.log $ " │ To test, run:                              │"
-  Console.log $ " │  > curl localhost:8080   # => hello world! │"
-  Console.log $ " └────────────────────────────────────────────┘"
+main :: Effect Unit -- HP.ServerM
+main = do
+  config <- fromEnv (RProxy :: RProxy Config) <$> getEnv
+  case config of
+    (Left err) -> Console.log $ "ERROR: " <> envErrorMessage err
+    (Right conf) -> do
+      pool <- DB.getDB
+      let port = fromMaybe 8080 conf.port
+      void $ HP.serve port (app pool) do
+        Console.log $ " ┌────────────────────────────────────────────┐"
+        Console.log $ " │ Server now up on port " <> show port <> "                 │"
+        Console.log $ " └────────────────────────────────────────────┘"

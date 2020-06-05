@@ -17,6 +17,7 @@ import Database.PostgreSQL.PG as PG
 import Database.PostgreSQL.Row (Row1(Row1))
 
 type PG a = ExceptT PG.PGError Aff a
+type Pool = PG.Pool
 
 withConnection :: forall a. PG.Pool -> (PG.Connection -> PG a) -> PG a
 withConnection = PG.withConnection runExceptT
@@ -24,8 +25,8 @@ withConnection = PG.withConnection runExceptT
 withTransaction :: forall a. PG.Connection -> PG a -> PG a
 withTransaction = PG.withTransaction runExceptT
 
-createConnectionPool :: String -> PG PG.Pool
-createConnectionPool dbName = liftEffect $ PG.newPool
+createConnectionPool :: String -> Effect PG.Pool
+createConnectionPool dbName = PG.newPool
   ((PG.defaultPoolConfiguration dbName) { idleTimeoutMillis = Just 1000 })
 
 -- createEventsTable :: PG.Connection -> PG Unit
@@ -38,21 +39,20 @@ createConnectionPool dbName = liftEffect $ PG.newPool
 --     );
 --     """) Row0
 
-runQuery :: forall a. (PG.Connection -> PG a) -> Aff (Either PG.PGError a)
-runQuery query = runExceptT do
-  pool <- createConnectionPool "events_store"
+runQuery :: forall a. PG.Pool -> (PG.Connection -> PG a) -> Aff (Either PG.PGError a)
+runQuery pool query = runExceptT do
   withConnection pool $ \conn -> do
     withTransaction conn $ query conn
 
-addEvent :: String -> Json -> Aff (Either PG.PGError Unit)
-addEvent app event = runQuery \conn -> do
+addEvent :: String -> Json -> PG.Pool -> Aff (Either PG.PGError Unit)
+addEvent app event pool = runQuery pool \conn -> do
   PG.execute conn (PG.Query """
     INSERT INTO events (app, event)
     VALUES ($1, $2);
   """) (app /\ event)
 
-syncAll :: String -> (Array Json) -> Aff (Either PG.PGError Unit)
-syncAll app events = runQuery \conn -> do
+syncAll :: String -> (Array Json) -> PG.Pool -> Aff (Either PG.PGError Unit)
+syncAll app events pool = runQuery pool \conn -> do
   PG.execute conn (PG.Query """
     DELETE FROM events
     WHERE app = ($1);
@@ -63,8 +63,8 @@ syncAll app events = runQuery \conn -> do
       VALUES ($1, $2);
     """) (app /\ event)
 
-retrieveEvents :: String -> Aff (Either PG.PGError (Array Json))
-retrieveEvents app = runQuery $ \conn -> do
+retrieveEvents :: String -> PG.Pool -> Aff (Either PG.PGError (Array Json))
+retrieveEvents app pool = runQuery pool \conn -> do
   rows <- PG.query conn (PG.Query """
     SELECT event FROM events
     WHERE app = ($1)
@@ -72,22 +72,5 @@ retrieveEvents app = runQuery $ \conn -> do
     """) (Row1 app)
   pure $ map (\(Row1 json) -> json) rows
 
-getDB :: Aff (Either PG.PGError PG.Pool)
-getDB = runExceptT $ createConnectionPool "events_store"
-
-addSomeExampleStuff :: PG.Connection -> PG Unit
-addSomeExampleStuff conn = PG.execute conn (PG.Query """
-  INSERT INTO events (app, event)
-  VALUES ($1, $2);
-  """) ("goals" /\ (JSON.encodeJson {hello: "world"}))
-
-addSampleData :: PG Unit
-addSampleData = do
-  pool <- createConnectionPool "events_store"
-  withConnection pool $ \conn -> do
-    withTransaction conn $ do
-      addSomeExampleStuff conn
-
-main :: Effect Unit
-main = do
-  void $ runAff errorShow $ runExceptT addSampleData
+getDB :: Effect PG.Pool
+getDB = createConnectionPool "events_store"
