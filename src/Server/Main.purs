@@ -253,7 +253,9 @@ main = do
     (Right conf) -> do
       pool <- DB.getDB
       let port = fromMaybe 8080 conf.port
-      void $ HP.serve port (app pool) do
+          hostname = "0.0.0.0"
+          backlog = Nothing
+      void $ HP.serve' {port, backlog, hostname} (app pool) do
         Console.log $ " ┌────────────────────────────────────────────┐"
         Console.log $ " │ Server now up on port " <> show port <> "                 │"
         Console.log $ " └────────────────────────────────────────────┘"

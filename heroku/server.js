@@ -7906,7 +7906,6 @@ var PS = {};
   var Control_Bind = $PS["Control.Bind"];
   var Control_Monad_Error_Class = $PS["Control.Monad.Error.Class"];
   var Data_Functor = $PS["Data.Functor"];
-  var Data_Maybe = $PS["Data.Maybe"];
   var Data_Unit = $PS["Data.Unit"];
   var Effect = $PS["Effect"];
   var Effect_Aff = $PS["Effect.Aff"];
@@ -7925,13 +7924,6 @@ var PS = {};
                   return HTTPure_Response.internalServerError(Effect_Aff_Class.monadAffAff)(HTTPure_Body.bodyString)("Internal server error");
               });
           });
-      };
-  };
-  var listenOptions = function (port) {
-      return {
-          hostname: "localhost",
-          port: port,
-          backlog: Data_Maybe.Nothing.value
       };
   };
   var handleRequest = function (router) {
@@ -7954,10 +7946,7 @@ var PS = {};
           };
       };
   };
-  var serve = function ($1) {
-      return serve$prime(listenOptions($1));
-  };
-  exports["serve"] = serve;
+  exports["serve'"] = serve$prime;
 })(PS);
 (function(exports) {
   "use strict";
@@ -8652,13 +8641,17 @@ var PS = {};
       if (config instanceof Data_Either.Right) {
           var pool = Server_DB.getDB();
           var port = Data_Maybe.fromMaybe(8080)(config.value0.port);
-          return Data_Functor["void"](Effect.functorEffect)(HTTPure_Server.serve(port)(app(pool))(function __do() {
+          return Data_Functor["void"](Effect.functorEffect)(HTTPure_Server["serve'"]({
+              port: port,
+              backlog: Data_Maybe.Nothing.value,
+              hostname: "0.0.0.0"
+          })(app(pool))(function __do() {
               Effect_Console.log(" \u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510")();
               Effect_Console.log(" \u2502 Server now up on port " + (Data_Show.show(Data_Show.showInt)(port) + "                 \u2502"))();
               return Effect_Console.log(" \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518")();
           }))();
       };
-      throw new Error("Failed pattern match at Server.Main (line 251, column 3 - line 259, column 72): " + [ config.constructor.name ]);
+      throw new Error("Failed pattern match at Server.Main (line 251, column 3 - line 261, column 72): " + [ config.constructor.name ]);
   };
   exports["_headers"] = _headers;
   exports["updateRequestVal"] = updateRequestVal;
