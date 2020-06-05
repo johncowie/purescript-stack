@@ -119,44 +119,43 @@ let additions =
 
 
 let upstream =
-      https://github.com/purescript/package-sets/releases/download/psc-0.13.6-20200404/packages.dhall sha256:f239f2e215d0cbd5c203307701748581938f74c4c78f4aeffa32c11c131ef7b6
+      https://github.com/purescript/package-sets/releases/download/psc-0.13.6-20200507/packages.dhall sha256:9c1e8951e721b79de1de551f31ecb5a339e82bbd43300eb5ccfb1bf8cf7bbd62
 
 let overrides = {=}
 
 let additions =
-  { postgresql-client =
-      { dependencies =
-          [ "bytestrings"
-          , "exceptions"
-          , "newtype"
-          , "effect"
-          , "console"
-          , "either"
-          , "foreign-generic"
-          , "arrays"
-          , "maybe"
-          , "argonaut"
-          , "foreign-object"
-          , "aff"
-          , "foldable-traversable"
-          , "prelude"
-          , "bifunctors"
-          , "assert"
-          , "test-unit"
-          , "transformers"
-          , "decimals"
-          , "js-date"
-          , "psci-support"
-          , "tuples"
-          , "foreign"
-          , "lists"
-          , "nullable"
-          ]
-      , repo =
-          "https://github.com/rightfold/purescript-postgresql-client.git"
-      , version =
-          "v3.0.2"
+      { postgresql-client =
+          { dependencies =
+            [ "bytestrings"
+            , "exceptions"
+            , "newtype"
+            , "effect"
+            , "console"
+            , "either"
+            , "foreign-generic"
+            , "arrays"
+            , "maybe"
+            , "argonaut"
+            , "foreign-object"
+            , "aff"
+            , "foldable-traversable"
+            , "prelude"
+            , "bifunctors"
+            , "assert"
+            , "test-unit"
+            , "transformers"
+            , "decimals"
+            , "js-date"
+            , "psci-support"
+            , "tuples"
+            , "foreign"
+            , "lists"
+            , "nullable"
+            ]
+          , repo =
+              "https://github.com/rightfold/purescript-postgresql-client.git"
+          , version = "v3.0.2"
+          }
       }
-  }
 
 in  upstream // overrides // additions
