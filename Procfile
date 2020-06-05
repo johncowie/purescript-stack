@@ -1,1 +1,1 @@
-web: npm run build-server && node dist/server.js
+web: node heroku/server.js
