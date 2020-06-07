@@ -242,6 +242,7 @@ app pool =
 
 type Config = (
   port :: Maybe Int <: "PORT"
+, databaseUri :: Maybe String <: "DATABASE_URI"
 )
 
 -- | Boot up the server
@@ -251,11 +252,15 @@ main = do
   case config of
     (Left err) -> Console.log $ "ERROR: " <> envErrorMessage err
     (Right conf) -> do
-      pool <- DB.getDB
       let port = fromMaybe 8080 conf.port
           hostname = "0.0.0.0"
           backlog = Nothing
-      void $ HP.serve' {port, backlog, hostname} (app pool) do
-        Console.log $ " ┌────────────────────────────────────────────┐"
-        Console.log $ " │ Server now up on port " <> show port <> "                 │"
-        Console.log $ " └────────────────────────────────────────────┘"
+          dbUri = fromMaybe "postgres://localhost:5432/events_store" conf.databaseUri
+      pool <- DB.getDB dbUri
+      case pool of
+        (Left err) -> Console.log $ "ERROR: " <> err
+        (Right pool) -> do
+            void $ HP.serve' {port, backlog, hostname} (app pool) do
+              Console.log $ " ┌────────────────────────────────────────────┐"
+              Console.log $ " │ Server now up on port " <> show port <> "                 │"
+              Console.log $ " └────────────────────────────────────────────┘"
