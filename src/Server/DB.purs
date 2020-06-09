@@ -7,12 +7,9 @@ import Data.Tuple.Nested ((/\))
 import Data.Either (Either(..))
 import Data.Traversable (for)
 import Effect (Effect)
-import Effect.Class.Console (errorShow)
-import Effect.Aff (Aff, runAff)
-import Effect.Class (liftEffect)
+import Effect.Aff (Aff)
 import Effect.Console as Console
 import Data.Argonaut.Core (Json)
-import Data.Argonaut.Encode (encodeJson) as JSON
 
 import Database.PostgreSQL.PG as PG
 import Database.PostgreSQL.Row (Row1(Row1))
@@ -31,16 +28,6 @@ withTransaction = PG.withTransaction runExceptT
 createConnectionPool :: PG.PoolConfiguration -> Effect PG.Pool
 createConnectionPool poolConfig = PG.newPool
   (poolConfig { idleTimeoutMillis = Just 1000 })
-
--- createEventsTable :: PG.Connection -> PG Unit
--- createEventsTable conn = PG.execute conn (PG.Query """
---   CREATE TABLE events (
---     id SERIAL PRIMARY KEY,
---     app TEXT NOT NULL,
---     event JSONB NOT NULL,
---     created TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
---     );
---     """) Row0
 
 runQuery :: forall a. PG.Pool -> (PG.Connection -> PG a) -> Aff (Either PG.PGError a)
 runQuery pool query = runExceptT do
@@ -81,6 +68,10 @@ connectionMsg poolConfig = "Connected to database " <> db <> " at " <> hostAndPo
         host = fromMaybe "" poolConfig.host
         port = fromMaybe "" $ show <$> poolConfig.port
         hostAndPort = host <> ":" <> port
+
+showDBError :: forall a. Either PG.PGError a -> Either String a
+showDBError (Left err) = Left (show err)
+showDBError (Right a) = Right a
 
 getDB :: String -> Effect (Either String PG.Pool)
 getDB dbUri = case fromURI dbUri of

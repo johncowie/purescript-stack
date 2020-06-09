@@ -2,6 +2,8 @@ module Server.Main where
 
 import Prelude
 
+import Control.Monad.Except.Trans (ExceptT(..), runExceptT)
+
 import Data.Symbol (SProxy(..))
 import Data.Map as M
 import Data.Newtype (wrap, unwrap)
@@ -19,7 +21,7 @@ import Type.Data.Row (RProxy(..))
 import Node.Process (getEnv)
 
 import Effect (Effect)
-import Effect.Aff (Aff)
+import Effect.Aff (Aff, runAff, launchAff_)
 import Effect.Class (liftEffect)
 import Effect.Console as Console
 
@@ -29,14 +31,12 @@ import HTTPure as HP
 import HTTPure.Headers as Headers
 import HTTPure.Version (Version)
 
-
-
-
-import TypedEnv (type (<:), envErrorMessage, fromEnv)
-
+import TypedEnv (type (<:), fromEnv)
 
 import Server.DB as DB
-
+import Server.Migrations.MigrationData (migrationStore)
+import Server.Migrations.Postgres (executor, intVersionStore)
+import Server.Migrations (migrate, Migrator)
 
 _headers :: forall r. L.Lens' {headers :: HP.Headers | r} HP.Headers
 _headers = L.prop (SProxy :: SProxy "headers")
@@ -245,22 +245,38 @@ type Config = (
 , databaseUri :: Maybe String <: "DATABASE_URI"
 )
 
+logError :: Aff (Either String Unit) -> Aff Unit
+logError e = do
+  r <- e
+  case r of
+    (Left err) -> liftEffect $ Console.log $ "ERROR: " <> err
+    _ -> pure unit
+
+migrator :: DB.Pool -> Migrator Aff Int String
+migrator pool =
+  { executor: executor pool
+  , migrationStore
+  , versionStore: intVersionStore pool
+  , logger: liftEffect <<< Console.log
+  }
+
+affErrorHandler :: forall e a. (Show e) => Either e a -> Effect Unit
+affErrorHandler (Left err) = do
+  Console.log $ "ERROR: " <> show err
+affErrorHandler _ = pure unit
+
 -- | Boot up the server
+-- TODO run migrations when app is starting
 main :: Effect Unit -- HP.ServerM
-main = do
-  config <- fromEnv (RProxy :: RProxy Config) <$> getEnv
-  case config of
-    (Left err) -> Console.log $ "ERROR: " <> envErrorMessage err
-    (Right conf) -> do
-      let port = fromMaybe 8080 conf.port
-          hostname = "0.0.0.0"
-          backlog = Nothing
-          dbUri = fromMaybe "postgres://localhost:5432/events_store" conf.databaseUri
-      pool <- DB.getDB dbUri
-      case pool of
-        (Left err) -> Console.log $ "ERROR: " <> err
-        (Right pool) -> do
-            void $ HP.serve' {port, backlog, hostname} (app pool) do
-              Console.log $ " ┌────────────────────────────────────────────┐"
-              Console.log $ " │ Server now up on port " <> show port <> "                 │"
-              Console.log $ " └────────────────────────────────────────────┘"
+main = void $ runAff affErrorHandler $ logError $ runExceptT $ do
+  config <- ExceptT $ showError <$> (liftEffect $ fromEnv (RProxy :: RProxy Config) <$> getEnv)
+  let port = fromMaybe 8080 config.port
+      hostname = "0.0.0.0"
+      backlog = Nothing
+      dbUri = fromMaybe "postgres://localhost:5432/events_store" config.databaseUri
+  pool <- ExceptT $ showError <$> (liftEffect $ DB.getDB dbUri)
+  ExceptT $ migrate $ migrator pool
+  -- void $ ExceptT $ Right <$> (HP.serve' {port, backlog, hostname} (app pool) do
+  --   Console.log $ " ┌────────────────────────────────────────────┐"
+  --   Console.log $ " │ Server now up on port " <> show port <> "                 │"
+  --   Console.log $ " └────────────────────────────────────────────┘")
