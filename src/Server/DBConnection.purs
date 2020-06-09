@@ -5,13 +5,13 @@ where
 import Prelude
 import Data.Either (Either(..))
 import Data.Newtype (unwrap)
-import Data.Maybe (Maybe(..), fromMaybe)
+import Data.Maybe (Maybe(..))
 import Data.Array as Arr
 import Data.These (theseLeft, theseRight)
+import Data.String.NonEmpty (toString)
 
 import Database.PostgreSQL.PG as PG
 
-import Effect.Exception.Unsafe (unsafeThrow)
 
 import URI as U
 import URI (AbsoluteURI)
@@ -19,7 +19,7 @@ import URI.Host as Host
 import URI.Port as Port
 import URI.HostPortPair as HostPortPair
 import URI.HostPortPair (HostPortPair)
-import URI.AbsoluteURI (AbsoluteURIOptions, parser,  _hierPart, _userInfo, _authority, _userInfo, _path, _hosts)
+import URI.AbsoluteURI (AbsoluteURIOptions, parser,  _hierPart, _userInfo, _authority, _path, _hosts)
 import URI.Extra.UserPassInfo as UserPassInfo
 import URI.Extra.UserPassInfo (UserPassInfo)
 import URI.Path.Segment (segmentToString)
@@ -54,34 +54,37 @@ pathHead (U.Path segments) = segmentToString <$> (Arr.head segments)
 host :: PostgresURI -> Maybe String
 host uri = do
   hostPortPair <- join $ L.lastOf (_hierPart <<< _authority <<< _hosts) uri
-  host <- theseLeft hostPortPair
-  pure $ Host.print host
+  h <- theseLeft hostPortPair
+  pure $ Host.print h
 
 port :: PostgresURI -> Maybe Int
 port uri = do
   hostPortPair <- join $ L.lastOf (_hierPart <<< _authority <<< _hosts) uri
-  port <- theseRight hostPortPair
-  pure $ Port.toInt port
+  port' <- theseRight hostPortPair
+  pure $ Port.toInt port'
 
 database :: PostgresURI -> Either String String
 database uri = case databaseM of
-  (Just database) -> Right database
+  (Just database') -> Right database'
   Nothing -> Left "URI doesn't have database specified"
   where databaseM = join $ pathHead <$> L.lastOf (_hierPart <<< _path) uri
 
 user :: PostgresURI -> Maybe String
-user uri = show <$> _.user <$> unwrap <$> userInfo
+user uri = toString <$> _.user <$> unwrap <$> userInfo
   where userInfo = join $ L.lastOf (_hierPart <<< _authority <<< _userInfo) uri
 
 password :: PostgresURI -> Maybe String
-password uri = show <$> _.password <$> unwrap <$> userInfo
-  where userInfo = join $ L.lastOf (_hierPart <<< _authority <<< _userInfo) uri
+password uri = do
+  userInfo <- userInfoM
+  password' <- (unwrap userInfo).password
+  pure $ toString password'
+  where userInfoM = join $ L.lastOf (_hierPart <<< _authority <<< _userInfo) uri
 
 -- postgres://username:password@host:port/path
 uriToConfig :: PostgresURI -> Either String PG.PoolConfiguration
 uriToConfig uri = do
-  database <- database uri
-  pure $ { database: database
+  database' <- database uri
+  pure $ { database: database'
          , host: host uri
          , idleTimeoutMillis: Nothing
          , max: Nothing
