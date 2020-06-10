@@ -15632,7 +15632,7 @@ var PS = {};
   var Data_Unit = $PS["Data.Unit"];
   var Effect_Aff = $PS["Effect.Aff"];
   var Effect_Exception = $PS["Effect.Exception"];                            
-  var rootUrl = "http://dumb-waiter.herokuapp.com";
+  var rootUrl = "https://dumb-waiter.herokuapp.com";
   var apiPost = function (dictEncodeJson) {
       return function (url) {
           return function (e) {
