@@ -23,6 +23,7 @@ import Data.Map as M
 
 import Effect (Effect)
 import Effect.Aff (Aff)
+import Effect.Class (liftEffect)
 import Effect.Exception.Unsafe (unsafeThrow)
 
 import Spork.App as App
@@ -41,7 +42,7 @@ data InternalMsg ev =
     LoadEvents
   | ProcessEvents (Array ev)
   | DoNothing
-  -- | AlertError String
+  | AlertError String
 
 type Transition ev model msg = {
   effects :: Array (Aff msg)
@@ -89,6 +90,11 @@ mkSubs eventApp model = maybe (App.batch []) App.lift tickSubM
                       (Just (Tuple tickMsg _)) -> Just $ tickSub (\i -> Right $ tickMsg i)
                       _ -> Nothing
 
+alertError :: forall ev msg. String -> Aff (Either (InternalMsg ev) msg)
+alertError err = do
+  liftEffect $ alert err
+  pure (Left DoNothing)
+
 -- TODO apply any events that are returned
 mkUpdate :: forall st ev model msg.
             App st ev model msg
@@ -98,8 +104,10 @@ mkUpdate :: forall st ev model msg.
 mkUpdate {_state, reducer, eventStore, update} m (Right msg) = {effects: allEvents, model: updatedModel}
   where {effects, model, events} = update m msg
         storeEventEffects = mapFlipped events $ \event -> do
-          void $ eventStore.append event -- TODO handle error
-          pure (Left DoNothing)
+          result <- eventStore.append event -- TODO sequence errors
+          case result of
+            (Left err) -> pure $ Left $ AlertError (show err)
+            _  -> pure $ Left DoNothing
         updatedModel = L.over _state (\s -> foldr reducer s events) model
         allEvents = App.batch $ storeEventEffects <> mapmap Right effects
 mkUpdate {_state, reducer} model (Left (ProcessEvents events)) = App.purely updatedModel
@@ -109,7 +117,8 @@ mkUpdate eventApp model (Left LoadEvents) = {effects: App.batch [load], model}
           eventsE <- eventApp.eventStore.retrieveAll
           case eventsE of
             (Right events) -> pure $ Left $ ProcessEvents events
-            (Left err) -> pure $ Left DoNothing -- TODO handle error - raise alert
+            (Left err) -> pure $ Left $ AlertError $ show err
+mkUpdate eventApp model (Left (AlertError e)) = {effects: App.batch [alertError e], model: model}
 mkUpdate eventapp model (Left DoNothing) = App.purely model
 
 toApp :: forall st ev model msg. App st ev model msg -> App.App Aff Sub model (Either (InternalMsg ev) msg)
