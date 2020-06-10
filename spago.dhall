@@ -14,6 +14,7 @@ You can edit this file as you like.
   , "formatters"
   , "httpure"
   , "js-timers"
+  , "node-http"
   , "node-process"
   , "numbers"
   , "parsing"

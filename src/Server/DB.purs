@@ -58,13 +58,12 @@ retrieveEvents app pool = runQuery pool \conn -> do
   rows <- PG.query conn (PG.Query """
     SELECT event FROM events
     WHERE app = ($1)
-    ORDER BY id desc;
+    ORDER BY id desc, created desc;
     """) (Row1 app)
   pure $ map (\(Row1 json) -> json) rows
 
 connectionMsg :: PG.PoolConfiguration -> String
--- connectionMsg poolConfig = "Connected to database " <> db <> " at " <> hostAndPort
-connectionMsg poolConfig = "Connected to database: " <> show poolConfig
+connectionMsg poolConfig = "Connected to database " <> db <> " at " <> hostAndPort
   where db = poolConfig.database
         host = fromMaybe "" poolConfig.host
         port = fromMaybe "" $ show <$> poolConfig.port
