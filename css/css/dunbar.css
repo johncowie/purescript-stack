@@ -1,0 +1,9 @@
+.friend-name {
+  display: inline-block;
+  width: 400px;
+}
+
+.time-since-seen {
+  display: inline-block;
+  width: 400px;
+}
