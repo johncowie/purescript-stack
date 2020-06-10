@@ -71,13 +71,13 @@ apiPost url e = do
   where body = Just $ RequestBody.json $ JSON.encodeJson e
 
 appendHTTP :: forall e. (JSON.EncodeJson e) => String -> e -> Aff (Either Error Unit)
-appendHTTP s event = apiPost ("http://lvh.me:8080?app=" <> s) event
+appendHTTP s event = apiPost ("http://dumb-waiter.herokuapp.com?app=" <> s) event
 
 syncHTTP :: forall e. (JSON.EncodeJson e) => String -> Array e -> Aff (Either Error Unit)
-syncHTTP s events = apiPost ("http://lvh.me:8080/sync?app=" <> s) events
+syncHTTP s events = apiPost ("http://dumb-waiter.herokuapp.com/sync?app=" <> s) events
 
 retrieveAllHTTP :: forall e. (JSON.DecodeJson e) => String -> Aff (Either Error (Array e))
-retrieveAllHTTP s = apiGet ("http://lvh.me:8080?app=" <> s)
+retrieveAllHTTP s = apiGet ("http://dumb-waiter.herokuapp.com?app=" <> s)
 
 httpAppendStore :: forall e. (JSON.DecodeJson e) => (JSON.EncodeJson e) => String -> AppendStore e
 httpAppendStore k = {

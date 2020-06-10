@@ -21,7 +21,7 @@ import Type.Data.Row (RProxy(..))
 import Node.Process (getEnv)
 
 import Effect (Effect)
-import Effect.Aff (Aff, runAff, launchAff_)
+import Effect.Aff (Aff, runAff)
 import Effect.Class (liftEffect)
 import Effect.Console as Console
 
@@ -276,7 +276,7 @@ main = void $ runAff affErrorHandler $ logError $ runExceptT $ do
       dbUri = fromMaybe "postgres://localhost:5432/events_store" config.databaseUri
   pool <- ExceptT $ showError <$> (liftEffect $ DB.getDB dbUri)
   ExceptT $ migrate $ migrator pool
-  -- void $ ExceptT $ Right <$> (HP.serve' {port, backlog, hostname} (app pool) do
-  --   Console.log $ " ┌────────────────────────────────────────────┐"
-  --   Console.log $ " │ Server now up on port " <> show port <> "                 │"
-  --   Console.log $ " └────────────────────────────────────────────┘")
+  void $ ExceptT $ liftEffect $ Right <$> (HP.serve' {port, backlog, hostname} (app pool) do
+    Console.log $ " ┌────────────────────────────────────────────┐"
+    Console.log $ " │ Server now up on port " <> show port <> "                 │"
+    Console.log $ " └────────────────────────────────────────────┘")

@@ -41,6 +41,7 @@ data InternalMsg ev =
     LoadEvents
   | ProcessEvents (Array ev)
   | DoNothing
+  -- | AlertError String
 
 type Transition ev model msg = {
   effects :: Array (Aff msg)
@@ -108,7 +109,7 @@ mkUpdate eventApp model (Left LoadEvents) = {effects: App.batch [load], model}
           eventsE <- eventApp.eventStore.retrieveAll
           case eventsE of
             (Right events) -> pure $ Left $ ProcessEvents events
-            (Left err) -> pure $ Left DoNothing
+            (Left err) -> pure $ Left DoNothing -- TODO handle error - raise alert
 mkUpdate eventapp model (Left DoNothing) = App.purely model
 
 toApp :: forall st ev model msg. App st ev model msg -> App.App Aff Sub model (Either (InternalMsg ev) msg)

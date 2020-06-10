@@ -10,8 +10,8 @@
     "watch": "parcel dev.html",
     "test": "echo \"Error: no test specified\" && exit 1",
     "server": "spago run -m Server.Main",
-    "build-server": "spago bundle-app --main Server.Main --to heroku/server.js",
-    "build-client": "spago bundle-app --main Main --to dist/client.js",
+    "build-server": "./scripts/build-server.sh",
+    "build-client": "./scripts/build-frontend.sh",
     "migrate": "spago run -m Server.DB"
   },
   "author": "",
@@ -23,5 +23,8 @@
     "pg": "8.2.0",
     "purescript": "0.13.8",
     "spago": "0.15.2"
+  },
+  "devDependencies": {
+    "browserify": "16.5.1"
   }
 }
