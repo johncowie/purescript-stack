@@ -12,3 +12,5 @@ index.js
 .DS_Store
 /.cache
 /dist
+/server-dist
+/frontend-dist
