@@ -1,8 +1,7 @@
 module Utils.AppendStore
 ( AppendStore
 , localStorageAppendStore
-, httpAppendStore
-, syncAppendStore)
+, httpAppendStore)
 where
 
 import Prelude
@@ -12,12 +11,10 @@ import Affjax as AX
 import Affjax.ResponseFormat as ResponseFormat
 import Affjax.RequestBody as RequestBody
 import Affjax.RequestHeader (RequestHeader(..))
-import Control.Monad.Except.Trans (ExceptT(..), runExceptT)
 import Data.Argonaut.Decode (class DecodeJson, decodeJson) as JSON
 import Data.Argonaut.Encode (class EncodeJson, encodeJson) as JSON
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..), fromMaybe)
-import Data.Array (length, reverse)
 import Data.HTTP.Method (Method(..))
 import Effect.Exception (Error, error)
 import Utils.LocalJsonStorage as LS
@@ -76,9 +73,6 @@ rootUrl = "https://dumb-waiter.herokuapp.com"
 appendHTTP :: forall e. (JSON.EncodeJson e) => String -> e -> Aff (Either Error Unit)
 appendHTTP s event = apiPost (rootUrl <> "?app=" <> s) event
 
-syncHTTP :: forall e. (JSON.EncodeJson e) => String -> Array e -> Aff (Either Error Unit)
-syncHTTP s events = apiPost (rootUrl <> "/sync?app=" <> s) events
-
 retrieveAllHTTP :: forall e. (JSON.DecodeJson e) => String -> Aff (Either Error (Array e))
 retrieveAllHTTP s = apiGet (rootUrl <> "?app=" <> s)
 
@@ -87,14 +81,3 @@ httpAppendStore k = {
   append: appendHTTP k
 , retrieveAll: retrieveAllHTTP k
 }
-
-syncAppendStore :: forall e. (JSON.DecodeJson e) => (JSON.EncodeJson e) => String -> AppendStore e
-syncAppendStore k = {append, retrieveAll}
-  where append event = runExceptT do
-          (eventsFromHTTP :: Array e) <- ExceptT $ retrieveAllHTTP k
-          (eventsFromLocal :: Array e) <- ExceptT $ async $ retrieveFromLocalStorage k
-          ExceptT $ Right <$> (async $ LS.store k ([event] <> eventsFromLocal))
-          if length eventsFromHTTP == length eventsFromLocal
-            then ExceptT $ appendHTTP k event
-            else ExceptT $ syncHTTP k $ reverse ([event] <> eventsFromLocal)
-        retrieveAll = async $ retrieveFromLocalStorage k

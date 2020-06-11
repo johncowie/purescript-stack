@@ -37,28 +37,20 @@ runQuery pool query = runExceptT do
 addEvent :: String -> Json -> PG.Pool -> Aff (Either PG.PGError Unit)
 addEvent app event pool = runQuery pool \conn -> do
   PG.execute conn (PG.Query """
-    INSERT INTO events (app, event)
-    VALUES ($1, $2);
+    insert into events (id, app, event)
+    values (
+	      (select max(id) + 1 from events)
+      , $1
+      , $2
+    );
   """) (app /\ event)
-
-syncAll :: String -> (Array Json) -> PG.Pool -> Aff (Either PG.PGError Unit)
-syncAll app events pool = runQuery pool \conn -> do
-  PG.execute conn (PG.Query """
-    DELETE FROM events
-    WHERE app = ($1);
-  """) (Row1 app)
-  void $ for events \event -> do
-    PG.execute conn (PG.Query """
-      INSERT INTO events (app, event)
-      VALUES ($1, $2);
-    """) (app /\ event)
 
 retrieveEvents :: String -> PG.Pool -> Aff (Either PG.PGError (Array Json))
 retrieveEvents app pool = runQuery pool \conn -> do
   rows <- PG.query conn (PG.Query """
     SELECT event FROM events
     WHERE app = ($1)
-    ORDER BY id desc, created desc;
+    ORDER BY id desc;
     """) (Row1 app)
   pure $ map (\(Row1 json) -> json) rows
 

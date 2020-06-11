@@ -188,16 +188,6 @@ addEventsHandler pool req = do
   where eventApp = get2 req.val
         json = get1 req.val
 
-syncEventsHandler :: forall a.
-                     DB.Pool
-                  -> Request (Array JSON.Json /\ String /\ a)
-                  -> Aff (Either String (Response JSON.Json))
-syncEventsHandler pool req = do
-  result <- showError <$> DB.syncAll eventApp jsonArr pool
-  pure $ const successResponse <$> result
-  where eventApp = get2 req.val
-        jsonArr = get1 req.val
-
 baseRouter :: DB.Pool -> Request Unit -> Aff (Response String)
 baseRouter pool req@{method: HP.Get} =
   (wrapBasicAuth "john" "bobbydazzler" plainErrorHandler $
@@ -207,15 +197,6 @@ baseRouter pool req@{method: HP.Get} =
   retrieveEventsHandler pool)
   req
 baseRouter pool req@{method: HP.Options} = pure $ response 200 ""
-baseRouter pool req@{method: HP.Post, path: ["sync"]} =
-  (wrapBasicAuth "john" "bobbydazzler" plainErrorHandler $
-   wrapJsonResponse $
-   wrapGetQueryParam "app" jsonBadRequestHandler $
-   wrapJsonRequest jsonBadRequestHandler $
-   wrapDecodeJson jsonBadRequestHandler $
-   wrapResponseErrors jsonErrorHandler $
-   syncEventsHandler pool)
-   req
 baseRouter pool req@{method: HP.Post} = (wrapBasicAuth "john" "bobbydazzler" plainErrorHandler $
                                         wrapJsonResponse $
                                         wrapGetQueryParam "app" jsonBadRequestHandler $
