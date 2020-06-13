@@ -32,7 +32,7 @@ import Spork.Html as H
 
 import Utils.Spork.TimerSubscription (runTicker, Sub, tickSub)
 import Utils.Alert (alert)
-import Utils.AppendStore (AppendStore)
+import Utils.AppendStore (AppendStore, SnapshotStore)
 import Utils.Lens (type (:->))
 import Utils.Lens as L
 import Utils.Components.Input (Inputs, StringInput)
@@ -64,7 +64,8 @@ type App st ev model msg = {
 , update :: model -> msg -> Transition ev model msg
 , init :: Transition ev model msg
 , tick :: Maybe (Tuple (Instant -> msg) Seconds)
-, eventStore :: AppendStore ev
+, eventStore :: AppendStore ev -- TODO combine these
+, snapshotStore :: SnapshotStore st
 , reducer :: ev -> st -> st
 , _state :: model :-> st
 , _eventAppState :: model :-> EventAppState

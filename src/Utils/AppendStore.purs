@@ -1,12 +1,15 @@
 module Utils.AppendStore
 ( AppendStore
 , localStorageAppendStore
-, httpAppendStore)
+, httpAppendStore
+, Snapshot
+, SnapshotStore
+, httpSnapshotStore
+)
 where
 
 import Prelude
-import Effect (Effect)
-import Effect.Aff (Aff)
+
 import Affjax as AX
 import Affjax.ResponseFormat as ResponseFormat
 import Affjax.RequestBody as RequestBody
@@ -16,7 +19,13 @@ import Data.Argonaut.Encode (class EncodeJson, encodeJson) as JSON
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.HTTP.Method (Method(..))
+
+import Effect (Effect)
+import Effect.Aff (Aff)
+import Effect.Class (liftEffect)
+import Effect.Console as Console
 import Effect.Exception (Error, error)
+
 import Utils.LocalJsonStorage as LS
 import Utils.Async (async)
 
@@ -55,6 +64,20 @@ apiGet url = do
       Left jsonErr -> pure $ Left $ error jsonErr
       Right events -> pure $ Right $ events
 
+apiGetMaybe :: forall e. (JSON.DecodeJson e) => String -> Aff (Either Error (Maybe e))
+apiGetMaybe url = do
+  result <- AX.request $ AX.defaultRequest { responseFormat = ResponseFormat.json
+                                           , method = Left GET
+                                           , url = url
+                                           , headers = [RequestHeader "Authorization" "john:bobbydazzler"]}
+  case result of
+    Left err -> pure $ Left $ error $ AX.printError err
+    Right response -> case JSON.decodeJson response.body of
+      Left jsonErr -> do
+        liftEffect $ Console.log $ "Error parsing json: " <> jsonErr
+        pure $ Right Nothing
+      Right val -> pure $ Right $ Just val
+
 apiPost :: forall e. (JSON.EncodeJson e) => String -> e -> Aff (Either Error Unit)
 apiPost url e = do
   result <- AX.request $ AX.defaultRequest { responseFormat = ResponseFormat.json
@@ -81,3 +104,35 @@ httpAppendStore k = {
   append: appendHTTP k
 , retrieveAll: retrieveAllHTTP k
 }
+
+
+
+-- snapshot stuff
+
+type Snapshot st = {
+  state :: st,
+  upToEvent :: Int
+}
+
+type SnapshotStore st = {
+  retrieveLatestSnapshot :: Aff (Either Error (Maybe (Snapshot st)))
+, saveSnapshot :: (Snapshot st) -> Aff (Either Error Unit)
+}
+
+retrieveLatestSnapshotHTTP :: forall st. (JSON.DecodeJson st) => String -> Aff (Either Error (Maybe (Snapshot st)))
+retrieveLatestSnapshotHTTP app = apiGetMaybe (rootUrl <> "/snapshots?app=" <> app)
+
+saveSnapshotHTTP :: forall st. (JSON.EncodeJson st) => String -> (Snapshot st) -> Aff (Either Error Unit)
+saveSnapshotHTTP app = apiPost (rootUrl <> "/snapshots?app=" <> app)
+
+httpSnapshotStore :: forall st. (JSON.DecodeJson st) => (JSON.EncodeJson st) => String -> SnapshotStore st
+httpSnapshotStore k = {
+  retrieveLatestSnapshot: retrieveLatestSnapshotHTTP k
+, saveSnapshot: saveSnapshotHTTP k
+}
+
+-- how are snapshots going to work??
+-- 1) Load snapshot from database (use empty state if doesn't exist or parse)
+-- 2) Load all events after upToEvent and replay on top of state (state needs to keep track of event number)
+
+-- async periodically store

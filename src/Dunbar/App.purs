@@ -25,7 +25,7 @@ import Utils.Spork.EventApp as App
 import Utils.Lens as L
 import Utils.Components.Input as Input
 import Utils.Components.Input (StringInput, Inputs)
-import Utils.AppendStore (AppendStore, httpAppendStore)
+import Utils.AppendStore (AppendStore, httpAppendStore, httpSnapshotStore)
 import Utils.IdMap as IdMap
 import Utils.DateTime as UDT
 import Utils.Async (async)
@@ -266,6 +266,7 @@ app currentTime = {
 , _eventAppState
 , reducer: State.processEvent
 , eventStore: httpAppendStore "dunbar"
+, snapshotStore: httpSnapshotStore "snapshot"
 }
 
 affErrorHandler :: Error -> Effect Unit

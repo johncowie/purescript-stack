@@ -2,10 +2,11 @@ module Server.DB where
 
 import Prelude
 import Control.Monad.Except.Trans (ExceptT, runExceptT)
+import Data.Array (head)
 import Data.Maybe (Maybe(..), fromMaybe)
+import Data.Tuple (Tuple)
 import Data.Tuple.Nested ((/\))
 import Data.Either (Either(..))
-import Data.Traversable (for)
 import Effect (Effect)
 import Effect.Aff (Aff)
 import Effect.Console as Console
@@ -34,25 +35,50 @@ runQuery pool query = runExceptT do
   withConnection pool $ \conn -> do
     withTransaction conn $ query conn
 
-addEvent :: String -> Json -> PG.Pool -> Aff (Either PG.PGError Unit)
+addEvent :: String -> Json -> PG.Pool -> Aff (Either PG.PGError Int)
 addEvent app event pool = runQuery pool \conn -> do
-  PG.execute conn (PG.Query """
-    insert into events (id, app, event)
-    values (
-	      (select max(id) + 1 from events)
+  rows <- PG.query conn (PG.Query """
+    INSERT INTO EVENTS (id, app, event)
+    VALUES (
+	      (SELECT COALESCE(MAX(id), 0) + 1 FROM events)
       , $1
       , $2
-    );
+    )
+    RETURNING ID;
   """) (app /\ event)
+  pure $ fromMaybe 0 $ head $ map (\(Row1 id) -> id) rows
 
 retrieveEvents :: String -> PG.Pool -> Aff (Either PG.PGError (Array Json))
 retrieveEvents app pool = runQuery pool \conn -> do
   rows <- PG.query conn (PG.Query """
     SELECT event FROM events
-    WHERE app = ($1)
+    WHERE app = $1
     ORDER BY id desc;
     """) (Row1 app)
   pure $ map (\(Row1 json) -> json) rows
+
+retrieveLatestSnapshot :: String -> PG.Pool -> Aff (Either PG.PGError (Maybe (Tuple Json Int)))
+retrieveLatestSnapshot app pool = runQuery pool \conn -> do
+  rows <- PG.query conn (PG.Query """
+    SELECT snapshot, up_to_event
+    FROM snapshots
+    WHERE app = $1
+    ORDER BY up_to_event DESC
+    LIMIT 1;
+  """) (Row1 app)
+  pure $ head rows
+
+insertSnapshot :: String -> Json -> Int -> PG.Pool -> Aff (Either PG.PGError Unit)
+insertSnapshot app snapshot upToEvent pool = runQuery pool \conn -> do
+  PG.execute conn (PG.Query """
+    INSERT INTO snapshots (id, app, snapshot, upToEvent)
+    VALUES (
+      (select coalesce(max(id), 0) + 1 from shapshots)
+    , $1
+    , $2
+    , $3
+    );
+  """) (app /\ snapshot /\ upToEvent)
 
 connectionMsg :: PG.PoolConfiguration -> String
 connectionMsg poolConfig = "Connected to database " <> db <> " at " <> hostAndPort

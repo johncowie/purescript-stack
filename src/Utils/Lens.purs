@@ -1,13 +1,13 @@
 module Utils.Lens where
 
 import Prelude
+import Control.Apply (lift2)
 import Data.Symbol (class IsSymbol, SProxy)
 import Prim.Row (class Cons)
 import Record (get, set) as R
 import Data.Newtype (class Newtype, unwrap, wrap)
 import Data.Map as M
 import Data.Maybe (Maybe(..), fromMaybe)
-import Effect.Exception.Unsafe (unsafeThrow)
 
 data Lens' a b = Lens (a -> b) (a -> b -> a)
 
@@ -43,6 +43,10 @@ instance lensSemigroupoid :: Semigroupoid Lens' where
 -- both = unsafeThrow "implement me"
 
 -- some handy lenses
+
+liftLens :: forall f a b. (Apply f) => Lens' a b -> Lens' (f a) (f b)
+liftLens (Lens g s) = lens (map g) (lift2 s)
+
 _newtype :: forall a b. (Newtype a b) => Lens' a b
 _newtype = lens getter setter
   where getter a = unwrap a

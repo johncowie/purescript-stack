@@ -1,6 +1,7 @@
 module Goals.Data.State where
 
 import Prelude
+
 import Data.DateTime (DateTime)
 import Data.DateTime.Instant (fromDateTime)
 import Data.Maybe (Maybe(..))
@@ -8,10 +9,15 @@ import Data.Foldable (elem)
 import Data.Array (catMaybes)
 import Data.Newtype (class Newtype, wrap, unwrap)
 import Data.Symbol (SProxy(..))
+import Data.Argonaut.Decode (class DecodeJson)
+import Data.Argonaut.Encode (class EncodeJson)
+
 import Utils.Lens (type (:->))
 import Utils.Lens as L
 import Utils.IdMap as IdMap
 import Utils.JsonDateTime (JsonDateTime)
+import Utils.JsonNewtype (decodeNewtype, encodeNewtype)
+
 import Goals.Data.Goal (Goal, newGoal)
 import Goals.Data.Goal as Goal
 import Goals.Data.Todo (Todo, newTodo)
@@ -25,6 +31,12 @@ newtype GoalState = GoalState {
 }
 
 derive instance newtypeGoal :: Newtype GoalState _
+
+instance decodeJsonGoalState :: DecodeJson GoalState where
+  decodeJson = decodeNewtype
+
+instance encodeJsonGoalState :: EncodeJson GoalState where
+  encodeJson = encodeNewtype
 
 _goals :: GoalState :-> IdMap.IdMap Goal
 _goals = L._newtype >>> L.prop (SProxy :: SProxy "goals")

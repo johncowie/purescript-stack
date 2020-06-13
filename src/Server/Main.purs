@@ -144,6 +144,36 @@ retrieveEventsHandler pool req = do
   pure $ okJsonResponse <$> events
   where eventApp = fst req.val
 
+addEventsHandler :: forall a.
+                    DB.Pool
+                 -> Request (JSON.Json /\ String /\ a)
+                 -> Aff (Either String (Response JSON.Json))
+addEventsHandler pool req = do
+  result <- showError <$> DB.addEvent eventApp json pool
+  pure $ const successResponse <$> result
+  where eventApp = get2 req.val
+        json = get1 req.val
+
+retrieveSnapshotHandler :: DB.Pool
+                        -> Request (Tuple String Unit)
+                        -> Aff (Either String (Response JSON.Json))
+retrieveSnapshotHandler pool req = runExceptT do
+  snapshotM <- ExceptT $ showError <$> DB.retrieveLatestSnapshot eventApp pool
+  pure $ case snapshotM of
+    Just (Tuple state upToEvent) -> okJsonResponse {state, upToEvent}
+    Nothing -> okJsonResponse {}
+  where eventApp = fst req.val
+
+addSnapshotHandler :: forall a. DB.Pool
+                   -> Request (JSON.Json /\ String /\ a)
+                   -> Aff (Either String (Response JSON.Json))
+addSnapshotHandler pool req = runExceptT do
+  {snapshot, upToEvent} :: {snapshot :: JSON.Json, upToEvent :: Int} <- ExceptT $ pure $ JSON.decodeJson json
+  void $ ExceptT $ showError <$> DB.insertSnapshot eventApp snapshot upToEvent pool
+  pure successResponse
+  where (json /\ eventApp /\ _) = req.val
+
+
 wrapGetQueryParam :: forall a res. String -> (String -> Aff res) -> (Request (Tuple String a) -> Aff res) -> Request a -> Aff res
 wrapGetQueryParam key errorHandler router req =
   case req.query HP.!! key of
@@ -178,34 +208,40 @@ showError :: forall a b. (Show a) => Either a b -> Either String b
 showError (Left e) = Left (show e)
 showError (Right e) = Right e
 
-addEventsHandler :: forall a.
-                    DB.Pool
-                 -> Request (JSON.Json /\ String /\ a)
-                 -> Aff (Either String (Response JSON.Json))
-addEventsHandler pool req = do
-  result <- showError <$> DB.addEvent eventApp json pool
-  pure $ const successResponse <$> result
-  where eventApp = get2 req.val
-        json = get1 req.val
-
-baseRouter :: DB.Pool -> Request Unit -> Aff (Response String)
-baseRouter pool req@{method: HP.Get} =
-  (wrapBasicAuth "john" "bobbydazzler" plainErrorHandler $
+lookupHandler :: DB.Pool -> Request Unit -> (Request Unit -> Aff (Response String))
+lookupHandler pool req@{method: HP.Options} = const $ pure $ response 200 ""
+lookupHandler pool req@{method: HP.Get, path: ["snapshots"]} =
+  wrapBasicAuth "john" "bobbydazzler" plainErrorHandler $
   wrapJsonResponse $
   wrapGetQueryParam "app" jsonBadRequestHandler $
   wrapResponseErrors jsonErrorHandler $
-  retrieveEventsHandler pool)
-  req
-baseRouter pool req@{method: HP.Options} = pure $ response 200 ""
-baseRouter pool req@{method: HP.Post} = (wrapBasicAuth "john" "bobbydazzler" plainErrorHandler $
-                                        wrapJsonResponse $
-                                        wrapGetQueryParam "app" jsonBadRequestHandler $
-                                        wrapJsonRequest jsonBadRequestHandler $
-                                        wrapResponseErrors jsonErrorHandler $
-                                        addEventsHandler pool)
-                                        req
-baseRouter pool req = (wrapJsonResponse $
-                      const (pure $ jsonResponse 404 {response: "not found"})) req
+  retrieveSnapshotHandler pool
+lookupHandler pool req@{method: HP.Post, path: ["snapshots"]} =
+  wrapBasicAuth "john" "bobbydazzler" plainErrorHandler $
+  wrapJsonResponse $
+  wrapGetQueryParam "app" jsonBadRequestHandler $
+  wrapJsonRequest jsonBadRequestHandler $
+  wrapResponseErrors jsonErrorHandler $
+  addSnapshotHandler pool
+lookupHandler pool req@{method: HP.Get, path: []} =
+  wrapBasicAuth "john" "bobbydazzler" plainErrorHandler $
+  wrapJsonResponse $
+  wrapGetQueryParam "app" jsonBadRequestHandler $
+  wrapResponseErrors jsonErrorHandler $
+  retrieveEventsHandler pool
+lookupHandler pool req@{method: HP.Post, path: []} =
+  wrapBasicAuth "john" "bobbydazzler" plainErrorHandler $
+  wrapJsonResponse $
+  wrapGetQueryParam "app" jsonBadRequestHandler $
+  wrapJsonRequest jsonBadRequestHandler $
+  wrapResponseErrors jsonErrorHandler $
+  addEventsHandler pool
+lookupHandler pool req =
+  wrapJsonResponse $
+  const (pure $ jsonResponse 404 {response: "not found"})
+
+baseRouter :: DB.Pool -> Request Unit -> Aff (Response String)
+baseRouter pool req = (lookupHandler pool req) req
 
 wrapCustom :: (Request Unit -> Aff (Response String)) -> HP.Request -> Aff HP.Response
 wrapCustom router request = do
@@ -247,7 +283,6 @@ affErrorHandler (Left err) = do
 affErrorHandler _ = pure unit
 
 -- | Boot up the server
--- TODO run migrations when app is starting
 main :: Effect Unit -- HP.ServerM
 main = void $ runAff affErrorHandler $ logError $ runExceptT $ do
   config <- ExceptT $ showError <$> (liftEffect $ fromEnv (RProxy :: RProxy Config) <$> getEnv)

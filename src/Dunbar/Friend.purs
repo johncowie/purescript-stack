@@ -21,13 +21,14 @@ import Data.Symbol (SProxy(..))
 import Data.Newtype (unwrap, wrap)
 import Utils.Lens as L
 import Utils.DateTime as UDT
+import Utils.JsonDateTime (JsonInstant, JsonDays)
 -- import Effect.Exception.Unsafe (unsafeThrow)
 
 type Friend = {
   name :: FullName,
   birthday :: Maybe Birthday,
-  lastSeen :: Maybe Instant,
-  desiredContactFrequency :: Maybe Days,
+  lastSeen :: Maybe JsonInstant,
+  desiredContactFrequency :: Maybe JsonDays,
   notes :: Maybe String
 }
 
@@ -38,10 +39,10 @@ _birthday :: L.Lens' Friend (Maybe Birthday)
 _birthday = L.prop (SProxy :: SProxy "birthday")
 
 _lastSeen :: L.Lens' Friend (Maybe Instant)
-_lastSeen = L.prop (SProxy :: SProxy "lastSeen")
+_lastSeen = L.prop (SProxy :: SProxy "lastSeen") >>> L.liftLens L._newtype
 
 _desiredContactFrequency :: L.Lens' Friend (Maybe Days)
-_desiredContactFrequency = L.prop (SProxy :: SProxy "desiredContactFrequency")
+_desiredContactFrequency = L.prop (SProxy :: SProxy "desiredContactFrequency") >>> L.liftLens L._newtype
 
 _notes :: L.Lens' Friend (Maybe String)
 _notes = L.prop (SProxy :: SProxy "notes")
@@ -61,5 +62,5 @@ timeSinceLastSeen i f = (UDT.diffSecs i) <$> L.view _lastSeen f
 overdueContact :: Instant -> Friend -> Maybe Seconds
 overdueContact i f = do
   sinceSeenSecs <- timeSinceLastSeen i f
-  (freqSecs :: Seconds) <- convertDuration <$> f.desiredContactFrequency
+  (freqSecs :: Seconds) <- convertDuration <$> unwrap <$> f.desiredContactFrequency
   pure $ wrap $ max 0.0 (unwrap sinceSeenSecs - unwrap freqSecs)

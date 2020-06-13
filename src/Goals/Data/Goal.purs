@@ -22,17 +22,22 @@ import Prelude
 import Data.DateTime (DateTime)
 import Data.DateTime.Instant (Instant, fromDateTime, unInstant, toDateTime)
 import Utils.Lens (Lens', _newtype, prop)
+
 import Data.Symbol (SProxy(..))
-import Data.Newtype (class Newtype, unwrap)
+import Data.Newtype (class Newtype, unwrap, wrap)
 import Data.Maybe (Maybe(..))
 import Data.Int as Int
+import Data.Argonaut.Decode (class DecodeJson)
+import Data.Argonaut.Encode (class EncodeJson)
+import Utils.JsonNewtype (decodeNewtype, encodeNewtype)
+
 import Utils.IdMap as IdMap
-import Utils.Fixed as DF
-import Effect.Exception.Unsafe (unsafeThrow)
+import Utils.JsonDateTime (JsonDateTime)
+
 
 newtype Goal = Goal {
-  start :: DateTime,
-  end :: DateTime,
+  start :: JsonDateTime,
+  end :: JsonDateTime,
   target :: Int,
   title :: String,
   amountDone :: Number,
@@ -41,10 +46,16 @@ newtype Goal = Goal {
 
 derive instance newtypeGoal :: Newtype Goal _
 
+instance decodeJsonGoal :: DecodeJson Goal where
+  decodeJson = decodeNewtype
+
+instance encodeJsonGoal :: EncodeJson Goal where
+  encodeJson = encodeNewtype
+
 newGoal :: String -> DateTime -> DateTime -> Int -> Goal
 newGoal title start end target =
-  Goal {start: start,
-        end: end,
+  Goal {start: wrap start,
+        end: wrap end,
         title: title,
         target: target,
         amountDone: 0.0,
@@ -52,10 +63,10 @@ newGoal title start end target =
         }
 
 _start :: Lens' Goal DateTime
-_start = _newtype >>> prop (SProxy :: SProxy "start")
+_start = _newtype >>> prop (SProxy :: SProxy "start") >>> _newtype
 
 _end :: Lens' Goal DateTime
-_end = _newtype >>> prop (SProxy :: SProxy "end")
+_end = _newtype >>> prop (SProxy :: SProxy "end") >>> _newtype
 
 _title :: Lens' Goal String
 _title = _newtype >>> prop (SProxy :: SProxy "title")
@@ -70,19 +81,19 @@ _predecessor :: Lens' Goal (Maybe IdMap.Id)
 _predecessor = _newtype >>> prop (SProxy :: SProxy "predecessor")
 
 isCurrent :: Instant -> Goal -> Boolean
-isCurrent now (Goal r) = r.start <= nowDT && r.end >= nowDT
+isCurrent now (Goal r) = unwrap r.start <= nowDT && unwrap r.end >= nowDT
   where nowDT = toDateTime now
 
 isInProgress :: Instant -> Goal -> Boolean
-isInProgress now (Goal r) = r.start <= nowDT && r.end >= nowDT && r.amountDone < Int.toNumber r.target
+isInProgress now (Goal r) = unwrap r.start <= nowDT && unwrap r.end >= nowDT && r.amountDone < Int.toNumber r.target
   where nowDT = toDateTime now
 
 isExpired :: Instant -> Goal -> Boolean
-isExpired now (Goal r) = r.end < nowDT || r.amountDone >= Int.toNumber r.target
+isExpired now (Goal r) = unwrap r.end < nowDT || r.amountDone >= Int.toNumber r.target
   where nowDT = toDateTime now
 
 isFuture :: Instant -> Goal -> Boolean
-isFuture now (Goal r) = r.start > nowDT
+isFuture now (Goal r) = unwrap r.start > nowDT
   where nowDT = toDateTime now
 
 
@@ -93,8 +104,8 @@ progressPercentage (Goal goal) = min 100.0 $ (goal.amountDone / Int.toNumber goa
 
 timeElapsedPercentage :: Instant -> Goal -> Number
 timeElapsedPercentage now (Goal goal) = ((nowMillis - startMillis) / (endMillis - startMillis)) * 100.0
-  where startMillis = instantMillis $ fromDateTime $ goal.start
-        endMillis = instantMillis $ fromDateTime $ goal.end
+  where startMillis = instantMillis $ fromDateTime $ unwrap goal.start
+        endMillis = instantMillis $ fromDateTime $ unwrap goal.end
         nowMillis = instantMillis now
         instantMillis instant = unwrap $ unInstant instant
 

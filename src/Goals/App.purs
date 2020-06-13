@@ -42,7 +42,7 @@ import Utils.Components.Input (Inputs, StringInput)
 import Utils.Async (async)
 import Utils.DateTime (showDate, showDayMonth, dateToDateTime, nextDateTime)
 import Utils.IdMap as IdMap
-import Utils.AppendStore (httpAppendStore)
+import Utils.AppendStore (httpAppendStore, httpSnapshotStore)
 import Utils.Alert (alert)
 import Utils.Lens as L
 import Utils.Spork.EventApp as App
@@ -467,6 +467,7 @@ app page now = {
   , _state
   , _eventAppState
   , eventStore: httpAppendStore "goals"
+  , snapshotStore: httpSnapshotStore "goals"
   , reducer: St.processEvent
 }
 
