@@ -32,7 +32,7 @@ import Spork.Html as H
 
 import Utils.Spork.TimerSubscription (runTicker, Sub, tickSub)
 import Utils.Alert (alert)
-import Utils.AppendStore (AppendStore, SnapshotStore)
+import Utils.AppendStore (AppendStore, SnapshotStore, Snapshot)
 import Utils.Lens (type (:->))
 import Utils.Lens as L
 import Utils.Components.Input (Inputs, StringInput)
@@ -143,16 +143,29 @@ makeWithSelector eventApp selector =
         tickSecs = snd <$> eventApp.tick
 
 
--- Input stuff
+{- Snapshot stuff
+   [ ] Support optional query param in API to retrieve events from a certain point
+   [ ] Store event number in state
+   [ ] Store snapshot periodically
+   [ ] load snapshot when loading events
+   [ ] load events after snapshot and use snapshot as base to layer events on
 
--- input :: forall model a. String -> StringInput model a
--- input = unsafeThrow ""
---
--- input_ :: forall model a. String -> StringInput model a
--- input_ = unsafeThrow ""
+-}
 
--- hmmm how's this msg business going to work - configure InputSet in app?
--- renderInput :: forall model a. StringInput model a -> String -> model -> H.Html msg
+{-
+
+  Input stuff
+
+  input :: forall model a. String -> StringInput model a
+  input = unsafeThrow ""
+
+  input_ :: forall model a. String -> StringInput model a
+  input_ = unsafeThrow ""
+
+  hmmm how's this msg business going to work - configure InputSet in app?
+  renderInput :: forall model a. StringInput model a -> String -> model -> H.Html msg
+
+-}
 
 {-
   Thoughts

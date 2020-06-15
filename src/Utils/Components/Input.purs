@@ -69,7 +69,7 @@ newtype Input m a = Input {
   validator :: String -> Either String a,
   lens :: m :-> InputData
 }
-type StringInput m a = Input m a -- todo remove me
+type StringInput m a = Input m a -- TODO remove me
 
 -- does this already exist? i.e. encode/decode
 class InputType a where

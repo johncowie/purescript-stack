@@ -47,7 +47,7 @@ newtype Goal = Goal {
 derive instance newtypeGoal :: Newtype Goal _
 
 instance decodeJsonGoal :: DecodeJson Goal where
-  decodeJson = decodeNewtype
+  decodeJson = decodeNewtype "Goal"
 
 instance encodeJsonGoal :: EncodeJson Goal where
   encodeJson = encodeNewtype

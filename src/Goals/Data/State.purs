@@ -33,7 +33,7 @@ newtype GoalState = GoalState {
 derive instance newtypeGoal :: Newtype GoalState _
 
 instance decodeJsonGoalState :: DecodeJson GoalState where
-  decodeJson = decodeNewtype
+  decodeJson = decodeNewtype "GoalState"
 
 instance encodeJsonGoalState :: EncodeJson GoalState where
   encodeJson = encodeNewtype

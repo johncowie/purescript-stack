@@ -3,10 +3,11 @@ module Server.DB where
 import Prelude
 import Control.Monad.Except.Trans (ExceptT, runExceptT)
 import Data.Array (head)
-import Data.Maybe (Maybe(..), fromMaybe)
+import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Tuple (Tuple)
 import Data.Tuple.Nested ((/\))
 import Data.Either (Either(..))
+import Data.Newtype (unwrap)
 import Effect (Effect)
 import Effect.Aff (Aff)
 import Effect.Console as Console
@@ -16,6 +17,7 @@ import Database.PostgreSQL.PG as PG
 import Database.PostgreSQL.Row (Row1(Row1))
 
 import Server.DBConnection (fromURI)
+import Server.Domain (AppName, EventId)
 
 type PG a = ExceptT PG.PGError Aff a
 type Pool = PG.Pool
@@ -48,13 +50,14 @@ addEvent app event pool = runQuery pool \conn -> do
   """) (app /\ event)
   pure $ fromMaybe 0 $ head $ map (\(Row1 id) -> id) rows
 
-retrieveEvents :: String -> PG.Pool -> Aff (Either PG.PGError (Array Json))
-retrieveEvents app pool = runQuery pool \conn -> do
+retrieveEvents :: AppName -> Maybe EventId -> PG.Pool -> Aff (Either PG.PGError (Array Json))
+retrieveEvents app eventIdM pool = runQuery pool \conn -> do
   rows <- PG.query conn (PG.Query """
     SELECT event FROM events
     WHERE app = $1
+    AND id > $2
     ORDER BY id desc;
-    """) (Row1 app)
+    """) (unwrap app /\ maybe 0 unwrap eventIdM)
   pure $ map (\(Row1 json) -> json) rows
 
 retrieveLatestSnapshot :: String -> PG.Pool -> Aff (Either PG.PGError (Maybe (Tuple Json Int)))

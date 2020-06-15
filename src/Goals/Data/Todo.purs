@@ -24,7 +24,7 @@ newtype Todo = Todo {
 derive instance newtypeGoal :: Newtype Todo _
 
 instance decodeJsonTodo :: DecodeJson Todo where
-  decodeJson = decodeNewtype
+  decodeJson = decodeNewtype "Todo"
 
 instance encodeJsonTodo :: EncodeJson Todo where
   encodeJson = encodeNewtype

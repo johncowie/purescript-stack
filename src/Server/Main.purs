@@ -13,8 +13,10 @@ import Data.Argonaut.Decode (class DecodeJson, decodeJson) as JSON
 import Data.Argonaut.Encode (class EncodeJson, encodeJson) as JSON
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..), fromMaybe)
-import Data.Tuple (Tuple(..), fst, snd)
-import Data.Tuple.Nested (type (/\), (/\), get1, get2)
+import Data.Tuple (Tuple(..), snd)
+import Data.Tuple.Nested (type (/\), get1, (/\))
+
+import Prim.RowList as RL
 
 import Type.Data.Row (RProxy(..))
 
@@ -37,6 +39,8 @@ import Server.DB as DB
 import Server.Migrations.MigrationData (migrationStore)
 import Server.Migrations.Postgres (executor, intVersionStore)
 import Server.Migrations (migrate, Migrator)
+import Server.QueryParams (class GDecodeQueryParams, parseQueryParams)
+import Server.Domain (AppName, EventId)
 
 _headers :: forall r. L.Lens' {headers :: HP.Headers | r} HP.Headers
 _headers = L.prop (SProxy :: SProxy "headers")
@@ -61,6 +65,9 @@ type JSONResponse = Response JSON.Json
 updateRequestVal :: forall a b. (a -> b) -> Request a -> Request b
 updateRequestVal f {headers, httpVersion, method, path, query, body, val}
   = {headers, httpVersion, method, path, query, body, val: (f val)}
+
+addToRequestVal :: forall a b. b -> Request a -> Request (b /\ a)
+addToRequestVal val = updateRequestVal (Tuple val)
 
 updateRequestValM :: forall a m b. (Bind m) => (Applicative m) => (a -> m b) -> Request a -> m (Request b)
 updateRequestValM f {headers, httpVersion, method, path, query, body, val} = do
@@ -136,13 +143,14 @@ jsonBadRequestHandler :: String -> Aff (Response JSON.Json)
 jsonBadRequestHandler error = pure $ jsonResponse 400 json
   where json = JSON.encodeJson {error}
 
+-- TODO also return ids with events -- and handle in event store
 retrieveEventsHandler :: DB.Pool
-                      -> Request (Tuple String Unit)
+                      -> Request ({app :: AppName, after :: Maybe EventId} /\ Unit)
                       -> Aff (Either String (Response JSON.Json))
 retrieveEventsHandler pool req = do
-  events <- showError <$> DB.retrieveEvents eventApp pool
+  events <- showError <$> DB.retrieveEvents app after pool
   pure $ okJsonResponse <$> events
-  where eventApp = fst req.val
+  where ({app, after} /\ _) = req.val
 
 addEventsHandler :: forall a.
                     DB.Pool
@@ -151,18 +159,17 @@ addEventsHandler :: forall a.
 addEventsHandler pool req = do
   result <- showError <$> DB.addEvent eventApp json pool
   pure $ const successResponse <$> result
-  where eventApp = get2 req.val
-        json = get1 req.val
+  where (json /\ eventApp /\ _) = req.val
 
 retrieveSnapshotHandler :: DB.Pool
-                        -> Request (Tuple String Unit)
+                        -> Request (String /\ Unit)
                         -> Aff (Either String (Response JSON.Json))
 retrieveSnapshotHandler pool req = runExceptT do
   snapshotM <- ExceptT $ showError <$> DB.retrieveLatestSnapshot eventApp pool
   pure $ case snapshotM of
     Just (Tuple state upToEvent) -> okJsonResponse {state, upToEvent}
     Nothing -> okJsonResponse {}
-  where eventApp = fst req.val
+  where (eventApp /\ _) = req.val
 
 addSnapshotHandler :: forall a. DB.Pool
                    -> Request (JSON.Json /\ String /\ a)
@@ -174,11 +181,27 @@ addSnapshotHandler pool req = runExceptT do
   where (json /\ eventApp /\ _) = req.val
 
 
-wrapGetQueryParam :: forall a res. String -> (String -> Aff res) -> (Request (Tuple String a) -> Aff res) -> Request a -> Aff res
-wrapGetQueryParam key errorHandler router req =
+wrapQueryParam :: forall a res. String -> (String -> Aff res) -> (Request (Tuple String a) -> Aff res) -> Request a -> Aff res
+wrapQueryParam key errorHandler handler req =
   case req.query HP.!! key of
-    (Just param) -> router $ updateRequestVal (Tuple param) req
+    (Just param) -> handler $ updateRequestVal (Tuple param) req
     Nothing -> errorHandler ("Missing query parameter [" <> key <> "]")
+
+wrapOptQueryParam :: forall a res. String -> (Request (Tuple (Maybe String) a) -> Aff res) -> Request a -> Aff res
+wrapOptQueryParam key handler req =
+  handler $ addToRequestVal (req.query HP.!! key) req
+
+wrapParseQueryParams :: forall a row list res.
+                        GDecodeQueryParams row list
+                     => RL.RowToList row list
+                     => (String -> Aff res)
+                     -> (Request (Record row /\ a)
+                     -> Aff res)
+                     -> Request a
+                     -> Aff res
+wrapParseQueryParams errorHandler handler req = case parseQueryParams req.query of
+  (Left err) -> errorHandler err
+  (Right qp) -> handler $ addToRequestVal qp req
 
 wrapCors :: forall req a. (req -> Aff (Response a)) -> req -> Aff (Response a)
 wrapCors router req = do
@@ -213,26 +236,26 @@ lookupHandler pool req@{method: HP.Options} = const $ pure $ response 200 ""
 lookupHandler pool req@{method: HP.Get, path: ["snapshots"]} =
   wrapBasicAuth "john" "bobbydazzler" plainErrorHandler $
   wrapJsonResponse $
-  wrapGetQueryParam "app" jsonBadRequestHandler $
+  wrapQueryParam "app" jsonBadRequestHandler $
   wrapResponseErrors jsonErrorHandler $
   retrieveSnapshotHandler pool
 lookupHandler pool req@{method: HP.Post, path: ["snapshots"]} =
   wrapBasicAuth "john" "bobbydazzler" plainErrorHandler $
   wrapJsonResponse $
-  wrapGetQueryParam "app" jsonBadRequestHandler $
+  wrapQueryParam "app" jsonBadRequestHandler $
   wrapJsonRequest jsonBadRequestHandler $
   wrapResponseErrors jsonErrorHandler $
   addSnapshotHandler pool
 lookupHandler pool req@{method: HP.Get, path: []} =
   wrapBasicAuth "john" "bobbydazzler" plainErrorHandler $
   wrapJsonResponse $
-  wrapGetQueryParam "app" jsonBadRequestHandler $
+  wrapParseQueryParams jsonBadRequestHandler $
   wrapResponseErrors jsonErrorHandler $
   retrieveEventsHandler pool
 lookupHandler pool req@{method: HP.Post, path: []} =
   wrapBasicAuth "john" "bobbydazzler" plainErrorHandler $
   wrapJsonResponse $
-  wrapGetQueryParam "app" jsonBadRequestHandler $
+  wrapQueryParam "app" jsonBadRequestHandler $
   wrapJsonRequest jsonBadRequestHandler $
   wrapResponseErrors jsonErrorHandler $
   addEventsHandler pool

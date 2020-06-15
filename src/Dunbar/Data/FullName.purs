@@ -33,7 +33,7 @@ instance eqFullName :: Eq FullName where
   eq a b = eq (unwrap a) (unwrap b)
 
 instance decodeJsonFullName :: DecodeJson FullName where
-  decodeJson = decodeNewtype
+  decodeJson = decodeNewtype "FullName"
 
 instance encodeJsonFullName :: EncodeJson FullName where
   encodeJson = encodeNewtype
