@@ -50,15 +50,14 @@ addEvent app event pool = runQuery pool \conn -> do
   """) (app /\ event)
   pure $ fromMaybe 0 $ head $ map (\(Row1 id) -> id) rows
 
-retrieveEvents :: AppName -> Maybe EventId -> PG.Pool -> Aff (Either PG.PGError (Array Json))
+retrieveEvents :: AppName -> Maybe EventId -> PG.Pool -> Aff (Either PG.PGError (Array (Tuple Int Json)))
 retrieveEvents app eventIdM pool = runQuery pool \conn -> do
-  rows <- PG.query conn (PG.Query """
-    SELECT event FROM events
+  PG.query conn (PG.Query """
+    SELECT id, event FROM events
     WHERE app = $1
     AND id > $2
     ORDER BY id desc;
     """) (unwrap app /\ maybe 0 unwrap eventIdM)
-  pure $ map (\(Row1 json) -> json) rows
 
 retrieveLatestSnapshot :: String -> PG.Pool -> Aff (Either PG.PGError (Maybe (Tuple Json Int)))
 retrieveLatestSnapshot app pool = runQuery pool \conn -> do

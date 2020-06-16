@@ -143,13 +143,13 @@ jsonBadRequestHandler :: String -> Aff (Response JSON.Json)
 jsonBadRequestHandler error = pure $ jsonResponse 400 json
   where json = JSON.encodeJson {error}
 
--- TODO also return ids with events -- and handle in event store
 retrieveEventsHandler :: DB.Pool
                       -> Request ({app :: AppName, after :: Maybe EventId} /\ Unit)
                       -> Aff (Either String (Response JSON.Json))
-retrieveEventsHandler pool req = do
-  events <- showError <$> DB.retrieveEvents app after pool
-  pure $ okJsonResponse <$> events
+retrieveEventsHandler pool req = runExceptT do
+  events <- ExceptT $ showError <$> DB.retrieveEvents app after pool
+  let eventRecords = map (\(id /\ event) -> {id, event}) events
+  pure $ okJsonResponse eventRecords
   where ({app, after} /\ _) = req.val
 
 addEventsHandler :: forall a.

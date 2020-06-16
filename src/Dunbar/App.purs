@@ -8,8 +8,7 @@ import Data.Either (either)
 import Data.Symbol (SProxy(..))
 import Data.Array as Array
 import Data.Maybe (Maybe(..), maybe)
-import Data.Foldable (foldr)
-import Data.Traversable (for, sequence)
+import Data.Traversable (sequence)
 import Data.Newtype (wrap)
 
 import Effect (Effect)
@@ -25,7 +24,7 @@ import Utils.Spork.EventApp as App
 import Utils.Lens as L
 import Utils.Components.Input as Input
 import Utils.Components.Input (StringInput, Inputs)
-import Utils.AppendStore (AppendStore, httpAppendStore, httpSnapshotStore)
+import Utils.AppendStore (httpAppendStore, httpSnapshotStore)
 import Utils.IdMap as IdMap
 import Utils.DateTime as UDT
 import Utils.Async (async)
@@ -69,20 +68,17 @@ data Msg = Tick Instant
          | DoNothing
          | JustSeen IdMap.Id (Maybe Instant)
          | Navigate Page
-         | LoadEvents
-         | LoadedEvents (Array Event)
          | AlertError String
 
 type Transition = App.Transition Event Model Msg
 
 init :: Instant -> App.Transition Event Model Msg
-init now = {effects, model, events: []}
+init now = {effects: [], model, events: []}
   where friendships = State.empty
         inputs = M.empty
         page = Dashboard
         eventAppState = App.emptyState
         model = {friendships, inputs, now, page, eventAppState}
-        effects = [pure $ LoadEvents]
 
 renderFriendRow :: Instant -> Tuple IdMap.Id Friend -> Tuple String (H.Html Msg)
 renderFriendRow now (Tuple id friend) =
@@ -172,21 +168,6 @@ render model = case model.page of
   (UpdateFriendForm id) -> maybe renderFriendNotFound (renderUpdateFriendForm id model) friendM
     where friendM = IdMap.get id model.friendships
 
--- TODO abstract out
-fireStateEvent :: Msg -> Model -> Event -> App.Transition Event Model Msg
-fireStateEvent msg model event = {effects: [effect], model: updatedModel, events: []}
-  where effect = do
-          void $ store.append event
-          pure msg
-        updatedModel = L.over _friendships (State.processEvent event) model
-
-fireStateEvents :: Msg -> Model -> Array Event -> Transition
-fireStateEvents msg model events = {effects: [effect], model: updatedModel, events: []}
-  where effect = do
-          void $ for events store.append
-          pure msg
-        updatedModel = L.over _friendships (\f -> foldr State.processEvent f events) model
-
 alertError :: Model -> String -> Transition
 alertError model s = {effects, model, events: []}
   where effects = [pure $ AlertError s]
@@ -219,22 +200,20 @@ navigate (UpdateFriendForm id) model =
 
 update :: Model → Msg → Transition
 update model (DoNothing) = App.purely model
-update model (LoadEvents) = {effects: [effect], model, events: []}
-  where effect = do
-          eventsE <- store.retrieveAll
-          pure $ either (AlertError <<< show) LoadedEvents eventsE
-update model (LoadedEvents events) = App.purely updatedModel
-  where updatedModel = L.over _friendships (\s -> foldr State.processEvent s events) model
 update model (Tick instant) = App.purely $ L.set _now instant model
 update model (Navigate page) = App.purely $ navigate page model
 update model (UpdateInput lens val) = App.purely $ Input.updateInput lens val model
-update model (AddFriend) = either (alertError model) (fireStateEvent DoNothing clearedInputs) event
-  where event = State.addFriendEvent <$>
-                Input.parseStringInput firstNameInput model <*>
-                Input.parseStringInput lastNameInput model
+update model (AddFriend) = either (alertError model) (\event -> {effects: [], model: clearedInputs, events: [event]}) eventE
+  where eventE = State.addFriendEvent <$>
+                 Input.parseStringInput firstNameInput model <*>
+                 Input.parseStringInput lastNameInput model
         clearedInputs = Input.clearInput firstNameInput $
                         Input.clearInput lastNameInput $ model
-update model (UpdateFriend id) = either (alertError model) (fireStateEvents (Navigate Dashboard) clearedInputs) events
+update model (UpdateFriend id) = either (alertError model)
+                                  { effects: [pure $ Navigate Dashboard]
+                                  , model: clearedInputs
+                                  , events: _ }
+                                  eventsE
   where update1 = State.updateDesiredContactFrequencyEvent id <$>
                   Input.parseStringInput (contactFreqInput id) model
         update2 = State.updateNotesEvent id <$>
@@ -244,17 +223,14 @@ update model (UpdateFriend id) = either (alertError model) (fireStateEvents (Nav
         clearedInputs = Input.clearInput (contactFreqInput id) $
                         Input.clearInput (notesInput id) $
                         Input.clearInput (birthdayInput id) $ model
-        events = sequence [update1, update2, update3]
+        eventsE = sequence [update1, update2, update3]
 update model (JustSeen id Nothing) = addTimestamp model (JustSeen id)
-update model (JustSeen id (Just timestamp)) = fireStateEvent DoNothing model event
+update model (JustSeen id (Just timestamp)) = {effects: [], model, events: [event]}
   where event = State.justSeenEvent id timestamp
 update model (AlertError err) = {effects: [effect], model, events: []}
   where effect = do
           async $ alert err
           pure DoNothing
-
-store :: AppendStore Event
-store = httpAppendStore "dunbar"
 
 app :: Instant -> App.App Friendships Event Model Msg
 app currentTime = {

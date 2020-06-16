@@ -24,7 +24,6 @@ import Data.Map as M
 import Effect (Effect)
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
-import Effect.Exception.Unsafe (unsafeThrow)
 
 import Spork.App as App
 import Spork.Interpreter (basicAff, merge)
@@ -32,11 +31,10 @@ import Spork.Html as H
 
 import Utils.Spork.TimerSubscription (runTicker, Sub, tickSub)
 import Utils.Alert (alert)
-import Utils.AppendStore (AppendStore, SnapshotStore, Snapshot)
+import Utils.AppendStore (AppendStore, SnapshotStore)
 import Utils.Lens (type (:->))
 import Utils.Lens as L
-import Utils.Components.Input (Inputs, StringInput)
-import Utils.Components.Input as Input
+import Utils.Components.Input (Inputs)
 
 data InternalMsg ev =
     LoadEvents
@@ -64,7 +62,7 @@ type App st ev model msg = {
 , update :: model -> msg -> Transition ev model msg
 , init :: Transition ev model msg
 , tick :: Maybe (Tuple (Instant -> msg) Seconds)
-, eventStore :: AppendStore ev -- TODO combine these
+, eventStore :: AppendStore Int ev -- TODO combine these
 , snapshotStore :: SnapshotStore st
 , reducer :: ev -> st -> st
 , _state :: model :-> st
@@ -117,7 +115,7 @@ mkUpdate eventApp model (Left LoadEvents) = {effects: App.batch [load], model}
   where load = do
           eventsE <- eventApp.eventStore.retrieveAll
           case eventsE of
-            (Right events) -> pure $ Left $ ProcessEvents events
+            (Right events) -> pure $ Left $ ProcessEvents $ map _.event events -- TODO keep track of max event ID somewhere
             (Left err) -> pure $ Left $ AlertError $ show err
 mkUpdate eventApp model (Left (AlertError e)) = {effects: App.batch [alertError e], model: model}
 mkUpdate eventapp model (Left DoNothing) = App.purely model
