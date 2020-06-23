@@ -11,8 +11,9 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "server": "spago run -m Server.Main",
     "build-server": "./scripts/build-server.sh",
-    "build-client": "./scripts/build-frontend.sh",
-    "migrate": "spago run -m Server.DB"
+    "build-client": "npm run brick -- build",
+    "migrate": "spago run -m Server.DB",
+    "brick": "spago bundle-app --main Bricker --to dist/bricker.js && node dist/bricker.js"
   },
   "author": "",
   "license": "ISC",

@@ -98,7 +98,7 @@ apiPost url e = do
   where body = Just $ RequestBody.json $ JSON.encodeJson e
 
 rootUrl :: String
-rootUrl = "http://lvh.me:8080"-- "https://dumb-waiter.herokuapp.com"
+rootUrl = "https://dumb-waiter.herokuapp.com" 
 
 appendHTTP :: forall e. (JSON.EncodeJson e) => String -> e -> Aff (Either Error Unit)
 appendHTTP s event = apiPost (rootUrl <> "?app=" <> s) event
