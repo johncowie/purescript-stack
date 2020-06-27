@@ -155,10 +155,10 @@ retrieveEventsHandler pool req = runExceptT do
 addEventsHandler :: forall a.
                     DB.Pool
                  -> Request (JSON.Json /\ String /\ a)
-                 -> Aff (Either String (Response JSON.Json))
-addEventsHandler pool req = do
-  result <- showError <$> DB.addEvent eventApp json pool
-  pure $ const successResponse <$> result
+                 -> Aff (Either String (Response JSON.Json)) -- TODO easier to read if you can see what the result type is
+addEventsHandler pool req = runExceptT do
+  eventId <- ExceptT $ showError <$> DB.addEvent eventApp json pool
+  pure $ okJsonResponse {id: eventId}
   where (json /\ eventApp /\ _) = req.val
 
 retrieveSnapshotHandler :: DB.Pool
@@ -175,8 +175,8 @@ addSnapshotHandler :: forall a. DB.Pool
                    -> Request (JSON.Json /\ String /\ a)
                    -> Aff (Either String (Response JSON.Json))
 addSnapshotHandler pool req = runExceptT do
-  {snapshot, upToEvent} :: {snapshot :: JSON.Json, upToEvent :: Int} <- ExceptT $ pure $ JSON.decodeJson json
-  void $ ExceptT $ showError <$> DB.insertSnapshot eventApp snapshot upToEvent pool
+  {state, upToEvent} :: {state :: JSON.Json, upToEvent :: Int} <- ExceptT $ pure $ JSON.decodeJson json
+  void $ ExceptT $ showError <$> DB.insertSnapshot eventApp state upToEvent pool
   pure successResponse
   where (json /\ eventApp /\ _) = req.val
 

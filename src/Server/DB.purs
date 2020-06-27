@@ -73,9 +73,9 @@ retrieveLatestSnapshot app pool = runQuery pool \conn -> do
 insertSnapshot :: String -> Json -> Int -> PG.Pool -> Aff (Either PG.PGError Unit)
 insertSnapshot app snapshot upToEvent pool = runQuery pool \conn -> do
   PG.execute conn (PG.Query """
-    INSERT INTO snapshots (id, app, snapshot, upToEvent)
+    INSERT INTO snapshots (id, app, snapshot, up_to_event)
     VALUES (
-      (select coalesce(max(id), 0) + 1 from shapshots)
+      (select coalesce(max(id), 0) + 1 from snapshots)
     , $1
     , $2
     , $3

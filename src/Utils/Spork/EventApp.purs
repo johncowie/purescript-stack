@@ -4,6 +4,7 @@ module Utils.Spork.EventApp
 , App
 , Transition
 , InternalMsg
+, MsgResult
 , purely
 , emptyState
 )
@@ -11,36 +12,35 @@ where
 
 import Prelude
 
-import Data.Time.Duration (Seconds)
-import Data.Maybe (Maybe(..), maybe)
-import Data.Tuple (Tuple(..), snd)
+import Control.Monad.Except.Trans (ExceptT(..), runExceptT)
 import Data.DateTime.Instant (Instant)
 import Data.Either (Either(..))
-import Data.Foldable (foldr)
-import Data.Functor (mapFlipped)
-import Data.Newtype (class Newtype)
+import Data.Foldable (foldM, foldr)
 import Data.Map as M
-
+import Data.Maybe (Maybe(..), maybe, fromMaybe)
+import Data.Newtype (class Newtype)
+import Data.Time.Duration (Seconds)
+import Data.Tuple (Tuple(..), snd)
 import Effect (Effect)
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
-
 import Spork.App as App
-import Spork.Interpreter (basicAff, merge)
 import Spork.Html as H
-
-import Utils.Spork.TimerSubscription (runTicker, Sub, tickSub)
+import Spork.Interpreter (basicAff, merge)
 import Utils.Alert (alert)
 import Utils.AppendStore (AppendStore, SnapshotStore)
+import Utils.Components.Input (Inputs)
 import Utils.Lens (type (:->))
 import Utils.Lens as L
-import Utils.Components.Input (Inputs)
+import Utils.Spork.TimerSubscription (runTicker, Sub, tickSub)
 
-data InternalMsg ev =
+data InternalMsg st ev =
     LoadEvents
-  | ProcessEvents (Array ev)
+  | ProcessEvents (Maybe st) (Array ev)
+  | SaveEvents (Array ev)
   | DoNothing
   | AlertError String
+  | ResetState st
 
 type Transition ev model msg = {
   effects :: Array (Aff msg)
@@ -69,58 +69,117 @@ type App st ev model msg = {
 , _eventAppState :: model :-> EventAppState
 }
 
+data MsgResult st ev msg = Internal (InternalMsg st ev) | External msg
+
 purely :: forall ev model msg. model -> Transition ev model msg
 purely model = {effects: [], events: [], model}
 
 mapmap :: forall f g a b. (Functor f) => (Functor g) => (a -> b) -> f (g a) -> f (g b)
 mapmap f = map (map f)
 
-mkInit :: forall st ev model msg. App st ev model msg -> App.Transition Aff model (Either (InternalMsg ev) msg)
+mkInit :: forall st ev model msg. App st ev model msg -> App.Transition Aff model (MsgResult st ev msg)
 mkInit eventApp = {effects: App.batch allEffects, model}
   where {effects, model} = eventApp.init
-        allEffects = [pure (Left LoadEvents)] <> mapmap Right effects
+        allEffects = [pure (Internal LoadEvents)] <> mapmap External effects
 
-mkRender :: forall st ev model msg. App st ev model msg -> model -> H.Html (Either (InternalMsg ev) msg)
-mkRender eventApp = map Right <<< eventApp.render
+mkRender :: forall st ev model msg. App st ev model msg -> model -> H.Html (MsgResult st ev msg)
+mkRender eventApp = map External <<< eventApp.render
 
-mkSubs :: forall st ev model msg. App st ev model msg -> model -> App.Batch Sub (Either (InternalMsg ev) msg)
+mkSubs :: forall st ev model msg. App st ev model msg -> model -> App.Batch Sub (MsgResult st ev msg)
 mkSubs eventApp model = maybe (App.batch []) App.lift tickSubM
   where tickSubM = case eventApp.tick of
-                      (Just (Tuple tickMsg _)) -> Just $ tickSub (\i -> Right $ tickMsg i)
+                      (Just (Tuple tickMsg _)) -> Just $ tickSub (\i -> External $ tickMsg i)
                       _ -> Nothing
 
-alertError :: forall ev msg. String -> Aff (Either (InternalMsg ev) msg)
+alertError :: forall st ev msg. String -> Aff (MsgResult st ev msg)
 alertError err = do
   liftEffect $ alert err
-  pure (Left DoNothing)
+  pure (Internal DoNothing)
 
--- TODO apply any events that are returned
+alertErrorShow :: forall err st ev msg. (Show err) => Either err (MsgResult st ev msg) -> MsgResult st ev msg
+alertErrorShow (Left err) = Internal $ AlertError (show err)
+alertErrorShow (Right res) = res
+
+mapLeft :: forall a b c. (a -> c) -> Either a b -> Either c b
+mapLeft f (Left e) = Left $ f e
+mapLeft f (Right v) = Right v
+
+loadEvents :: forall ev st msg. AppendStore Int ev -> SnapshotStore st -> Aff (MsgResult st ev msg)
+loadEvents eventStore snapshotStore = alertErrorShow <$> runExceptT do
+  snapshotM <- ExceptT snapshotStore.retrieveLatestSnapshot
+  let stateM = _.state <$> snapshotM
+  let lastEventId = fromMaybe 0 $ _.upToEvent <$> snapshotM
+  events <- ExceptT $ eventStore.retrieveAfter lastEventId
+  pure (Internal (ProcessEvents stateM (map _.event events)))
+
+applyEvents :: forall ev st. (ev -> st -> st) -> Maybe st -> Array ev -> st -> st
+applyEvents reducer snapshotStateM events state =
+  foldr reducer initialState events
+  where initialState = fromMaybe state snapshotStateM
+
+-- saveEvents :: AppendStore Int ev -> SnapshotStore st -> st -> ev
+saveEvent :: forall st ev.
+             AppendStore Int ev
+          -> SnapshotStore st
+          -> (ev -> st -> st)
+          -> st
+          -> ev
+          -> ExceptT String Aff st
+saveEvent eventStore snapshotStore reducer state event = do
+  eventId <- ExceptT $ mapLeft show <$> eventStore.append event
+  let updatedState = reducer event state
+  ExceptT $ mapLeft show <$> snapshotStore.saveSnapshot {state: updatedState, upToEvent: eventId}
+  pure updatedState
+
+
+-- where effect = mapFlipped events $ \event -> do
+--         result <- eventStore.append event -- TODO sequence errors
+--         case result of
+--           (Left err) -> pure $ Internal $ AlertError (show err)
+--           _  -> pure $ Internal DoNothing
+--       updatedModel = L.over _state (\s -> foldr reducer s events) m
+--       allEvents = App.batch [effect]
+
+-- TODO pull event saving out into separate function
+-- TODO whenever saving an event, also save a snapshot
+internalUpdate :: forall st ev model msg.
+                  App st ev model msg
+               -> model
+               -> InternalMsg st ev
+               -> App.Transition Aff model (MsgResult st ev msg)
+internalUpdate {_state, reducer, eventStore, snapshotStore} model (SaveEvents events) =
+  {effects: App.batch [effect], model}
+  where effect = alertErrorShow <$> runExceptT do
+                   s <- foldM (saveEvent eventStore snapshotStore reducer) state events
+                   pure (Internal (ResetState s))
+        state = L.view _state model
+internalUpdate {_state, reducer} model (ProcessEvents stateM events) = App.purely updatedModel
+  where updatedModel = L.over _state (applyEvents reducer stateM events) model
+internalUpdate eventApp model LoadEvents = {effects: App.batch [load], model}
+  where load = loadEvents eventApp.eventStore eventApp.snapshotStore
+internalUpdate {_state} model (ResetState s) =
+  App.purely $ L.set _state s model
+internalUpdate eventApp model (AlertError e) = {effects: App.batch [alertError e], model: model}
+internalUpdate eventapp model DoNothing = App.purely model
+
+externalUpdate :: forall st ev model msg.
+                  App st ev model msg
+               -> model
+               -> msg
+               -> App.Transition Aff model (MsgResult st ev msg)
+externalUpdate {_state, reducer, eventStore, update} m msg = {effects: allEvents, model}
+  where {effects, model, events} = update m msg
+        allEvents = App.batch $ [pure (Internal (SaveEvents events))] <> mapmap External effects
+
 mkUpdate :: forall st ev model msg.
             App st ev model msg
          -> model
-         -> (Either (InternalMsg ev) msg)
-         -> App.Transition Aff model (Either (InternalMsg ev) msg)
-mkUpdate {_state, reducer, eventStore, update} m (Right msg) = {effects: allEvents, model: updatedModel}
-  where {effects, model, events} = update m msg
-        storeEventEffects = mapFlipped events $ \event -> do
-          result <- eventStore.append event -- TODO sequence errors
-          case result of
-            (Left err) -> pure $ Left $ AlertError (show err)
-            _  -> pure $ Left DoNothing
-        updatedModel = L.over _state (\s -> foldr reducer s events) model
-        allEvents = App.batch $ storeEventEffects <> mapmap Right effects
-mkUpdate {_state, reducer} model (Left (ProcessEvents events)) = App.purely updatedModel
-  where updatedModel = L.over _state (\s -> foldr reducer s events) model
-mkUpdate eventApp model (Left LoadEvents) = {effects: App.batch [load], model}
-  where load = do
-          eventsE <- eventApp.eventStore.retrieveAll
-          case eventsE of
-            (Right events) -> pure $ Left $ ProcessEvents $ map _.event events -- TODO keep track of max event ID somewhere
-            (Left err) -> pure $ Left $ AlertError $ show err
-mkUpdate eventApp model (Left (AlertError e)) = {effects: App.batch [alertError e], model: model}
-mkUpdate eventapp model (Left DoNothing) = App.purely model
+         -> (MsgResult st ev msg)
+         -> App.Transition Aff model (MsgResult st ev msg)
+mkUpdate app model (External msg) = externalUpdate app model msg
+mkUpdate app model (Internal msg) = internalUpdate app model msg
 
-toApp :: forall st ev model msg. App st ev model msg -> App.App Aff Sub model (Either (InternalMsg ev) msg)
+toApp :: forall st ev model msg. App st ev model msg -> App.App Aff Sub model (MsgResult st ev msg)
 toApp eventApp = {render, update, subs, init}
   where update = mkUpdate eventApp
         init = mkInit eventApp
@@ -133,7 +192,7 @@ affErrorHandler err = alert (show err)
 makeWithSelector :: forall st ev model msg.
            App st ev model msg
         -> String
-        -> Effect (App.AppInstance model (Either (InternalMsg ev) msg))
+        -> Effect (App.AppInstance model (MsgResult st ev msg))
 makeWithSelector eventApp selector =
   App.makeWithSelector interpreter app selector
   where interpreter = basicAff affErrorHandler `merge` (runTicker tickSecs)
@@ -142,7 +201,7 @@ makeWithSelector eventApp selector =
 
 
 {- Snapshot stuff
-   [ ] Support optional query param in API to retrieve events from a certain point
+   [X] Support optional query param in API to retrieve events from a certain point
    [ ] Store event number in state
    [ ] Store snapshot periodically
    [ ] load snapshot when loading events

@@ -10,6 +10,8 @@ where
 
 import Prelude
 
+import Control.Monad.Except.Trans (ExceptT(..), runExceptT)
+
 import Affjax as AX
 import Affjax.ResponseFormat as ResponseFormat
 import Affjax.RequestBody as RequestBody
@@ -28,9 +30,15 @@ import Effect.Exception (Error, error)
 -- import Utils.LocalJsonStorage as LS
 
 type AppendStore id e = {
-  append :: e -> Aff (Either Error Unit)
+  append :: e -> Aff (Either Error id)
 , retrieveAll :: Aff (Either Error (Array {id :: id, event :: e}))
+, retrieveAfter :: Int -> Aff (Either Error (Array {id :: id, event :: e}))
 }
+
+data Ignored = Ignored
+
+instance decodeJsonIgnored :: JSON.DecodeJson Ignored where
+  decodeJson s = Right Ignored
 
 -- appendToLocalStorage :: forall e.
 --                         (JSON.DecodeJson e)
@@ -85,7 +93,7 @@ apiGetMaybe url = do
         pure $ Right Nothing
       Right val -> pure $ Right $ Just val
 
-apiPost :: forall e. (JSON.EncodeJson e) => String -> e -> Aff (Either Error Unit)
+apiPost :: forall v e. (JSON.EncodeJson e) => (JSON.DecodeJson v) => String -> e -> Aff (Either Error v)
 apiPost url e = do
   result <- AX.request $ AX.defaultRequest { responseFormat = ResponseFormat.json
                                            , method = Left POST
@@ -94,14 +102,20 @@ apiPost url e = do
                                            , headers = [RequestHeader "Authorization" "john:bobbydazzler"]}
   case result of
     Left err -> pure $ Left $ error $ AX.printError err
-    Right response -> pure $ Right unit
+    Right response -> case JSON.decodeJson response.body of
+      Left jsonErr -> do
+        pure $ Left $ error jsonErr
+      Right val -> pure $ Right val
   where body = Just $ RequestBody.json $ JSON.encodeJson e
 
 rootUrl :: String
-rootUrl = "https://dumb-waiter.herokuapp.com" 
+rootUrl = "http://lvh.me:8080"
+-- rootUrl = "https://dumb-waiter.herokuapp.com"
 
-appendHTTP :: forall e. (JSON.EncodeJson e) => String -> e -> Aff (Either Error Unit)
-appendHTTP s event = apiPost (rootUrl <> "?app=" <> s) event
+appendHTTP :: forall id e. (JSON.EncodeJson e) => (JSON.DecodeJson id) => String -> e -> Aff (Either Error id)
+appendHTTP s event = do
+  (resE :: Either Error {id :: id}) <- apiPost (rootUrl <> "?app=" <> s) event
+  pure $ _.id <$> resE
 
 retrieveAllHTTP :: forall id e.
                    (JSON.DecodeJson id)
@@ -109,6 +123,14 @@ retrieveAllHTTP :: forall id e.
                 => String
                 -> Aff (Either Error (Array {id :: id, event :: e}))
 retrieveAllHTTP s = apiGet (rootUrl <> "?app=" <> s)
+
+retrieveAfterHTTP :: forall id e.
+                     (JSON.DecodeJson id)
+                  => (JSON.DecodeJson e)
+                  => String
+                  -> Int
+                  -> Aff (Either Error (Array {id :: id, event :: e}))
+retrieveAfterHTTP appId eventId = apiGet (rootUrl <> "?app=" <> appId <> "&after=" <> show eventId)
 
 httpAppendStore :: forall id e.
                    (JSON.DecodeJson e)
@@ -119,6 +141,7 @@ httpAppendStore :: forall id e.
 httpAppendStore k = {
   append: appendHTTP k
 , retrieveAll: retrieveAllHTTP k
+, retrieveAfter: retrieveAfterHTTP k
 }
 
 -- snapshot stuff
@@ -137,7 +160,9 @@ retrieveLatestSnapshotHTTP :: forall st. (JSON.DecodeJson st) => String -> Aff (
 retrieveLatestSnapshotHTTP app = apiGetMaybe (rootUrl <> "/snapshots?app=" <> app)
 
 saveSnapshotHTTP :: forall st. (JSON.EncodeJson st) => String -> (Snapshot st) -> Aff (Either Error Unit)
-saveSnapshotHTTP app = apiPost (rootUrl <> "/snapshots?app=" <> app)
+saveSnapshotHTTP app snapshot = runExceptT do
+  (result :: Ignored) <- ExceptT $ apiPost (rootUrl <> "/snapshots?app=" <> app) snapshot
+  pure unit
 
 httpSnapshotStore :: forall st. (JSON.DecodeJson st) => (JSON.EncodeJson st) => String -> SnapshotStore st
 httpSnapshotStore k = {
