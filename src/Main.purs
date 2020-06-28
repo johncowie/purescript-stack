@@ -9,26 +9,28 @@ import Demo.AffApp as AffApp
 import Effect (Effect)
 import Data.Maybe(Maybe(..))
 import Data.Array as Array
+import Data.Newtype (wrap)
 import Utils.Url as Url
+import Utils.AppendStore (ApiRoot)
 
 import Experiment as Exp
 
-routeApp :: String -> String -> Effect Unit
+routeApp :: String -> ApiRoot -> Effect Unit
 routeApp url api = case Array.head $ Url.getPath url of
   (Just "couplit") -> Couplit.runApp
-  (Just "dunbar") -> Dunbar.runApp api
+  (Just "dunbar") -> Dunbar.runApp (Dunbar.mkConfig api)
   (Just "exp") ->  Exp.main
   (Just "lib") -> ComponentLib.main
   (Just "aff") -> AffApp.main
-  _ -> Goals.runApp api
+  _ -> Goals.runApp (Goals.mkConfig api)
 
-main_ :: String -> Effect Unit
+main_ :: ApiRoot -> Effect Unit
 main_ api = do
   url <- Url.getWindowUrl
   routeApp url api
 
 dev :: Effect Unit
-dev = main_ "http://lvh.me:8080"
+dev = main_ (wrap "http://lvh.me:8080")
 
 main :: Effect Unit
-main = main_ "https://dumb-waiter.herokuapp.com"
+main = main_ (wrap "https://dumb-waiter.herokuapp.com")

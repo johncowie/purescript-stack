@@ -24,7 +24,7 @@ import Utils.Spork.EventApp as App
 import Utils.Lens as L
 import Utils.Components.Input as Input
 import Utils.Components.Input (StringInput, Inputs)
-import Utils.AppendStore (httpAppendStore, httpSnapshotStore)
+import Utils.AppendStore (httpAppendStore, httpSnapshotStore, ApiRoot)
 import Utils.IdMap as IdMap
 import Utils.DateTime as UDT
 import Utils.Async (async)
@@ -232,8 +232,12 @@ update model (AlertError err) = {effects: [effect], model, events: []}
           async $ alert err
           pure DoNothing
 
-app :: String -> Instant -> App.App Friendships Event Model Msg
-app api currentTime = {
+type AppConfig = {
+  apiRoot :: ApiRoot
+}
+
+app :: AppConfig -> Instant -> App.App Friendships Event Model Msg
+app config currentTime = {
   render
 , update
 , init: init currentTime
@@ -241,15 +245,18 @@ app api currentTime = {
 , _state: _friendships
 , _eventAppState
 , reducer: State.processEvent
-, eventStore: httpAppendStore api "dunbar"
-, snapshotStore: httpSnapshotStore api "snapshot"
+, eventStore: httpAppendStore config.apiRoot "dunbar"
+, snapshotStore: httpSnapshotStore config.apiRoot "snapshot"
 }
 
 affErrorHandler :: Error -> Effect Unit
 affErrorHandler err = alert (show err)
 
-runApp :: String -> Effect Unit
-runApp api = do
+mkConfig :: ApiRoot -> AppConfig
+mkConfig = {apiRoot: _}
+
+runApp :: AppConfig -> Effect Unit
+runApp config = do
   currentTime <- now
-  inst <- App.makeWithSelector (app api currentTime) "#app"
+  inst <- App.makeWithSelector (app config currentTime) "#app"
   inst.run

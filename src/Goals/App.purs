@@ -42,7 +42,7 @@ import Utils.Components.Input (Inputs, StringInput)
 import Utils.Async (async)
 import Utils.DateTime (showDate, showDayMonth, dateToDateTime, nextDateTime)
 import Utils.IdMap as IdMap
-import Utils.AppendStore (httpAppendStore, httpSnapshotStore)
+import Utils.AppendStore (httpAppendStore, httpSnapshotStore, ApiRoot)
 import Utils.Alert (alert)
 import Utils.Lens as L
 import Utils.Spork.EventApp as App
@@ -458,16 +458,16 @@ update model (AlertError errorMsg) = {effects: [effect], model, events: []}
           pure DoNothing
 update model (ClearError) = App.purely $ L.set _error Nothing model
 
-app :: String -> Page -> Instant -> App.App St.GoalState Event Model Msg
-app api page now = {
+app :: AppConfig -> Page -> Instant -> App.App St.GoalState Event Model Msg
+app config page now = {
     render
   , update
   , init: init page now
   , tick: Just (Tuple Tick (wrap 1000.0))
   , _state
   , _eventAppState
-  , eventStore: httpAppendStore api "goals"
-  , snapshotStore: httpSnapshotStore api "goals"
+  , eventStore: httpAppendStore config.apiRoot "goals"
+  , snapshotStore: httpSnapshotStore config.apiRoot "goals"
   , reducer: St.processEvent
 }
 
@@ -480,11 +480,18 @@ pageFromQueryParams queryParams =
 affErrorHandler :: Error -> Effect Unit
 affErrorHandler err = alert (show err)
 
-runApp :: String -> Effect Unit
-runApp api = do
+type AppConfig = {
+  apiRoot :: ApiRoot
+}
+
+mkConfig :: ApiRoot -> AppConfig
+mkConfig = {apiRoot: _}
+
+runApp :: AppConfig -> Effect Unit
+runApp conf = do
   currentTime <- now
   url <- Url.getWindowUrl
   let queryParams = Url.getQueryParams url
   let page = pageFromQueryParams queryParams
-  inst <- App.makeWithSelector (app api page currentTime) "#app"
+  inst <- App.makeWithSelector (app conf page currentTime) "#app"
   inst.run

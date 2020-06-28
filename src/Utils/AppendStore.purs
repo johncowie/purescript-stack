@@ -5,6 +5,7 @@ module Utils.AppendStore
 , Snapshot
 , SnapshotStore
 , httpSnapshotStore
+, ApiRoot
 )
 where
 
@@ -21,6 +22,7 @@ import Data.Argonaut.Encode (class EncodeJson, encodeJson) as JSON
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
 import Data.HTTP.Method (Method(..))
+import Data.Newtype (class Newtype, unwrap)
 
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
@@ -36,6 +38,9 @@ type AppendStore id e = {
 }
 
 data Ignored = Ignored
+
+newtype ApiRoot = ApiRoot String
+derive instance newtypeApiRoot :: Newtype ApiRoot _
 
 instance decodeJsonIgnored :: JSON.DecodeJson Ignored where
   decodeJson s = Right Ignored
@@ -110,36 +115,36 @@ apiPost url e = do
 
 appendHTTP :: forall id e. (JSON.EncodeJson e)
            => (JSON.DecodeJson id)
-           => String
+           => ApiRoot
            -> String
            -> e
            -> Aff (Either Error id)
 appendHTTP rootUrl appId event = do
-  (resE :: Either Error {id :: id}) <- apiPost (rootUrl <> "?app=" <> appId) event
+  (resE :: Either Error {id :: id}) <- apiPost (unwrap rootUrl <> "?app=" <> appId) event
   pure $ _.id <$> resE
 
 retrieveAllHTTP :: forall id e.
                    (JSON.DecodeJson id)
                 => (JSON.DecodeJson e)
-                => String
+                => ApiRoot
                 -> String
                 -> Aff (Either Error (Array {id :: id, event :: e}))
-retrieveAllHTTP rootUrl appId = apiGet (rootUrl <> "?app=" <> appId)
+retrieveAllHTTP rootUrl appId = apiGet (unwrap rootUrl <> "?app=" <> appId)
 
 retrieveAfterHTTP :: forall id e.
                      (JSON.DecodeJson id)
                   => (JSON.DecodeJson e)
-                  => String
+                  => ApiRoot
                   -> String
                   -> Int
                   -> Aff (Either Error (Array {id :: id, event :: e}))
-retrieveAfterHTTP rootUrl appId eventId = apiGet (rootUrl <> "?app=" <> appId <> "&after=" <> show eventId)
+retrieveAfterHTTP rootUrl appId eventId = apiGet (unwrap rootUrl <> "?app=" <> appId <> "&after=" <> show eventId)
 
 httpAppendStore :: forall id e.
                    (JSON.DecodeJson e)
                 => (JSON.EncodeJson e)
                 => (JSON.DecodeJson id)
-                => String
+                => ApiRoot
                 -> String
                 -> AppendStore id e
 httpAppendStore rootUrl appId = {
@@ -161,23 +166,23 @@ type SnapshotStore st = {
 }
 
 retrieveLatestSnapshotHTTP :: forall st. (JSON.DecodeJson st)
-                           => String
+                           => ApiRoot
                            -> String
                            -> Aff (Either Error (Maybe (Snapshot st)))
-retrieveLatestSnapshotHTTP rootUrl app = apiGetMaybe (rootUrl <> "/snapshots?app=" <> app)
+retrieveLatestSnapshotHTTP rootUrl app = apiGetMaybe (unwrap rootUrl <> "/snapshots?app=" <> app)
 
 saveSnapshotHTTP :: forall st. (JSON.EncodeJson st)
-                 => String
+                 => ApiRoot
                  -> String
                  -> (Snapshot st)
                  -> Aff (Either Error Unit)
 saveSnapshotHTTP rootUrl app snapshot = runExceptT do
-  (result :: Ignored) <- ExceptT $ apiPost (rootUrl <> "/snapshots?app=" <> app) snapshot
+  (result :: Ignored) <- ExceptT $ apiPost (unwrap rootUrl <> "/snapshots?app=" <> app) snapshot
   pure unit
 
 httpSnapshotStore :: forall st. (JSON.DecodeJson st)
                   => (JSON.EncodeJson st)
-                  => String
+                  => ApiRoot
                   -> String
                   -> SnapshotStore st
 httpSnapshotStore rootUrl app = {
