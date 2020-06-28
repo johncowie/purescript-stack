@@ -15950,6 +15950,7 @@ var PS = {};
   var Data_Functor = $PS["Data.Functor"];
   var Data_HTTP_Method = $PS["Data.HTTP.Method"];
   var Data_Maybe = $PS["Data.Maybe"];
+  var Data_Newtype = $PS["Data.Newtype"];
   var Data_Show = $PS["Data.Show"];
   var Data_Symbol = $PS["Data.Symbol"];
   var Data_Unit = $PS["Data.Unit"];
@@ -15964,6 +15965,12 @@ var PS = {};
       Ignored.value = new Ignored();
       return Ignored;
   })();
+  var ApiRoot = function (x) {
+      return x;
+  };
+  var newtypeApiRoot = new Data_Newtype.Newtype(function (n) {
+      return n;
+  }, ApiRoot);
   var decodeJsonIgnored = new Data_Argonaut_Decode_Class.DecodeJson(function (s) {
       return new Data_Either.Right(Ignored.value);
   });
@@ -15993,9 +16000,9 @@ var PS = {};
                           if (v instanceof Data_Either.Right) {
                               return Control_Applicative.pure(Effect_Aff.applicativeAff)(new Data_Either.Right(v.value0));
                           };
-                          throw new Error("Failed pattern match at Utils.AppendStore (line 105, column 23 - line 108, column 36): " + [ v.constructor.name ]);
+                          throw new Error("Failed pattern match at Utils.AppendStore (line 110, column 23 - line 113, column 36): " + [ v.constructor.name ]);
                       };
-                      throw new Error("Failed pattern match at Utils.AppendStore (line 103, column 3 - line 108, column 36): " + [ result.constructor.name ]);
+                      throw new Error("Failed pattern match at Utils.AppendStore (line 108, column 3 - line 113, column 36): " + [ result.constructor.name ]);
                   });
               };
           };
@@ -16008,7 +16015,7 @@ var PS = {};
                   return function (event) {
                       return Control_Bind.bind(Effect_Aff.bindAff)(apiPost(dictEncodeJson)(Data_Argonaut_Decode_Class.decodeRecord(Data_Argonaut_Decode_Class.gDecodeJsonCons(dictDecodeJson)(Data_Argonaut_Decode_Class.gDecodeJsonNil)(new Data_Symbol.IsSymbol(function () {
                           return "id";
-                      }))()())())(rootUrl + ("?app=" + appId))(event))(function (v) {
+                      }))()())())(Data_Newtype.unwrap(newtypeApiRoot)(rootUrl) + ("?app=" + appId))(event))(function (v) {
                           return Control_Applicative.pure(Effect_Aff.applicativeAff)(Data_Functor.map(Data_Either.functorEither)(function (v1) {
                               return v1.id;
                           })(v));
@@ -16026,7 +16033,7 @@ var PS = {};
                       return "upToEvent";
                   }))())(new Data_Symbol.IsSymbol(function () {
                       return "state";
-                  }))())())(decodeJsonIgnored)(rootUrl + ("/snapshots?app=" + app))(snapshot)))(function (v) {
+                  }))())())(decodeJsonIgnored)(Data_Newtype.unwrap(newtypeApiRoot)(rootUrl) + ("/snapshots?app=" + app))(snapshot)))(function (v) {
                       return Control_Applicative.pure(Control_Monad_Except_Trans.applicativeExceptT(Effect_Aff.monadAff))(Data_Unit.unit);
                   }));
               };
@@ -16058,9 +16065,9 @@ var PS = {};
                   if (v instanceof Data_Either.Right) {
                       return Control_Applicative.pure(Effect_Aff.applicativeAff)(Data_Either.Right.create(new Data_Maybe.Just(v.value0)));
                   };
-                  throw new Error("Failed pattern match at Utils.AppendStore (line 90, column 23 - line 94, column 43): " + [ v.constructor.name ]);
+                  throw new Error("Failed pattern match at Utils.AppendStore (line 95, column 23 - line 99, column 43): " + [ v.constructor.name ]);
               };
-              throw new Error("Failed pattern match at Utils.AppendStore (line 88, column 3 - line 94, column 43): " + [ result.constructor.name ]);
+              throw new Error("Failed pattern match at Utils.AppendStore (line 93, column 3 - line 99, column 43): " + [ result.constructor.name ]);
           });
       };
   };
@@ -16071,7 +16078,7 @@ var PS = {};
                   return "upToEvent";
               }))()())(new Data_Symbol.IsSymbol(function () {
                   return "state";
-              }))()())())(rootUrl + ("/snapshots?app=" + app));
+              }))()())())(Data_Newtype.unwrap(newtypeApiRoot)(rootUrl) + ("/snapshots?app=" + app));
           };
       };
   };
@@ -16110,9 +16117,9 @@ var PS = {};
                   if (v instanceof Data_Either.Right) {
                       return Control_Applicative.pure(Effect_Aff.applicativeAff)(Data_Either.Right.create(v.value0));
                   };
-                  throw new Error("Failed pattern match at Utils.AppendStore (line 78, column 23 - line 80, column 44): " + [ v.constructor.name ]);
+                  throw new Error("Failed pattern match at Utils.AppendStore (line 83, column 23 - line 85, column 44): " + [ v.constructor.name ]);
               };
-              throw new Error("Failed pattern match at Utils.AppendStore (line 76, column 3 - line 80, column 44): " + [ result.constructor.name ]);
+              throw new Error("Failed pattern match at Utils.AppendStore (line 81, column 3 - line 85, column 44): " + [ result.constructor.name ]);
           });
       };
   };
@@ -16125,7 +16132,7 @@ var PS = {};
                           return "id";
                       }))()())(new Data_Symbol.IsSymbol(function () {
                           return "event";
-                      }))()())()))(rootUrl + ("?app=" + (appId + ("&after=" + Data_Show.show(Data_Show.showInt)(eventId)))));
+                      }))()())()))(Data_Newtype.unwrap(newtypeApiRoot)(rootUrl) + ("?app=" + (appId + ("&after=" + Data_Show.show(Data_Show.showInt)(eventId)))));
                   };
               };
           };
@@ -16139,7 +16146,7 @@ var PS = {};
                       return "id";
                   }))()())(new Data_Symbol.IsSymbol(function () {
                       return "event";
-                  }))()())()))(rootUrl + ("?app=" + appId));
+                  }))()())()))(Data_Newtype.unwrap(newtypeApiRoot)(rootUrl) + ("?app=" + appId));
               };
           };
       };
@@ -16161,6 +16168,7 @@ var PS = {};
   };
   exports["httpAppendStore"] = httpAppendStore;
   exports["httpSnapshotStore"] = httpSnapshotStore;
+  exports["newtypeApiRoot"] = newtypeApiRoot;
 })(PS);
 (function($PS) {
   // Generated by purs version 0.13.6
@@ -16716,6 +16724,11 @@ var PS = {};
       };
   };
   var renderFriendNotFound = Spork_Html_Elements.div([  ])([ Spork_Html_Elements.h3([  ])([ Spork_Html_Core.text("Friend 404") ]) ]);
+  var mkConfig = function (v) {
+      return {
+          apiRoot: v
+      };
+  };
   var init = function (now) {
       var model = {
           friendships: Dunbar_State.empty,
@@ -16896,7 +16909,7 @@ var PS = {};
   var _eventAppState = Utils_Lens.prop(new Data_Symbol.IsSymbol(function () {
       return "eventAppState";
   }))()(Data_Symbol.SProxy.value);
-  var app = function (api) {
+  var app = function (config) {
       return function (currentTime) {
           return {
               render: render,
@@ -16906,7 +16919,7 @@ var PS = {};
               "_state": _friendships,
               "_eventAppState": _eventAppState,
               reducer: Dunbar_State.processEvent,
-              eventStore: Utils_AppendStore.httpAppendStore(Dunbar_State.decodeJsonEvent)(Dunbar_State.encodeJsonEvent)(Data_Argonaut_Decode_Class.decodeJsonInt)(api)("dunbar"),
+              eventStore: Utils_AppendStore.httpAppendStore(Dunbar_State.decodeJsonEvent)(Dunbar_State.encodeJsonEvent)(Data_Argonaut_Decode_Class.decodeJsonInt)(config.apiRoot)("dunbar"),
               snapshotStore: Utils_AppendStore.httpSnapshotStore(Data_Argonaut_Decode_Class.decodeMap(Utils_IdMap.ordId)(Utils_IdMap.decodeJsonId)(Data_Argonaut_Decode_Class.decodeRecord(Data_Argonaut_Decode_Class.gDecodeJsonCons(Data_Argonaut_Decode_Class.decodeJsonMaybe(Dunbar_Data_Birthday.decodeJsonBirthday))(Data_Argonaut_Decode_Class.gDecodeJsonCons(Data_Argonaut_Decode_Class.decodeJsonMaybe(Utils_JsonDateTime.decodeJsonDays))(Data_Argonaut_Decode_Class.gDecodeJsonCons(Data_Argonaut_Decode_Class.decodeJsonMaybe(Utils_JsonDateTime.decodeJsonInstant))(Data_Argonaut_Decode_Class.gDecodeJsonCons(Dunbar_Data_FullName.decodeJsonFullName)(Data_Argonaut_Decode_Class.gDecodeJsonCons(Data_Argonaut_Decode_Class.decodeJsonMaybe(Data_Argonaut_Decode_Class.decodeJsonString))(Data_Argonaut_Decode_Class.gDecodeJsonNil)(new Data_Symbol.IsSymbol(function () {
                   return "notes";
               }))()())(new Data_Symbol.IsSymbol(function () {
@@ -16927,17 +16940,18 @@ var PS = {};
                   return "desiredContactFrequency";
               }))())(new Data_Symbol.IsSymbol(function () {
                   return "birthday";
-              }))())()))(api)("snapshot")
+              }))())()))(config.apiRoot)("snapshot")
           };
       };
   };
-  var runApp = function (api) {
+  var runApp = function (config) {
       return function __do() {
           var currentTime = Effect_Now.now();
-          var inst = Utils_Spork_EventApp.makeWithSelector(app(api)(currentTime))("#app")();
+          var inst = Utils_Spork_EventApp.makeWithSelector(app(config)(currentTime))("#app")();
           return inst.run();
       };
   };
+  exports["mkConfig"] = mkConfig;
   exports["runApp"] = runApp;
 })(PS);
 (function($PS) {
@@ -18053,6 +18067,11 @@ var PS = {};
       };
       return GoalPage.value;
   };
+  var mkConfig = function (v) {
+      return {
+          apiRoot: v
+      };
+  };
   var justEvent = function (model) {
       return function (ev) {
           return {
@@ -18070,8 +18089,8 @@ var PS = {};
   var progressBar = function (now) {
       return function (goal) {
           var statusClass = (function () {
-              var $38 = isOnTrack(now)(goal);
-              if ($38) {
+              var $39 = isOnTrack(now)(goal);
+              if ($39) {
                   return "progress-green";
               };
               return "progress-red";
@@ -18374,7 +18393,7 @@ var PS = {};
   var render = function (model) {
       return Spork_Html_Elements.div([  ])([ renderAppStatus(model), renderPage(Utils_Lens.view(_page)(model))(model) ]);
   };
-  var app = function (api) {
+  var app = function (config) {
       return function (page) {
           return function (now) {
               return {
@@ -18384,23 +18403,24 @@ var PS = {};
                   tick: new Data_Maybe.Just(new Data_Tuple.Tuple(Tick.create, Data_Newtype.wrap(Data_Time_Duration.newtypeSeconds)(1000.0))),
                   "_state": _state,
                   "_eventAppState": _eventAppState,
-                  eventStore: Utils_AppendStore.httpAppendStore(Goals_Data_Event.decodeJsonEvent)(Goals_Data_Event.encodeJsonEvent)(Data_Argonaut_Decode_Class.decodeJsonInt)(api)("goals"),
-                  snapshotStore: Utils_AppendStore.httpSnapshotStore(Goals_Data_State.decodeJsonGoalState)(Goals_Data_State.encodeJsonGoalState)(api)("goals"),
+                  eventStore: Utils_AppendStore.httpAppendStore(Goals_Data_Event.decodeJsonEvent)(Goals_Data_Event.encodeJsonEvent)(Data_Argonaut_Decode_Class.decodeJsonInt)(config.apiRoot)("goals"),
+                  snapshotStore: Utils_AppendStore.httpSnapshotStore(Goals_Data_State.decodeJsonGoalState)(Goals_Data_State.encodeJsonGoalState)(config.apiRoot)("goals"),
                   reducer: Goals_Data_State.processEvent
               };
           };
       };
   };
-  var runApp = function (api) {
+  var runApp = function (conf) {
       return function __do() {
           var currentTime = Effect_Now.now();
           var url = Utils_Url.getWindowUrl();
           var queryParams = Utils_Url.getQueryParams(url);
           var page = pageFromQueryParams(queryParams);
-          var inst = Utils_Spork_EventApp.makeWithSelector(app(api)(page)(currentTime))("#app")();
+          var inst = Utils_Spork_EventApp.makeWithSelector(app(conf)(page)(currentTime))("#app")();
           return inst.run();
       };
   };
+  exports["mkConfig"] = mkConfig;
   exports["runApp"] = runApp;
 })(PS);
 (function($PS) {
@@ -18469,10 +18489,12 @@ var PS = {};
   var Couplit_App = $PS["Couplit.App"];
   var Data_Array = $PS["Data.Array"];
   var Data_Maybe = $PS["Data.Maybe"];
+  var Data_Newtype = $PS["Data.Newtype"];
   var Demo_AffApp = $PS["Demo.AffApp"];
   var Dunbar_App = $PS["Dunbar.App"];
   var Experiment = $PS["Experiment"];
   var Goals_App = $PS["Goals.App"];
+  var Utils_AppendStore = $PS["Utils.AppendStore"];
   var Utils_Components_Lib = $PS["Utils.Components.Lib"];
   var Utils_Url = $PS["Utils.Url"];                
   var routeApp = function (url) {
@@ -18482,7 +18504,7 @@ var PS = {};
               return Couplit_App.runApp;
           };
           if (v instanceof Data_Maybe.Just && v.value0 === "dunbar") {
-              return Dunbar_App.runApp(api);
+              return Dunbar_App.runApp(Dunbar_App.mkConfig(api));
           };
           if (v instanceof Data_Maybe.Just && v.value0 === "exp") {
               return Experiment.main;
@@ -18493,7 +18515,7 @@ var PS = {};
           if (v instanceof Data_Maybe.Just && v.value0 === "aff") {
               return Demo_AffApp.main;
           };
-          return Goals_App.runApp(api);
+          return Goals_App.runApp(Goals_App.mkConfig(api));
       };
   };
   var main_ = function (api) {
@@ -18502,8 +18524,8 @@ var PS = {};
           return routeApp(url)(api)();
       };
   };
-  var main = main_("https://dumb-waiter.herokuapp.com");
-  var dev = main_("http://lvh.me:8080");
+  var main = main_(Data_Newtype.wrap(Utils_AppendStore.newtypeApiRoot)("https://dumb-waiter.herokuapp.com"));
+  var dev = main_(Data_Newtype.wrap(Utils_AppendStore.newtypeApiRoot)("http://lvh.me:8080"));
   exports["routeApp"] = routeApp;
   exports["main_"] = main_;
   exports["dev"] = dev;
