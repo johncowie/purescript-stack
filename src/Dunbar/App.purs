@@ -232,8 +232,8 @@ update model (AlertError err) = {effects: [effect], model, events: []}
           async $ alert err
           pure DoNothing
 
-app :: Instant -> App.App Friendships Event Model Msg
-app currentTime = {
+app :: String -> Instant -> App.App Friendships Event Model Msg
+app api currentTime = {
   render
 , update
 , init: init currentTime
@@ -241,15 +241,15 @@ app currentTime = {
 , _state: _friendships
 , _eventAppState
 , reducer: State.processEvent
-, eventStore: httpAppendStore "dunbar"
-, snapshotStore: httpSnapshotStore "snapshot"
+, eventStore: httpAppendStore api "dunbar"
+, snapshotStore: httpSnapshotStore api "snapshot"
 }
 
 affErrorHandler :: Error -> Effect Unit
 affErrorHandler err = alert (show err)
 
-runApp :: Effect Unit
-runApp = do
+runApp :: String -> Effect Unit
+runApp api = do
   currentTime <- now
-  inst <- App.makeWithSelector (app currentTime) "#app"
+  inst <- App.makeWithSelector (app api currentTime) "#app"
   inst.run

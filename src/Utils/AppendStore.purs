@@ -108,40 +108,44 @@ apiPost url e = do
       Right val -> pure $ Right val
   where body = Just $ RequestBody.json $ JSON.encodeJson e
 
-rootUrl :: String
-rootUrl = "http://lvh.me:8080"
--- rootUrl = "https://dumb-waiter.herokuapp.com"
-
-appendHTTP :: forall id e. (JSON.EncodeJson e) => (JSON.DecodeJson id) => String -> e -> Aff (Either Error id)
-appendHTTP s event = do
-  (resE :: Either Error {id :: id}) <- apiPost (rootUrl <> "?app=" <> s) event
+appendHTTP :: forall id e. (JSON.EncodeJson e)
+           => (JSON.DecodeJson id)
+           => String
+           -> String
+           -> e
+           -> Aff (Either Error id)
+appendHTTP rootUrl appId event = do
+  (resE :: Either Error {id :: id}) <- apiPost (rootUrl <> "?app=" <> appId) event
   pure $ _.id <$> resE
 
 retrieveAllHTTP :: forall id e.
                    (JSON.DecodeJson id)
                 => (JSON.DecodeJson e)
                 => String
+                -> String
                 -> Aff (Either Error (Array {id :: id, event :: e}))
-retrieveAllHTTP s = apiGet (rootUrl <> "?app=" <> s)
+retrieveAllHTTP rootUrl appId = apiGet (rootUrl <> "?app=" <> appId)
 
 retrieveAfterHTTP :: forall id e.
                      (JSON.DecodeJson id)
                   => (JSON.DecodeJson e)
                   => String
+                  -> String
                   -> Int
                   -> Aff (Either Error (Array {id :: id, event :: e}))
-retrieveAfterHTTP appId eventId = apiGet (rootUrl <> "?app=" <> appId <> "&after=" <> show eventId)
+retrieveAfterHTTP rootUrl appId eventId = apiGet (rootUrl <> "?app=" <> appId <> "&after=" <> show eventId)
 
 httpAppendStore :: forall id e.
                    (JSON.DecodeJson e)
                 => (JSON.EncodeJson e)
                 => (JSON.DecodeJson id)
                 => String
+                -> String
                 -> AppendStore id e
-httpAppendStore k = {
-  append: appendHTTP k
-, retrieveAll: retrieveAllHTTP k
-, retrieveAfter: retrieveAfterHTTP k
+httpAppendStore rootUrl appId = {
+  append: appendHTTP rootUrl appId
+, retrieveAll: retrieveAllHTTP rootUrl appId
+, retrieveAfter: retrieveAfterHTTP rootUrl appId
 }
 
 -- snapshot stuff
@@ -156,18 +160,29 @@ type SnapshotStore st = {
 , saveSnapshot :: (Snapshot st) -> Aff (Either Error Unit)
 }
 
-retrieveLatestSnapshotHTTP :: forall st. (JSON.DecodeJson st) => String -> Aff (Either Error (Maybe (Snapshot st)))
-retrieveLatestSnapshotHTTP app = apiGetMaybe (rootUrl <> "/snapshots?app=" <> app)
+retrieveLatestSnapshotHTTP :: forall st. (JSON.DecodeJson st)
+                           => String
+                           -> String
+                           -> Aff (Either Error (Maybe (Snapshot st)))
+retrieveLatestSnapshotHTTP rootUrl app = apiGetMaybe (rootUrl <> "/snapshots?app=" <> app)
 
-saveSnapshotHTTP :: forall st. (JSON.EncodeJson st) => String -> (Snapshot st) -> Aff (Either Error Unit)
-saveSnapshotHTTP app snapshot = runExceptT do
+saveSnapshotHTTP :: forall st. (JSON.EncodeJson st)
+                 => String
+                 -> String
+                 -> (Snapshot st)
+                 -> Aff (Either Error Unit)
+saveSnapshotHTTP rootUrl app snapshot = runExceptT do
   (result :: Ignored) <- ExceptT $ apiPost (rootUrl <> "/snapshots?app=" <> app) snapshot
   pure unit
 
-httpSnapshotStore :: forall st. (JSON.DecodeJson st) => (JSON.EncodeJson st) => String -> SnapshotStore st
-httpSnapshotStore k = {
-  retrieveLatestSnapshot: retrieveLatestSnapshotHTTP k
-, saveSnapshot: saveSnapshotHTTP k
+httpSnapshotStore :: forall st. (JSON.DecodeJson st)
+                  => (JSON.EncodeJson st)
+                  => String
+                  -> String
+                  -> SnapshotStore st
+httpSnapshotStore rootUrl app = {
+  retrieveLatestSnapshot: retrieveLatestSnapshotHTTP rootUrl app
+, saveSnapshot: saveSnapshotHTTP rootUrl app
 }
 
 -- how are snapshots going to work??

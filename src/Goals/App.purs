@@ -458,16 +458,16 @@ update model (AlertError errorMsg) = {effects: [effect], model, events: []}
           pure DoNothing
 update model (ClearError) = App.purely $ L.set _error Nothing model
 
-app :: Page -> Instant -> App.App St.GoalState Event Model Msg
-app page now = {
+app :: String -> Page -> Instant -> App.App St.GoalState Event Model Msg
+app api page now = {
     render
   , update
   , init: init page now
   , tick: Just (Tuple Tick (wrap 1000.0))
   , _state
   , _eventAppState
-  , eventStore: httpAppendStore "goals"
-  , snapshotStore: httpSnapshotStore "goals"
+  , eventStore: httpAppendStore api "goals"
+  , snapshotStore: httpSnapshotStore api "goals"
   , reducer: St.processEvent
 }
 
@@ -480,11 +480,11 @@ pageFromQueryParams queryParams =
 affErrorHandler :: Error -> Effect Unit
 affErrorHandler err = alert (show err)
 
-runApp :: Effect Unit
-runApp = do
+runApp :: String -> Effect Unit
+runApp api = do
   currentTime <- now
   url <- Url.getWindowUrl
   let queryParams = Url.getQueryParams url
   let page = pageFromQueryParams queryParams
-  inst <- App.makeWithSelector (app page currentTime) "#app"
+  inst <- App.makeWithSelector (app api page currentTime) "#app"
   inst.run

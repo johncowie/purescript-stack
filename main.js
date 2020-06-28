@@ -1,7 +1,7 @@
 import Main from "./output/Main";
 
 function main() {
-  Main.main()
+  Main.dev()
 }
 
 // see https://parceljs.org/hmr.html
