@@ -2,6 +2,7 @@ module Server.QueryParams
 ( class GDecodeQueryParams
 , class ParseQueryParam
 , QueryParamKey
+, nonExistantKeyError
 , gDecodeQueryParams
 , parseQueryParam
 , parseQueryParams
@@ -34,9 +35,12 @@ class ParseQueryParam a where
 nonExistantKeyError :: QueryParamKey -> String
 nonExistantKeyError k = "Mandatory query parameter '" <> unwrap k <> "' is not present."
 
+parseMandatory :: forall a. (String -> Either String a) -> QueryParamKey -> Maybe String -> Either String a
+parseMandatory parser k (Just s) = parser s
+parseMandatory parser k Nothing = Left $ nonExistantKeyError k
+
 instance parseQueryParamString :: ParseQueryParam String where
-  parseQueryParam _ (Just s) = Right s
-  parseQueryParam k Nothing = Left $ nonExistantKeyError k
+  parseQueryParam = parseMandatory Right 
 
 instance parseQueryParamInt :: ParseQueryParam Int where
   parseQueryParam k (Just s) = case Int.fromString s of

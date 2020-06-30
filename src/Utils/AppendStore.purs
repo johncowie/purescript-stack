@@ -17,6 +17,7 @@ import Affjax as AX
 import Affjax.ResponseFormat as ResponseFormat
 import Affjax.RequestBody as RequestBody
 import Affjax.RequestHeader (RequestHeader(..))
+
 import Data.Argonaut.Decode (class DecodeJson, decodeJson) as JSON
 import Data.Argonaut.Encode (class EncodeJson, encodeJson) as JSON
 import Data.Either (Either(..))

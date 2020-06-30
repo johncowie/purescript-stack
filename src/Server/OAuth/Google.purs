@@ -7,8 +7,15 @@ where
 
 import Prelude
 
-import Data.Newtype (class Newtype)
+import Affjax.RequestBody as RequestBody
+
+import Data.Newtype (class Newtype, unwrap)
 import Data.Either (Either)
+import Data.Tuple (Tuple(..))
+import Data.Maybe (Maybe(..))
+
+import URI.Extra.QueryPairs as Query
+import URI.Query (print)
 
 import Effect.Aff (Aff)
 import Effect.Exception.Unsafe (unsafeThrow)
@@ -20,15 +27,23 @@ import Type.Data.Row (RProxy(..))
 import TypedEnv (type (<:), fromEnv, EnvError)
 
 import Server.OAuth (OAuth)
+import Server.QueryParams (class ParseQueryParam, parseNewtype)
+
+import Utils.HttpClient as Http
+import Utils.ExceptT (ExceptT(..), runExceptT, showError)
+import Utils.JWT (JWT, extractPayload)
 
 newtype GoogleCode = GoogleCode String
 derive instance newtypeGoogleCode :: Newtype GoogleCode _
 
-newtype GoogleUserData = GoogleUserData {
-  email :: String
+instance googleCodeParseQueryParam :: ParseQueryParam GoogleCode where
+  parseQueryParam = parseNewtype
+
+type GoogleUserData = {
+  sub :: String
+, email :: String
 , name :: String
 }
-derive instance newtypeGoogleUserData :: Newtype GoogleUserData _
 
 type GoogleConfigProxy = (
   oauthUrl :: String <: "GOOGLE_OAUTH_URL"
@@ -47,14 +62,60 @@ type GoogleConfig = {
 loadConfig :: Object String -> Either EnvError GoogleConfig
 loadConfig env = fromEnv (RProxy :: RProxy GoogleConfigProxy) env
 
-redirect :: GoogleConfig -> String
-redirect config = unsafeThrow ""
+-- mkRedirectUri ::  -> RedirectQuery -> String
 
-handleCode :: GoogleConfig -> GoogleCode -> Aff (Either String GoogleUserData)
-handleCode code = unsafeThrow ""
+queryString :: Array (Tuple String String) -> String
+queryString pairs = print $
+                    Query.print identity identity $
+                    Query.QueryPairs $
+                    map (\(Tuple k v) -> Tuple (Query.keyFromString k) (Just (Query.valueFromString v))) $
+                    pairs
 
-oauth :: Object String -> Either EnvError (OAuth GoogleCode GoogleUserData)
-oauth env = do
+formData :: Array (Tuple String String) -> RequestBody.RequestBody
+formData tuples = unsafeThrow ""
+
+{-
+Redirect user to google, with query parameters set, e.g. clientID, callback url, etc..
+-}
+redirect :: String -> GoogleConfig -> String
+redirect redirectUri config = config.oauthUrl <> "?" <> query
+  where query = queryString $
+                [ Tuple "response_type" "code"
+                , Tuple "access_type" "online"
+                , Tuple "scope" "profile email"
+                , Tuple "prompt" "select_account consent"
+                , Tuple "client_id" config.clientId
+                , Tuple "redirect_uri" redirectUri
+                ]
+
+fetchOpenIdData :: String -> GoogleConfig -> GoogleCode -> Aff (Either String {access_token :: JWT, id_token :: JWT})
+fetchOpenIdData redirectUri config code = map showError $ Http.postReturnJson url body
+  where url = config.apiUrl <> "/oauth2/v4/token"
+        body = formData [
+          Tuple "code" (unwrap code)
+        , Tuple "client_id" config.clientId
+        , Tuple "client_secret" config.clientSecret
+        , Tuple "redirect_uri" redirectUri
+        , Tuple "grant_type" "authorization_code"
+        ]
+        -- query =
+
+{-
+  code will come in query parameters
+  receive the code from Google, and use to make request to fetch user data.
+
+  response type of access code request:
+  {access_token: <>
+   id_token: JWT token - inside payload is sub (i.e. ID), name and email }
+
+-}
+handleCode :: String -> GoogleConfig -> GoogleCode -> Aff (Either String GoogleUserData)
+handleCode redirectUri config code = runExceptT do
+  tokenData <- ExceptT $ fetchOpenIdData redirectUri config code
+  ExceptT $ pure $ extractPayload tokenData.id_token
+
+oauth :: String -> Object String -> Either EnvError (OAuth GoogleCode GoogleUserData)
+oauth redirectUri env = do
   config <- loadConfig env
-  pure { redirect: redirect config
-       , handleCode: handleCode config}
+  pure { redirect: redirect redirectUri config
+       , handleCode: handleCode redirectUri config}

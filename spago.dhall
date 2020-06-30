@@ -6,6 +6,7 @@ You can edit this file as you like.
 , dependencies =
   [ "affjax"
   , "argonaut"
+  , "b64"
   , "bigints"
   , "console"
   , "crypto"
@@ -17,7 +18,6 @@ You can edit this file as you like.
   , "js-timers"
   , "node-child-process"
   , "node-fs"
-  , "node-http"
   , "node-process"
   , "numbers"
   , "parsing"

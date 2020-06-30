@@ -37,7 +37,7 @@ runQuery pool query = runExceptT do
   withConnection pool $ \conn -> do
     withTransaction conn $ query conn
 
-addEvent :: String -> Json -> PG.Pool -> Aff (Either PG.PGError Int)
+addEvent :: AppName -> Json -> PG.Pool -> Aff (Either PG.PGError Int)
 addEvent app event pool = runQuery pool \conn -> do
   rows <- PG.query conn (PG.Query """
     INSERT INTO EVENTS (id, app, event)
@@ -47,7 +47,7 @@ addEvent app event pool = runQuery pool \conn -> do
       , $2
     )
     RETURNING ID;
-  """) (app /\ event)
+  """) (unwrap app /\ event)
   pure $ fromMaybe 0 $ head $ map (\(Row1 id) -> id) rows
 
 retrieveEvents :: AppName -> Maybe EventId -> PG.Pool -> Aff (Either PG.PGError (Array (Tuple Int Json)))
@@ -59,7 +59,7 @@ retrieveEvents app eventIdM pool = runQuery pool \conn -> do
     ORDER BY id desc;
     """) (unwrap app /\ maybe 0 unwrap eventIdM)
 
-retrieveLatestSnapshot :: String -> PG.Pool -> Aff (Either PG.PGError (Maybe (Tuple Json Int)))
+retrieveLatestSnapshot :: AppName -> PG.Pool -> Aff (Either PG.PGError (Maybe (Tuple Json Int)))
 retrieveLatestSnapshot app pool = runQuery pool \conn -> do
   rows <- PG.query conn (PG.Query """
     SELECT snapshot, up_to_event
@@ -67,10 +67,10 @@ retrieveLatestSnapshot app pool = runQuery pool \conn -> do
     WHERE app = $1
     ORDER BY up_to_event DESC
     LIMIT 1;
-  """) (Row1 app)
+  """) (Row1 $ unwrap app)
   pure $ head rows
 
-insertSnapshot :: String -> Json -> Int -> PG.Pool -> Aff (Either PG.PGError Unit)
+insertSnapshot :: AppName -> Json -> Int -> PG.Pool -> Aff (Either PG.PGError Unit)
 insertSnapshot app snapshot upToEvent pool = runQuery pool \conn -> do
   PG.execute conn (PG.Query """
     INSERT INTO snapshots (id, app, snapshot, up_to_event)
@@ -80,7 +80,7 @@ insertSnapshot app snapshot upToEvent pool = runQuery pool \conn -> do
     , $2
     , $3
     );
-  """) (app /\ snapshot /\ upToEvent)
+  """) (unwrap app /\ snapshot /\ upToEvent)
 
 connectionMsg :: PG.PoolConfiguration -> String
 connectionMsg poolConfig = "Connected to database " <> db <> " at " <> hostAndPort
