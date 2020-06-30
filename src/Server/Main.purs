@@ -1,13 +1,12 @@
 module Server.Main where
 
-import Prelude
+import CustomPrelude
 
 import Data.Map as M
 import Data.Newtype (wrap, unwrap)
 import Data.Argonaut.Core (Json)
 import Data.Argonaut.Decode (decodeJson)
-import Data.Either (Either(..))
-import Data.Maybe (Maybe(..), fromMaybe)
+import Data.Maybe (fromMaybe)
 import Data.Tuple (Tuple(..))
 import Data.Tuple.Nested (type (/\), (/\))
 
@@ -83,6 +82,14 @@ oauthLoginHandler :: forall req m oacode oadata.
                   -> m (Response String)
 oauthLoginHandler oauth _ = pure $ redirect oauth.redirect
 
+googleCodeHandler :: OAuth GoogleCode GoogleUserData
+                  -> Request ({code :: GoogleCode} /\ Unit)
+                  -> Aff (Either String JSONResponse)
+googleCodeHandler oauth req = runExceptT $ do
+  userData <- ExceptT $ oauth.handleCode code
+  pure $ JSON.okJsonResponse userData
+  where ({code} /\ _) = req.val
+
 -- Some rando bits of middleware
 wrapResponseErrors :: forall req res. (String -> Aff res) -> (req -> Aff (Either String res)) -> req -> Aff res
 wrapResponseErrors errorHandler router request = do
@@ -126,6 +133,11 @@ type Dependencies = {
 lookupHandler :: Dependencies -> HP.Method -> Array String -> (Request Unit -> Aff (Response String))
 lookupHandler deps HP.Options _ = const $ pure $ response 200 ""
 lookupHandler deps HP.Get ["login"] = oauthLoginHandler deps.oauth.google
+lookupHandler deps HP.Get ["google"] =
+  JSON.wrapJsonResponse $
+  wrapParseQueryParams JSON.jsonBadRequestHandler $
+  wrapResponseErrors JSON.jsonErrorHandler $
+  googleCodeHandler deps.oauth.google
 lookupHandler deps HP.Get ["snapshots"] =
   wrapBasicAuth "john" "bobbydazzler" plainErrorHandler $
   JSON.wrapJsonResponse $
