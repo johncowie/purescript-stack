@@ -78,7 +78,7 @@ formData tuples = unsafeThrow ""
 Redirect user to google, with query parameters set, e.g. clientID, callback url, etc..
 -}
 redirect :: String -> GoogleConfig -> String
-redirect redirectUri config = config.oauthUrl <> "?" <> query
+redirect redirectUri config = config.oauthUrl <> query
   where query = queryString $
                 [ Tuple "response_type" "code"
                 , Tuple "access_type" "online"
