@@ -55,6 +55,7 @@ updateRequestValM f {headers, httpVersion, method, path, query, body, val} = do
 response :: forall a. HP.Status -> a -> Response a
 response status body = {headers: Headers.empty, status, body}
 
+-- TODO return headers so that redirect is not cached
 redirect :: forall a. (Monoid a) => String -> Response a
 redirect url = addResponseHeader "Location" url $ response 301 mempty
 

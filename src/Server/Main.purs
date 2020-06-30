@@ -82,12 +82,13 @@ oauthLoginHandler :: forall req m oacode oadata.
                   -> m (Response String)
 oauthLoginHandler oauth _ = pure $ redirect oauth.redirect
 
+-- FIXME this is timing out
 googleCodeHandler :: OAuth GoogleCode GoogleUserData
                   -> Request ({code :: GoogleCode} /\ Unit)
                   -> Aff (Either String JSONResponse)
 googleCodeHandler oauth req = runExceptT $ do
-  userData <- ExceptT $ oauth.handleCode code
-  pure $ JSON.okJsonResponse userData
+  -- userData <- ExceptT $ oauth.handleCode code
+  pure $ JSON.okJsonResponse {code: unwrap code}
   where ({code} /\ _) = req.val
 
 -- Some rando bits of middleware
