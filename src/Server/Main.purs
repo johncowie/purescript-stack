@@ -216,7 +216,7 @@ main = void $ runAff affErrorHandler $ logError $ runExceptT $ do
       dbUri = fromMaybe "postgres://localhost:5432/events_store" config.databaseUri
   pool <- ExceptT $ showError <$> (liftEffect $ DB.getDB dbUri)
   ExceptT $ migrate $ migrator pool
-  googleOAuth <- ExceptT $ pure $ showError $ Google.oauth "redirect-uri" env
+  googleOAuth <- ExceptT $ pure $ showError $ Google.oauth "https://dumb-waiter.herokuapp.com/google" env
   let deps = {db: pool, oauth: {google: googleOAuth}}
   void $ ExceptT $ liftEffect $ Right <$> (HP.serve' {port, backlog, hostname} (app deps) do
     Console.log $ " ┌────────────────────────────────────────────┐"
