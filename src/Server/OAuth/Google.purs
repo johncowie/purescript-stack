@@ -5,7 +5,7 @@ module Server.OAuth.Google
 , oauth )
 where
 
-import Prelude
+import CustomPrelude
 
 import Affjax.RequestBody as RequestBody
 
@@ -13,12 +13,12 @@ import Data.Newtype (class Newtype, unwrap)
 import Data.Either (Either)
 import Data.Tuple (Tuple(..))
 import Data.Maybe (Maybe(..))
+import Data.FormURLEncoded (FormURLEncoded(..))
 
 import URI.Extra.QueryPairs as Query
 import URI.Query (print)
 
 import Effect.Aff (Aff)
-import Effect.Exception.Unsafe (unsafeThrow)
 
 import Foreign.Object (Object)
 
@@ -72,7 +72,7 @@ queryString pairs = print $
                     pairs
 
 formData :: Array (Tuple String String) -> RequestBody.RequestBody
-formData tuples = unsafeThrow ""
+formData tuples = RequestBody.formURLEncoded $ FormURLEncoded $ map (map Just) tuples
 
 {-
 Redirect user to google, with query parameters set, e.g. clientID, callback url, etc..

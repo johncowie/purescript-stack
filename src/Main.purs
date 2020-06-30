@@ -29,6 +29,7 @@ main_ api = do
   url <- Url.getWindowUrl
   routeApp url api
 
+-- TODO inject some environment variables for dev mode
 dev :: Effect Unit
 dev = main_ (wrap "http://lvh.me:8080")
 

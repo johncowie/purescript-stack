@@ -2,9 +2,13 @@ module Server.Main where
 
 import CustomPrelude
 
+import Affjax as AX
+import Affjax.ResponseFormat as ResponseFormat
+import Affjax.RequestBody as RequestBody
+
 import Data.Map as M
 import Data.Newtype (wrap, unwrap)
-import Data.Argonaut.Core (Json)
+import Data.Argonaut.Core (Json, stringify)
 import Data.Argonaut.Decode (decodeJson)
 import Data.Maybe (fromMaybe)
 import Data.Tuple (Tuple(..))
@@ -18,6 +22,7 @@ import Effect (Effect)
 import Effect.Aff (Aff, runAff)
 import Effect.Class (liftEffect)
 import Effect.Console as Console
+import Effect.Exception (Error)
 
 import HTTPure as HP
 
@@ -37,6 +42,8 @@ import Server.OAuth.Google (GoogleCode, GoogleUserData)
 import Server.OAuth.Google as Google
 
 import Utils.ExceptT (ExceptT(..), runExceptT, showError)
+
+import Utils.HttpClient as Http
 
 retrieveEventsHandler :: DB.Pool
                       -> Request ({app :: AppName, after :: Maybe EventId} /\ Unit)
@@ -87,9 +94,19 @@ googleCodeHandler :: OAuth GoogleCode GoogleUserData
                   -> Request ({code :: GoogleCode} /\ Unit)
                   -> Aff (Either String JSONResponse)
 googleCodeHandler oauth req = runExceptT $ do
-  -- userData <- ExceptT $ oauth.handleCode code
-  pure $ JSON.okJsonResponse {code: unwrap code}
+  userData <- ExceptT $ oauth.handleCode code
+  pure $ JSON.okJsonResponse userData
   where ({code} /\ _) = req.val
+
+stubUserData :: forall req. req -> Aff JSONResponse
+stubUserData _ = pure $ JSON.okJsonResponse { sub: "123", name: "Bob", email: "bob@bob.com"}
+
+affjaxHandler :: forall req. req -> Aff (Response String)
+affjaxHandler _ = do
+  (respE :: Either Error {sub :: String, name :: String, email :: String}) <- Http.postReturnJson "http://lvh.me:8080/stub" (RequestBody.string "blah")
+  case respE of
+    (Left err) -> pure $ response 500 $ show err
+    (Right resp) -> pure $ response 200 $ "RESULT: "  <> show resp
 
 -- Some rando bits of middleware
 wrapResponseErrors :: forall req res. (String -> Aff res) -> (req -> Aff (Either String res)) -> req -> Aff res
@@ -121,6 +138,15 @@ wrapBasicAuth username password errorHandler router req =
   where isAuthed = fromMaybe false $ do
           authHeader <- M.lookup (wrap "Authorization") (unwrap req.headers)
           pure $ authHeader == username <> ":" <> password
+
+wrapLogRequest :: forall a res.
+                 (Request a -> Aff res)
+               -> Request a
+               -> Aff res
+wrapLogRequest router req = do
+  liftEffect $ Console.log $ show req.method <> ": " <> show req.path
+  router req
+
 ---
 
 successResponse :: JSONResponse
@@ -134,6 +160,8 @@ type Dependencies = {
 lookupHandler :: Dependencies -> HP.Method -> Array String -> (Request Unit -> Aff (Response String))
 lookupHandler deps HP.Options _ = const $ pure $ response 200 ""
 lookupHandler deps HP.Get ["login"] = oauthLoginHandler deps.oauth.google
+lookupHandler deps _ ["stub"] = JSON.wrapJsonResponse stubUserData
+lookupHandler deps HP.Get ["affjax"] = affjaxHandler
 lookupHandler deps HP.Get ["google"] =
   JSON.wrapJsonResponse $
   wrapParseQueryParams JSON.jsonBadRequestHandler $
@@ -178,6 +206,7 @@ plainErrorHandler msg = pure $ response 401 msg
 app :: Dependencies -> HP.Request -> HP.ResponseM
 app deps =
   wrapCustom $
+  wrapLogRequest $
   wrapCors $
   baseRouter deps
 
