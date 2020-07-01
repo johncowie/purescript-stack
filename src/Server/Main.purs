@@ -2,21 +2,20 @@ module Server.Main where
 
 import CustomPrelude
 
-import Affjax as AX
-import Affjax.ResponseFormat as ResponseFormat
 import Affjax.RequestBody as RequestBody
 
 import Data.Map as M
 import Data.Newtype (wrap, unwrap)
-import Data.Argonaut.Core (Json, stringify)
+import Data.Argonaut.Core (Json)
 import Data.Argonaut.Decode (decodeJson)
 import Data.Maybe (fromMaybe)
 import Data.Tuple (Tuple(..))
+import Data.Array (drop)
 import Data.Tuple.Nested (type (/\), (/\))
 
 import Type.Data.Row (RProxy(..))
 
-import Node.Process (getEnv)
+import Node.Process as NP
 
 import Effect (Effect)
 import Effect.Aff (Aff, runAff)
@@ -41,7 +40,7 @@ import Server.OAuth (OAuth)
 import Server.OAuth.Google (GoogleCode, GoogleUserData)
 import Server.OAuth.Google as Google
 
-import Utils.ExceptT (ExceptT(..), runExceptT, showError)
+import Utils.ExceptT (ExceptT(..), runExceptT, showError, liftEffectRight)
 
 import Utils.HttpClient as Http
 
@@ -235,10 +234,33 @@ affErrorHandler (Left err) = do
   Console.log $ "ERROR: " <> show err
 affErrorHandler _ = pure unit
 
+data Mode = Dev | Prod
+
+instance showMode :: Show Mode where
+  show Dev = "Development"
+  show Prod = "Production"
+
+modeFromArgs :: Array String -> Mode
+modeFromArgs ["dev"] = Dev
+modeFromArgs _ = Prod
+
+-- TODO this is a bit of a hack, should really replace oauth component with stubbed version instead
+injectStubVars :: Mode -> Effect Unit
+injectStubVars Prod = pure unit
+injectStubVars Dev = do
+  NP.setEnv "GOOGLE_OAUTH_URL" "blah"
+  NP.setEnv "GOOGLE_API_URL" "blah"
+  NP.setEnv "GOOGLE_CLIENT_ID" "blah"
+  NP.setEnv "GOOGLE_CLIENT_SECRET" "blah"
+
+
 -- | Boot up the server
-main :: Effect Unit -- HP.ServerM
+main :: Effect Unit
 main = void $ runAff affErrorHandler $ logError $ runExceptT $ do
-  env <- ExceptT $ liftEffect $ Right <$> getEnv
+  args <- liftEffectRight NP.argv
+  let mode = modeFromArgs $ drop 2 args
+  liftEffectRight $ injectStubVars mode
+  env <- liftEffectRight NP.getEnv
   config <- ExceptT $ pure $ showError $ fromEnv (RProxy :: RProxy Config) env
   let port = fromMaybe 8080 config.port
       hostname = "0.0.0.0"
@@ -251,4 +273,6 @@ main = void $ runAff affErrorHandler $ logError $ runExceptT $ do
   void $ ExceptT $ liftEffect $ Right <$> (HP.serve' {port, backlog, hostname} (app deps) do
     Console.log $ " ┌────────────────────────────────────────────┐"
     Console.log $ " │ Server now up on port " <> show port <> "                 │"
-    Console.log $ " └────────────────────────────────────────────┘")
+    Console.log $ " └────────────────────────────────────────────┘"
+    Console.log $ "Mode: " <> show mode
+    )

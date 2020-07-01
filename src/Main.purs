@@ -1,19 +1,22 @@
 module Main where
 
 import Prelude
-import Goals.App as Goals
-import Couplit.App as Couplit
-import Dunbar.App as Dunbar
-import Utils.Components.Lib as ComponentLib
-import Demo.AffApp as AffApp
+
 import Effect (Effect)
+
 import Data.Maybe(Maybe(..))
 import Data.Array as Array
 import Data.Newtype (wrap)
+
 import Utils.Url as Url
 import Utils.AppendStore (ApiRoot)
+import Utils.Components.Lib as ComponentLib
 
 import Experiment as Exp
+import Goals.App as Goals
+import Couplit.App as Couplit
+import Dunbar.App as Dunbar
+import Demo.AffApp as AffApp
 
 routeApp :: String -> ApiRoot -> Effect Unit
 routeApp url api = case Array.head $ Url.getPath url of
@@ -29,7 +32,6 @@ main_ api = do
   url <- Url.getWindowUrl
   routeApp url api
 
--- TODO inject some environment variables for dev mode
 dev :: Effect Unit
 dev = main_ (wrap "http://lvh.me:8080")
 

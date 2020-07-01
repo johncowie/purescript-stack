@@ -45,6 +45,7 @@ type GoogleUserData = {
 , name :: String
 }
 
+-- TODO could surely write something that looks better than this?
 type GoogleConfigProxy = (
   oauthUrl :: String <: "GOOGLE_OAUTH_URL"
 , apiUrl :: String <: "GOOGLE_API_URL"

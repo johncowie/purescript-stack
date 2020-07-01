@@ -36,11 +36,40 @@ createSnapshotsTable id = {id, up, down, description}
         """
         description = "Create snapshots table"
 
+createUsersTable :: Int -> Migration Int String
+createUsersTable id = {id, up, down, description}
+  where up = """
+              CREATE TABLE IF NOT EXISTS users (
+                id SERIAL PRIMARY KEY
+              , third_party_id VARCHAR NOT NULL UNIQUE
+              , name VARCHAR
+              , email VARCHAR
+              );
+             """
+        down = """
+          DROP TABLE IF EXISTS users;
+        """
+        description = """Create users table"""
+
+createTokensTable :: Int -> Migration Int String
+createTokensTable id = {id, up, down, description}
+  where up = """
+             CREATE TABLE IF NOT EXISTS tokens (
+               user_id INTEGER PRIMARY KEY REFERENCES users(id)
+             , token VARCHAR NOT NULL
+             );
+             """
+        down = """
+                 DROP TABLE IF EXISTS tokens;
+               """
+        description = """Create tokens table"""
 
 migrationData :: Array (Migration Int String)
 migrationData = [
   createEventsTable 1
 , createSnapshotsTable 2
+, createUsersTable 3
+, createTokensTable 4
 ]
 
 validateMigrations :: Array (Migration Int String) -> Either String (Array (Migration Int String))

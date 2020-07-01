@@ -40,7 +40,7 @@ parseMandatory parser k (Just s) = parser s
 parseMandatory parser k Nothing = Left $ nonExistantKeyError k
 
 instance parseQueryParamString :: ParseQueryParam String where
-  parseQueryParam = parseMandatory Right 
+  parseQueryParam = parseMandatory Right
 
 instance parseQueryParamInt :: ParseQueryParam Int where
   parseQueryParam k (Just s) = case Int.fromString s of
