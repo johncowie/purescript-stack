@@ -41,9 +41,10 @@ createUsersTable id = {id, up, down, description}
   where up = """
               CREATE TABLE IF NOT EXISTS users (
                 id SERIAL PRIMARY KEY
-              , third_party_id VARCHAR NOT NULL UNIQUE
+              , third_party VARCHAR NOT NULL
+              , third_party_id VARCHAR NOT NULL
               , name VARCHAR
-              , email VARCHAR
+              , UNIQUE(third_party, third_party_id)
               );
              """
         down = """

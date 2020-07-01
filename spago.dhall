@@ -26,6 +26,7 @@ You can edit this file as you like.
   , "profunctor-lenses"
   , "psci-support"
   , "record"
+  , "spec"
   , "spork"
   , "these"
   , "typedenv"

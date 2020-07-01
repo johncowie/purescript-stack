@@ -1,23 +1,23 @@
 module Server.DB where
 
 import Prelude
-import Control.Monad.Except.Trans (ExceptT, runExceptT)
+import Control.Monad.Except.Trans (ExceptT(..), runExceptT)
 import Data.Array (head)
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
-import Data.Tuple (Tuple)
+import Data.Tuple (Tuple(..))
 import Data.Tuple.Nested ((/\))
 import Data.Either (Either(..))
-import Data.Newtype (unwrap)
+import Data.Newtype (unwrap, wrap)
 import Effect (Effect)
 import Effect.Aff (Aff)
 import Effect.Console as Console
 import Data.Argonaut.Core (Json)
 
 import Database.PostgreSQL.PG as PG
-import Database.PostgreSQL.Row (Row1(Row1))
+import Database.PostgreSQL.Row (Row0(Row0), Row1(Row1), Row2(Row2))
 
 import Server.DBConnection (fromURI)
-import Server.Domain (AppName, EventId)
+import Server.Domain (AppName, EventId, NewUser, User, UserId)
 
 type PG a = ExceptT PG.PGError Aff a
 type Pool = PG.Pool
@@ -81,6 +81,25 @@ insertSnapshot app snapshot upToEvent pool = runQuery pool \conn -> do
     , $3
     );
   """) (unwrap app /\ snapshot /\ upToEvent)
+
+upsertUser :: NewUser -> PG.Pool -> Aff (Either PG.PGError UserId)
+upsertUser user pool = runQuery pool \conn -> do
+  rows <- PG.query conn (PG.Query """
+    INSERT INTO users (third_party, third_party_id, name) VALUES ($1, $2, $3)
+    ON CONFLICT ON CONSTRAINT users_third_party_third_party_id_key
+    DO UPDATE SET name = $3
+    RETURNING id;
+  """) (show user.thirdParty /\ user.thirdPartyId /\ user.name)
+  case rows of
+    [(Row1 id)] -> pure $ wrap id
+    _ -> ExceptT $ pure $ Left $ PG.ConversionError "No ID returned"
+
+retrieveUsers :: PG.Pool -> Aff (Either PG.PGError (Array User))
+retrieveUsers pool = runQuery pool \conn -> do
+  rows <- PG.query conn (PG.Query """
+    SELECT id, name FROM users;
+  """) Row0
+  pure $ map (\(Row2 id name) -> {id: wrap id, name}) rows
 
 connectionMsg :: PG.PoolConfiguration -> String
 connectionMsg poolConfig = "Connected to database " <> db <> " at " <> hostAndPort
