@@ -7,6 +7,7 @@ import Affjax.RequestBody as RequestBody
 import Data.Map as M
 import Data.Newtype (wrap, unwrap)
 import Data.Argonaut.Core (Json)
+import Data.Argonaut.Encode (encodeJson)
 import Data.Argonaut.Decode (decodeJson)
 import Data.Maybe (fromMaybe)
 import Data.Tuple (Tuple(..))
@@ -31,7 +32,7 @@ import Server.DB as DB
 import Server.Migrations.MigrationData (migrationStore)
 import Server.Migrations.Postgres (executor, intVersionStore)
 import Server.Migrations (migrate, Migrator)
-import Server.Domain (AppName, EventId)
+import Server.Domain (AppName, EventId, OAuthProvider(Google), UserId)
 import Server.Handler (Request, Response, addResponseHeader, response, wrapCustom, redirect)
 import Server.Middleware.JSON (JSONResponse)
 import Server.Middleware.JSON as JSON
@@ -41,6 +42,7 @@ import Server.OAuth.Google (GoogleCode, GoogleUserData)
 import Server.OAuth.Google as Google
 
 import Utils.ExceptT (ExceptT(..), runExceptT, showError, liftEffectRight)
+import Utils.JWT (JWTGenerator, jwtGenerator)
 
 import Utils.HttpClient as Http
 
@@ -88,13 +90,17 @@ oauthLoginHandler :: forall req m oacode oadata.
                   -> m (Response String)
 oauthLoginHandler oauth _ = pure $ redirect oauth.redirect
 
--- FIXME this is timing out
 googleCodeHandler :: OAuth GoogleCode GoogleUserData
+                  -> DB.Pool
+                  -> JWTGenerator
                   -> Request ({code :: GoogleCode} /\ Unit)
                   -> Aff (Either String JSONResponse)
-googleCodeHandler oauth req = runExceptT $ do
+googleCodeHandler oauth db tokenGen req = runExceptT $ do
   userData <- ExceptT $ oauth.handleCode code
-  pure $ JSON.okJsonResponse userData
+  let newUser = {thirdParty: Google, thirdPartyId: userData.sub, name: userData.name}
+  userId <- ExceptT $ map showError $ DB.upsertUser newUser db
+  token <- liftEffectRight $ tokenGen.generate $ encodeJson {sub: userId}
+  pure $ JSON.okJsonResponse {accessToken: token}
   where ({code} /\ _) = req.val
 
 stubUserData :: forall req. req -> Aff JSONResponse
@@ -154,6 +160,7 @@ successResponse = JSON.okJsonResponse {message: "Success"}
 type Dependencies = {
   db :: DB.Pool
 , oauth :: {google :: OAuth GoogleCode GoogleUserData}
+, tokenGen :: JWTGenerator
 }
 
 lookupHandler :: Dependencies -> HP.Method -> Array String -> (Request Unit -> Aff (Response String))
@@ -165,7 +172,7 @@ lookupHandler deps HP.Get ["google"] =
   JSON.wrapJsonResponse $
   wrapParseQueryParams JSON.jsonBadRequestHandler $
   wrapResponseErrors JSON.jsonErrorHandler $
-  googleCodeHandler deps.oauth.google
+  googleCodeHandler deps.oauth.google deps.db deps.tokenGen
 lookupHandler deps HP.Get ["snapshots"] =
   wrapBasicAuth "john" "bobbydazzler" plainErrorHandler $
   JSON.wrapJsonResponse $
@@ -212,6 +219,7 @@ app deps =
 type Config = (
   port :: Maybe Int <: "PORT"
 , databaseUri :: Maybe String <: "DATABASE_URI"
+, jwtSecret :: String <: "JWT_SECRET"
 )
 
 logError :: Aff (Either String Unit) -> Aff Unit
@@ -252,7 +260,7 @@ injectStubVars Dev = do
   NP.setEnv "GOOGLE_API_URL" "blah"
   NP.setEnv "GOOGLE_CLIENT_ID" "blah"
   NP.setEnv "GOOGLE_CLIENT_SECRET" "blah"
-
+  NP.setEnv "JWT_SECRET" "devsecret"
 
 -- | Boot up the server
 main :: Effect Unit
@@ -267,9 +275,13 @@ main = void $ runAff affErrorHandler $ logError $ runExceptT $ do
       backlog = Nothing
       dbUri = fromMaybe "postgres://localhost:5432/events_store" config.databaseUri
   pool <- ExceptT $ showError <$> (liftEffect $ DB.getDB dbUri)
-  ExceptT $ migrate $ migrator pool
   googleOAuth <- ExceptT $ pure $ showError $ Google.oauth "https://dumb-waiter.herokuapp.com/google" env
-  let deps = {db: pool, oauth: {google: googleOAuth}}
+  let deps = {
+    db: pool,
+    oauth: {google: googleOAuth},
+    tokenGen: jwtGenerator config.jwtSecret
+  }
+  ExceptT $ migrate $ migrator pool
   void $ ExceptT $ liftEffect $ Right <$> (HP.serve' {port, backlog, hostname} (app deps) do
     Console.log $ " ┌────────────────────────────────────────────┐"
     Console.log $ " │ Server now up on port " <> show port <> "                 │"

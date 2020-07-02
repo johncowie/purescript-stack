@@ -16,7 +16,6 @@ import Experiment as Exp
 import Goals.App as Goals
 import Couplit.App as Couplit
 import Dunbar.App as Dunbar
-import Demo.AffApp as AffApp
 
 routeApp :: String -> ApiRoot -> Effect Unit
 routeApp url api = case Array.head $ Url.getPath url of
@@ -24,7 +23,6 @@ routeApp url api = case Array.head $ Url.getPath url of
   (Just "dunbar") -> Dunbar.runApp (Dunbar.mkConfig api)
   (Just "exp") ->  Exp.main
   (Just "lib") -> ComponentLib.main
-  (Just "aff") -> AffApp.main
   _ -> Goals.runApp (Goals.mkConfig api)
 
 main_ :: ApiRoot -> Effect Unit

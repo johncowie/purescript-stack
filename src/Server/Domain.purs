@@ -2,7 +2,9 @@ module Server.Domain where
 
 import Prelude
 
-import Data.Newtype (class Newtype)
+import Data.Newtype (class Newtype, wrap, unwrap)
+import Data.Argonaut.Encode (class EncodeJson, encodeJson)
+import Data.Argonaut.Decode (class DecodeJson, decodeJson)
 
 import Server.QueryParams (class ParseQueryParam, parseNewtype)
 
@@ -23,6 +25,10 @@ derive instance newtypeUserId :: Newtype UserId _
 derive instance eqUserId :: Eq UserId
 instance showUserId :: Show UserId where
   show (UserId i) = show i
+instance encodeJsonUserId :: EncodeJson UserId where
+  encodeJson = unwrap >>> encodeJson
+instance decodeJsonUserId :: DecodeJson UserId where
+  decodeJson = decodeJson >>> map wrap
 
 data OAuthProvider = Google | Stub
 instance showOAuthProvider :: Show OAuthProvider where
