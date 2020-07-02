@@ -63,7 +63,13 @@ createTokensTable id = {id, up, down, description}
         down = """
                  DROP TABLE IF EXISTS tokens;
                """
-        description = """Create tokens table"""
+        description = "Create tokens table"
+
+revert :: Migration Int String -> Int -> Migration Int String
+revert migration id = {id, up, down, description}
+  where up = migration.down
+        down = migration.up
+        description = "REVERT: " <> show migration.id <> " (" <> migration.description <> ")"
 
 migrationData :: Array (Migration Int String)
 migrationData = [
@@ -71,6 +77,7 @@ migrationData = [
 , createSnapshotsTable 2
 , createUsersTable 3
 , createTokensTable 4
+, revert (createTokensTable 4) 5
 ]
 
 validateMigrations :: Array (Migration Int String) -> Either String (Array (Migration Int String))

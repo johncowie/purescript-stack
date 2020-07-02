@@ -8,7 +8,7 @@ module Utils.JWT
 )
 where
 
-import CustomPrelude
+import Prelude
 
 import Data.Argonaut.Core as J
 import Data.Argonaut.Decode (class DecodeJson, decodeJson)
@@ -16,7 +16,6 @@ import Data.Argonaut.Encode (class EncodeJson, encodeJson)
 import Data.Argonaut.Parser (jsonParser)
 import Data.Either (Either(..))
 import Data.Newtype (class Newtype, wrap, unwrap)
-import Data.String as Str
 import Data.Array ((!!))
 import Data.Maybe (maybe)
 import Data.String as Str
@@ -62,15 +61,26 @@ base64ToBase64Url =
   >>> Str.replace (Str.Pattern "+") (Str.Replacement "-")
   >>> Str.replace (Str.Pattern "/") (Str.Replacement "_")
 
+generateSignature :: Hmac.Secret -> String -> Effect String
+generateSignature secret payload = base64ToBase64Url <$> Hmac.base64 SHA256 secret payload
+
+verifySignature :: Hmac.Secret -> String -> String -> Effect Boolean
+verifySignature secret payload signature = do
+  sig <- generateSignature secret payload
+  pure $ sig == signature
+
 generateToken :: forall a. (EncodeJson a) => Hmac.Secret -> a -> Effect JWT
 generateToken secret payload = do
-  signature <- Hmac.base64 SHA256 secret (headerEncoded <> "." <> payloadEncoded)
-  pure $ wrap $ headerEncoded <> "." <> payloadEncoded <> "." <> base64ToBase64Url signature
+  signature <- generateSignature secret (headerEncoded <> "." <> payloadEncoded)
+  pure $ wrap $ headerEncoded <> "." <> payloadEncoded <> "." <> signature
   where headerEncoded = Base64.encodeUrl $ J.stringify $ encodeJson {alg: "HS256", typ: "JWT"}
         payloadEncoded = Base64.encodeUrl $ J.stringify $ encodeJson payload
 
 verifyToken :: Hmac.Secret -> JWT -> Effect Boolean
-verifyToken secret jwt = pure false -- "FIXME implement me"
+verifyToken secret jwt =
+  case Str.split (Str.Pattern ".") (unwrap jwt) of
+    [header, payload, signature] -> verifySignature secret (header <> "." <> payload) signature
+    _ -> pure false
 
 extractPayload :: forall a. (DecodeJson a) => JWT -> Either String a
 extractPayload (JWT jwtStr) = do

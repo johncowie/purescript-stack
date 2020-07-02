@@ -94,26 +94,6 @@ upsertUser user pool = runQuery pool \conn -> do
     [(Row1 id)] -> pure $ wrap id
     _ -> ExceptT $ pure $ Left $ PG.ConversionError "No ID returned"
 
-upsertToken :: UserId -> Token -> PG.Pool -> Aff (Either PG.PGError Unit)
-upsertToken userId token pool = runQuery pool \conn -> do
-  PG.execute conn (PG.Query """
-    INSERT INTO tokens (user_id, token) VALUES ($1, $2)
-    ON CONFLICT (user_id)
-    DO UPDATE SET token = $2;
-  """) (unwrap userId /\ unwrap token)
-
-lookupUserForToken :: Token -> PG.Pool -> Aff (Either PG.PGError (Maybe User))
-lookupUserForToken token pool = runQuery pool \conn -> do
-  rows <- PG.query conn (PG.Query """
-    SELECT u.id, u.name FROM users u, tokens t
-    WHERE t.token = $1
-    AND t.user_id = u.id;
-  """) (Row1 $ unwrap token)
-  case rows of
-    [(Row2 id name)] -> pure $ Just {id: wrap id, name: name}
-    [] -> pure $ Nothing
-    _ -> ExceptT $ pure $ Left $ PG.ConversionError "Multiple rows returned"
-
 retrieveUsers :: PG.Pool -> Aff (Either PG.PGError (Array User))
 retrieveUsers pool = runQuery pool \conn -> do
   rows <- PG.query conn (PG.Query """

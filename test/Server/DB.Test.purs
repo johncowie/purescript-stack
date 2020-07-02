@@ -50,22 +50,3 @@ main db = describe "db" do
           userId3 <- ExceptT $ map convertPGError $ DB.upsertUser user2 db
           userId1 `shouldEqual` userId2
           userId2 `shouldNotEqual`userId3
-      it "can save tokens and retrieve tokens for user ID" do
-        failOnError $ runExceptT do
-          let user1 = {thirdParty: Stub, thirdPartyId: "123", name: "Bob"}
-              user2 = {thirdParty: Stub, thirdPartyId: "234", name: "Bill"}
-              token1 = wrap "token1"
-              token2 = wrap "token2"
-              token3 = wrap "token3"
-          user1Id <- ExceptT $ map convertPGError $ DB.upsertUser user1 db
-          user2Id <- ExceptT $ map convertPGError $ DB.upsertUser user2 db
-          pure unit
-          ExceptT $ map convertPGError $ DB.upsertToken user1Id token1 db
-          ExceptT $ map convertPGError $ DB.upsertToken user2Id token2 db
-          ExceptT $ map convertPGError $ DB.upsertToken user1Id token3 db
-          tokenUser1 <- ExceptT $ map convertPGError $ DB.lookupUserForToken token1 db
-          tokenUser2 <- ExceptT $ map convertPGError $ DB.lookupUserForToken token2 db
-          tokenUser3 <- ExceptT $ map convertPGError $ DB.lookupUserForToken token3 db
-          tokenUser1 `shouldEqual` Nothing
-          tokenUser2 `shouldEqual` (Just {id: user2Id, name: "Bill"})
-          tokenUser3 `shouldEqual` (Just {id: user1Id, name: "Bob"})
