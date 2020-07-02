@@ -39,3 +39,9 @@ type User = {
   id :: UserId
 , name :: String
 }
+
+newtype Token = Token String
+derive instance newtypeToken :: Newtype Token _
+derive instance eqToken :: Eq Token
+instance showToken :: Show Token where
+  show (Token token) = token

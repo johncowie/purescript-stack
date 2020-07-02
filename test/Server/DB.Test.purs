@@ -6,7 +6,7 @@ import Control.Monad.Error.Class (class MonadThrow)
 
 import Data.Newtype (wrap)
 
-import Test.Spec (Spec, pending, describe, it, beforeAll)
+import Test.Spec (Spec, pending, describe, it)
 import Test.Spec.Assertions (shouldEqual, shouldNotEqual, fail)
 
 import Effect(Effect)
@@ -32,6 +32,9 @@ failOnError eff = do
     (Left err) -> fail $ show err
     (Right _) -> pure unit
 
+convertPGError :: forall a. Either PG.PGError a -> Either Error a
+convertPGError = mapError (show >>> error)
+
 main :: PG.Pool -> Spec Unit
 main db = describe "db" do
     describe "upserting user" do
@@ -42,8 +45,27 @@ main db = describe "db" do
           let user1 = {thirdParty: Stub, thirdPartyId: "123", name: "Bob"}
               user1Updated = {thirdParty: Stub, thirdPartyId: "123", name: "Bill"}
               user2 = {thirdParty: Stub, thirdPartyId: "234", name: "Geoff"}
-          userId1 <- ExceptT $ map (mapError (show >>> error)) $ DB.upsertUser user1 db
-          userId2 <- ExceptT $ map (mapError (show >>> error)) $ DB.upsertUser user1Updated db
-          userId3 <- ExceptT $ map (mapError (show >>> error)) $ DB.upsertUser user2 db
+          userId1 <- ExceptT $ map convertPGError $ DB.upsertUser user1 db
+          userId2 <- ExceptT $ map convertPGError $ DB.upsertUser user1Updated db
+          userId3 <- ExceptT $ map convertPGError $ DB.upsertUser user2 db
           userId1 `shouldEqual` userId2
           userId2 `shouldNotEqual`userId3
+      it "can save tokens and retrieve tokens for user ID" do
+        failOnError $ runExceptT do
+          let user1 = {thirdParty: Stub, thirdPartyId: "123", name: "Bob"}
+              user2 = {thirdParty: Stub, thirdPartyId: "234", name: "Bill"}
+              token1 = wrap "token1"
+              token2 = wrap "token2"
+              token3 = wrap "token3"
+          user1Id <- ExceptT $ map convertPGError $ DB.upsertUser user1 db
+          user2Id <- ExceptT $ map convertPGError $ DB.upsertUser user2 db
+          pure unit
+          ExceptT $ map convertPGError $ DB.upsertToken user1Id token1 db
+          ExceptT $ map convertPGError $ DB.upsertToken user2Id token2 db
+          ExceptT $ map convertPGError $ DB.upsertToken user1Id token3 db
+          tokenUser1 <- ExceptT $ map convertPGError $ DB.lookupUserForToken token1 db
+          tokenUser2 <- ExceptT $ map convertPGError $ DB.lookupUserForToken token2 db
+          tokenUser3 <- ExceptT $ map convertPGError $ DB.lookupUserForToken token3 db
+          tokenUser1 `shouldEqual` Nothing
+          tokenUser2 `shouldEqual` (Just {id: user2Id, name: "Bill"})
+          tokenUser3 `shouldEqual` (Just {id: user1Id, name: "Bob"})
