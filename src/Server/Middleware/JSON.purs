@@ -5,8 +5,6 @@ module Server.Middleware.JSON
 , jsonResponse
 , wrapJsonRequest
 , wrapJsonResponse
-, jsonBadRequestHandler
-, jsonErrorHandler
 )
 where
 
@@ -60,11 +58,3 @@ wrapJsonResponse :: forall req m. (Bind m) => (Applicative m) => (req -> m (Resp
 wrapJsonResponse router request = do
   res <- router request
   pure $ fromJsonResponse res
-
-jsonErrorHandler :: forall m. (Bind m) => (Applicative m) => String -> m (Response JSON.Json)
-jsonErrorHandler error = pure $ jsonResponse 500 json
-  where json = JSON.encodeJson {error}
-
-jsonBadRequestHandler :: forall m. (Bind m) => (Applicative m) => String -> m (Response JSON.Json)
-jsonBadRequestHandler error = pure $ jsonResponse 400 json
-  where json = JSON.encodeJson {error}

@@ -6,6 +6,8 @@ module Utils.AppendStore
 , SnapshotStore
 , httpSnapshotStore
 , ApiRoot
+, ApiToken
+, ApiConfig
 )
 where
 
@@ -43,6 +45,11 @@ data Ignored = Ignored
 newtype ApiRoot = ApiRoot String
 derive instance newtypeApiRoot :: Newtype ApiRoot _
 
+newtype ApiToken = ApiToken String
+derive instance newtypeApiToken :: Newtype ApiToken _
+
+type ApiConfig = {url :: ApiRoot, token :: ApiToken}
+
 instance decodeJsonIgnored :: JSON.DecodeJson Ignored where
   decodeJson s = Right Ignored
 
@@ -73,24 +80,24 @@ instance decodeJsonIgnored :: JSON.DecodeJson Ignored where
 -- , retrieveAll: async $ retrieveFromLocalStorage k
 -- }
 
-apiGet :: forall e. (JSON.DecodeJson e) => String -> Aff (Either Error e)
-apiGet url = do
+apiGet :: forall e. (JSON.DecodeJson e) => ApiConfig -> String -> Aff (Either Error e)
+apiGet config path = do
   result <- AX.request $ AX.defaultRequest { responseFormat = ResponseFormat.json
                                            , method = Left GET
-                                           , url = url
-                                           , headers = [RequestHeader "Authorization" "john:bobbydazzler"]}
+                                           , url = unwrap config.url <> path
+                                           , headers = [RequestHeader "AuthToken" (unwrap config.token)]}
   case result of
     Left err -> pure $ Left $ error $ AX.printError err
     Right response -> case JSON.decodeJson response.body of
       Left jsonErr -> pure $ Left $ error jsonErr
       Right events -> pure $ Right $ events
 
-apiGetMaybe :: forall e. (JSON.DecodeJson e) => String -> Aff (Either Error (Maybe e))
-apiGetMaybe url = do
+apiGetMaybe :: forall e. (JSON.DecodeJson e) => ApiConfig -> String -> Aff (Either Error (Maybe e))
+apiGetMaybe config path = do
   result <- AX.request $ AX.defaultRequest { responseFormat = ResponseFormat.json
                                            , method = Left GET
-                                           , url = url
-                                           , headers = [RequestHeader "Authorization" "john:bobbydazzler"]}
+                                           , url = unwrap config.url <> path
+                                           , headers = [RequestHeader "AuthToken" (unwrap config.token)]}
   case result of
     Left err -> pure $ Left $ error $ AX.printError err
     Right response -> case JSON.decodeJson response.body of
@@ -99,13 +106,13 @@ apiGetMaybe url = do
         pure $ Right Nothing
       Right val -> pure $ Right $ Just val
 
-apiPost :: forall v e. (JSON.EncodeJson e) => (JSON.DecodeJson v) => String -> e -> Aff (Either Error v)
-apiPost url e = do
+apiPost :: forall v e. (JSON.EncodeJson e) => (JSON.DecodeJson v) => ApiConfig -> String -> e -> Aff (Either Error v)
+apiPost config path e = do
   result <- AX.request $ AX.defaultRequest { responseFormat = ResponseFormat.json
                                            , method = Left POST
-                                           , url = url
+                                           , url = unwrap config.url <> path
                                            , content = body
-                                           , headers = [RequestHeader "Authorization" "john:bobbydazzler"]}
+                                           , headers = [RequestHeader "AuthToken" (unwrap config.token)]}
   case result of
     Left err -> pure $ Left $ error $ AX.printError err
     Right response -> case JSON.decodeJson response.body of
@@ -116,42 +123,42 @@ apiPost url e = do
 
 appendHTTP :: forall id e. (JSON.EncodeJson e)
            => (JSON.DecodeJson id)
-           => ApiRoot
+           => ApiConfig
            -> String
            -> e
            -> Aff (Either Error id)
-appendHTTP rootUrl appId event = do
-  (resE :: Either Error {id :: id}) <- apiPost (unwrap rootUrl <> "?app=" <> appId) event
+appendHTTP config appId event = do
+  (resE :: Either Error {id :: id}) <- apiPost config ("?app=" <> appId) event
   pure $ _.id <$> resE
 
 retrieveAllHTTP :: forall id e.
                    (JSON.DecodeJson id)
                 => (JSON.DecodeJson e)
-                => ApiRoot
+                => ApiConfig
                 -> String
                 -> Aff (Either Error (Array {id :: id, event :: e}))
-retrieveAllHTTP rootUrl appId = apiGet (unwrap rootUrl <> "?app=" <> appId)
+retrieveAllHTTP config appId = apiGet config ("?app=" <> appId)
 
 retrieveAfterHTTP :: forall id e.
                      (JSON.DecodeJson id)
                   => (JSON.DecodeJson e)
-                  => ApiRoot
+                  => ApiConfig
                   -> String
                   -> Int
                   -> Aff (Either Error (Array {id :: id, event :: e}))
-retrieveAfterHTTP rootUrl appId eventId = apiGet (unwrap rootUrl <> "?app=" <> appId <> "&after=" <> show eventId)
+retrieveAfterHTTP config appId eventId = apiGet config ("?app=" <> appId <> "&after=" <> show eventId)
 
 httpAppendStore :: forall id e.
                    (JSON.DecodeJson e)
                 => (JSON.EncodeJson e)
                 => (JSON.DecodeJson id)
-                => ApiRoot
+                => ApiConfig
                 -> String
                 -> AppendStore id e
-httpAppendStore rootUrl appId = {
-  append: appendHTTP rootUrl appId
-, retrieveAll: retrieveAllHTTP rootUrl appId
-, retrieveAfter: retrieveAfterHTTP rootUrl appId
+httpAppendStore config appId = {
+  append: appendHTTP config appId
+, retrieveAll: retrieveAllHTTP config appId
+, retrieveAfter: retrieveAfterHTTP config appId
 }
 
 -- snapshot stuff
@@ -167,28 +174,28 @@ type SnapshotStore st = {
 }
 
 retrieveLatestSnapshotHTTP :: forall st. (JSON.DecodeJson st)
-                           => ApiRoot
+                           => ApiConfig
                            -> String
                            -> Aff (Either Error (Maybe (Snapshot st)))
-retrieveLatestSnapshotHTTP rootUrl app = apiGetMaybe (unwrap rootUrl <> "/snapshots?app=" <> app)
+retrieveLatestSnapshotHTTP config app = apiGetMaybe config ("/snapshots?app=" <> app)
 
 saveSnapshotHTTP :: forall st. (JSON.EncodeJson st)
-                 => ApiRoot
+                 => ApiConfig
                  -> String
                  -> (Snapshot st)
                  -> Aff (Either Error Unit)
-saveSnapshotHTTP rootUrl app snapshot = runExceptT do
-  (result :: Ignored) <- ExceptT $ apiPost (unwrap rootUrl <> "/snapshots?app=" <> app) snapshot
+saveSnapshotHTTP config app snapshot = runExceptT do
+  (result :: Ignored) <- ExceptT $ apiPost config ("/snapshots?app=" <> app) snapshot
   pure unit
 
 httpSnapshotStore :: forall st. (JSON.DecodeJson st)
                   => (JSON.EncodeJson st)
-                  => ApiRoot
+                  => ApiConfig
                   -> String
                   -> SnapshotStore st
-httpSnapshotStore rootUrl app = {
-  retrieveLatestSnapshot: retrieveLatestSnapshotHTTP rootUrl app
-, saveSnapshot: saveSnapshotHTTP rootUrl app
+httpSnapshotStore config app = {
+  retrieveLatestSnapshot: retrieveLatestSnapshotHTTP config app
+, saveSnapshot: saveSnapshotHTTP config app
 }
 
 -- how are snapshots going to work??

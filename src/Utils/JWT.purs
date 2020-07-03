@@ -45,14 +45,16 @@ instance encodeJsonJWT :: EncodeJson JWT where
 type TokenGenerator token m payload = {
   generate :: payload -> m token
 , verify :: token -> m Boolean
+, verifyAndExtract :: token -> m (Either String payload)
 }
 
-type JWTGenerator = TokenGenerator JWT Effect J.Json
+type JWTGenerator payload = TokenGenerator JWT Effect payload
 
-jwtGenerator :: Hmac.Secret -> JWTGenerator
+jwtGenerator :: forall payload. (EncodeJson payload) => (DecodeJson payload) => Hmac.Secret -> JWTGenerator payload
 jwtGenerator secret = {
   generate: generateToken secret
 , verify: verifyToken secret
+, verifyAndExtract: verifyAndExtractPayload secret
 }
 
 base64ToBase64Url :: String -> String
@@ -89,6 +91,14 @@ extractPayload (JWT jwtStr) = do
   jsonStr <- showError $ Base64.decode part
   json <- jsonParser jsonStr
   decodeJson json
+
+verifyAndExtractPayload :: forall a. (DecodeJson a) => Hmac.Secret -> JWT -> Effect (Either String a)
+verifyAndExtractPayload secret jwt = do
+  isVerified <- verifyToken secret jwt
+  if isVerified
+    then pure $ extractPayload jwt
+    else pure (Left "invalid token signature")
+
 
 main :: Effect Unit
 main = do

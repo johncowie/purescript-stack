@@ -8,6 +8,7 @@ You can edit this file as you like.
   , "argonaut"
   , "b64"
   , "bigints"
+  , "browser-cookies"
   , "console"
   , "crypto"
   , "datetime"

@@ -37,6 +37,8 @@ import Server.Handler (Request, Response, addResponseHeader, response, wrapCusto
 import Server.Middleware.JSON (JSONResponse)
 import Server.Middleware.JSON as JSON
 import Server.Middleware.QueryParams (wrapParseQueryParams)
+import Server.Middleware.Auth as AuthM
+
 import Server.OAuth (OAuth)
 import Server.OAuth.Google (GoogleCode, GoogleUserData)
 import Server.OAuth.Google as Google
@@ -92,16 +94,21 @@ oauthLoginHandler oauth _ = pure $ redirect oauth.redirect
 
 googleCodeHandler :: OAuth GoogleCode GoogleUserData
                   -> DB.Pool
-                  -> JWTGenerator
+                  -> JWTGenerator {sub :: UserId}
                   -> Request ({code :: GoogleCode} /\ Unit)
                   -> Aff (Either String JSONResponse)
 googleCodeHandler oauth db tokenGen req = runExceptT $ do
   userData <- ExceptT $ oauth.handleCode code
   let newUser = {thirdParty: Google, thirdPartyId: userData.sub, name: userData.name}
   userId <- ExceptT $ map showError $ DB.upsertUser newUser db
-  token <- liftEffectRight $ tokenGen.generate $ encodeJson {sub: userId}
+  token <- liftEffectRight $ tokenGen.generate {sub: userId}
   pure $ JSON.okJsonResponse {accessToken: token}
   where ({code} /\ _) = req.val
+
+testAuthHandler :: forall a. AuthM.AuthedRequest {sub :: UserId} a
+                -> Aff JSONResponse
+testAuthHandler authedReq = pure $ JSON.okJsonResponse {msg: "Successfully authed!", userId: userId}
+  where userId = _.sub $ AuthM.tokenPayload authedReq
 
 stubUserData :: forall req. req -> Aff JSONResponse
 stubUserData _ = pure $ JSON.okJsonResponse { sub: "123", name: "Bob", email: "bob@bob.com"}
@@ -129,21 +136,6 @@ wrapCors router req = do
   pure $ addResponseHeader "Access-Control-Allow-Origin" "*" $
          addResponseHeader "Access-Control-Allow-Headers" "*" $ res
 
-wrapBasicAuth :: forall res a.
-                 String
-              -> String
-              -> (String -> Aff res)
-              -> (Request a -> Aff res)
-              -> Request a
-              -> Aff res
-wrapBasicAuth username password errorHandler router req =
-  if isAuthed
-    then router req
-    else errorHandler "Unauthorized"
-  where isAuthed = fromMaybe false $ do
-          authHeader <- M.lookup (wrap "Authorization") (unwrap req.headers)
-          pure $ authHeader == username <> ":" <> password
-
 wrapLogRequest :: forall a res.
                  (Request a -> Aff res)
                -> Request a
@@ -160,7 +152,7 @@ successResponse = JSON.okJsonResponse {message: "Success"}
 type Dependencies = {
   db :: DB.Pool
 , oauth :: {google :: OAuth GoogleCode GoogleUserData}
-, tokenGen :: JWTGenerator
+, tokenGen :: JWTGenerator {sub :: UserId}
 }
 
 lookupHandler :: Dependencies -> HP.Method -> Array String -> (Request Unit -> Aff (Response String))
@@ -170,34 +162,34 @@ lookupHandler deps _ ["stub"] = JSON.wrapJsonResponse stubUserData
 lookupHandler deps HP.Get ["affjax"] = affjaxHandler
 lookupHandler deps HP.Get ["google"] =
   JSON.wrapJsonResponse $
-  wrapParseQueryParams JSON.jsonBadRequestHandler $
-  wrapResponseErrors JSON.jsonErrorHandler $
+  wrapParseQueryParams jsonBadRequestHandler $
+  wrapResponseErrors jsonErrorHandler $
   googleCodeHandler deps.oauth.google deps.db deps.tokenGen
 lookupHandler deps HP.Get ["snapshots"] =
-  wrapBasicAuth "john" "bobbydazzler" plainErrorHandler $
   JSON.wrapJsonResponse $
-  wrapParseQueryParams JSON.jsonBadRequestHandler $
-  wrapResponseErrors JSON.jsonErrorHandler $
+  wrapParseQueryParams jsonBadRequestHandler $
+  wrapResponseErrors jsonErrorHandler $
   retrieveSnapshotHandler deps.db
 lookupHandler deps HP.Post ["snapshots"] =
-  wrapBasicAuth "john" "bobbydazzler" plainErrorHandler $
   JSON.wrapJsonResponse $
-  wrapParseQueryParams JSON.jsonBadRequestHandler $
-  JSON.wrapJsonRequest JSON.jsonBadRequestHandler $
-  wrapResponseErrors JSON.jsonErrorHandler $
+  wrapParseQueryParams jsonBadRequestHandler $
+  JSON.wrapJsonRequest jsonBadRequestHandler $
+  wrapResponseErrors jsonErrorHandler $
   addSnapshotHandler deps.db
-lookupHandler deps HP.Get [] =
-  wrapBasicAuth "john" "bobbydazzler" plainErrorHandler $
+lookupHandler deps HP.Get ["test-auth"] =
   JSON.wrapJsonResponse $
-  wrapParseQueryParams JSON.jsonBadRequestHandler $
-  wrapResponseErrors JSON.jsonErrorHandler $
+  AuthM.wrapTokenAuth deps.tokenGen.verifyAndExtract jsonAuthErrorHandler $
+  testAuthHandler
+lookupHandler deps HP.Get [] =
+  JSON.wrapJsonResponse $
+  wrapParseQueryParams jsonBadRequestHandler $
+  wrapResponseErrors jsonErrorHandler $
   retrieveEventsHandler deps.db
 lookupHandler deps HP.Post [] =
-  wrapBasicAuth "john" "bobbydazzler" plainErrorHandler $
   JSON.wrapJsonResponse $
-  wrapParseQueryParams JSON.jsonBadRequestHandler $
-  JSON.wrapJsonRequest JSON.jsonBadRequestHandler $
-  wrapResponseErrors JSON.jsonErrorHandler $
+  wrapParseQueryParams jsonBadRequestHandler $
+  JSON.wrapJsonRequest jsonBadRequestHandler $
+  wrapResponseErrors jsonErrorHandler $
   addEventsHandler deps.db
 lookupHandler deps _ _ =
   JSON.wrapJsonResponse $
@@ -208,6 +200,21 @@ baseRouter deps req = (lookupHandler deps req.method req.path) req
 
 plainErrorHandler :: String -> Aff (Response String)
 plainErrorHandler msg = pure $ response 401 msg
+
+jsonErrorHandler :: String -> Aff (Response Json)
+jsonErrorHandler error = liftEffect $ do
+  Console.error error
+  pure $ JSON.jsonResponse 500 $ encodeJson {error: "Server error"}
+
+jsonBadRequestHandler :: String -> Aff (Response Json)
+jsonBadRequestHandler error = liftEffect $ do
+  Console.log $ "Bad request: " <> error
+  pure $ JSON.jsonResponse 400 $ encodeJson {error}
+
+jsonAuthErrorHandler :: String -> Aff (Response Json)
+jsonAuthErrorHandler error = liftEffect $ do
+  Console.log $ "Auth error: " <> error
+  pure $ JSON.jsonResponse 401 $ encodeJson {error: "Authorization required"}
 
 app :: Dependencies -> HP.Request -> HP.ResponseM
 app deps =

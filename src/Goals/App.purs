@@ -42,7 +42,7 @@ import Utils.Components.Input (Inputs, StringInput)
 import Utils.Async (async)
 import Utils.DateTime (showDate, showDayMonth, dateToDateTime, nextDateTime)
 import Utils.IdMap as IdMap
-import Utils.AppendStore (httpAppendStore, httpSnapshotStore, ApiRoot)
+import Utils.AppendStore (httpAppendStore, httpSnapshotStore, ApiConfig)
 import Utils.Alert (alert)
 import Utils.Lens as L
 import Utils.Spork.EventApp as App
@@ -466,8 +466,8 @@ app config page now = {
   , tick: Just (Tuple Tick (wrap 1000.0))
   , _state
   , _eventAppState
-  , eventStore: httpAppendStore config.apiRoot "goals"
-  , snapshotStore: httpSnapshotStore config.apiRoot "goals"
+  , eventStore: httpAppendStore config.apiConfig "goals"
+  , snapshotStore: httpSnapshotStore config.apiConfig "goals"
   , reducer: St.processEvent
 }
 
@@ -481,11 +481,11 @@ affErrorHandler :: Error -> Effect Unit
 affErrorHandler err = alert (show err)
 
 type AppConfig = {
-  apiRoot :: ApiRoot
+  apiConfig :: ApiConfig
 }
 
-mkConfig :: ApiRoot -> AppConfig
-mkConfig = {apiRoot: _}
+mkConfig :: ApiConfig -> AppConfig
+mkConfig = {apiConfig: _}
 
 runApp :: AppConfig -> Effect Unit
 runApp conf = do

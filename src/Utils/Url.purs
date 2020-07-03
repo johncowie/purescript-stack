@@ -1,6 +1,7 @@
 module Utils.Url
 ( getWindowUrl
 , getQueryParams
+, getQueryParam
 , getPath
 )
 where
@@ -24,7 +25,9 @@ import Data.String.Regex.Flags as Flags
 import Data.Array as Array
 import Data.Array.NonEmpty as NonEmpty
 
-getWindowUrl :: Effect String
+type URL = String
+
+getWindowUrl :: Effect URL
 getWindowUrl = do
   window <- DOM.window
   location <- DOM.location window
@@ -35,13 +38,15 @@ queryTuple s = case String.split (Pattern "=") s of
   [k, v] -> Just (Tuple k v)
   otherwise -> Nothing
 
-getQueryParams :: String -> Map String String
+getQueryParams :: URL -> Map String String
 getQueryParams s = Maybe.fromMaybe Map.empty $ do
   queryStr <- Array.last $ String.split (Pattern "?") s
   let queries = String.split (Pattern "&") queryStr
       queryTuples = Array.catMaybes $ map queryTuple queries
   pure $ Map.fromFoldable queryTuples
 
+getQueryParam :: String -> URL -> Maybe String
+getQueryParam k url = Map.lookup k $ getQueryParams url
 
 remove :: String -> String -> String
 remove pattern = String.replaceAll (Pattern pattern) (Replacement "")

@@ -156,6 +156,19 @@ let additions =
               "https://github.com/rightfold/purescript-postgresql-client.git"
           , version = "v3.0.2"
           }
+      , browser-cookies =
+          { dependencies =
+            [ "prelude"
+            , "console"
+            , "effect"
+            , "maybe"
+            , "foldable-traversable"
+            , "strings"
+            , "js-date"
+            ]
+          , repo = "https://github.com/vilu/purescript-browser-cookies.git"
+          , version = "v0.0.1"
+          }
       }
 
 in  upstream // overrides // additions
