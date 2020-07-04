@@ -32,10 +32,6 @@ setTokenCookie key value = Cookie.setCookie (SetCookie {cookie, opts})
 main_ :: ApiRoot -> Effect Unit
 main_ api = do
   url <- Url.getWindowUrl
-  case Url.getQueryParam "token" url of
-    (Just token) -> setTokenCookie "token" token
-    Nothing -> pure unit
-
   cookieM <- Cookie.getCookie "token"
   case cookieM of
     (Just cookie) -> routeApp url {url: api, token: wrap (unwrap cookie).value}

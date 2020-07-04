@@ -1,5 +1,6 @@
 module Server.OAuth
-( OAuth )
+( OAuth
+, RedirectBackTo )
 where
 
 import Effect.Aff
@@ -19,7 +20,9 @@ import Data.Either (Either)
     - endpoint for handling code and fetching details from OAuth provider
 -}
 
+type RedirectBackTo = String
+
 type OAuth codeType userDetailsPayload = {
-  redirect :: String
-, handleCode :: codeType -> Aff (Either String userDetailsPayload)
+  redirect :: RedirectBackTo -> String
+, handleCode :: codeType -> RedirectBackTo -> Aff (Either String userDetailsPayload)
 }

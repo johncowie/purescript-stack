@@ -78,8 +78,8 @@ formData tuples = RequestBody.formURLEncoded $ FormURLEncoded $ map (map Just) t
 {-
 Redirect user to google, with query parameters set, e.g. clientID, callback url, etc..
 -}
-redirect :: String -> GoogleConfig -> String
-redirect redirectUri config = config.oauthUrl <> query
+redirect :: GoogleConfig -> String -> String
+redirect config redirectUri = config.oauthUrl <> query
   where query = queryString $
                 [ Tuple "response_type" "code"
                 , Tuple "access_type" "online"
@@ -89,8 +89,8 @@ redirect redirectUri config = config.oauthUrl <> query
                 , Tuple "redirect_uri" redirectUri
                 ]
 
-fetchOpenIdData :: String -> GoogleConfig -> GoogleCode -> Aff (Either String {access_token :: JWT, id_token :: JWT})
-fetchOpenIdData redirectUri config code = map showError $ Http.postReturnJson url body
+fetchOpenIdData :: GoogleConfig -> String -> GoogleCode -> Aff (Either String {access_token :: JWT, id_token :: JWT})
+fetchOpenIdData config redirectUri code = map showError $ Http.postReturnJson url body
   where url = config.apiUrl <> "/oauth2/v4/token"
         body = formData [
           Tuple "code" (unwrap code)
@@ -110,13 +110,13 @@ fetchOpenIdData redirectUri config code = map showError $ Http.postReturnJson ur
    id_token: JWT token - inside payload is sub (i.e. ID), name and email }
 
 -}
-handleCode :: String -> GoogleConfig -> GoogleCode -> Aff (Either String GoogleUserData)
-handleCode redirectUri config code = runExceptT do
-  tokenData <- ExceptT $ fetchOpenIdData redirectUri config code
+handleCode :: GoogleConfig -> GoogleCode -> String -> Aff (Either String GoogleUserData)
+handleCode config code redirectUri = runExceptT do
+  tokenData <- ExceptT $ fetchOpenIdData config redirectUri code
   ExceptT $ pure $ extractPayload tokenData.id_token
 
-oauth :: String -> Object String -> Either EnvError (OAuth GoogleCode GoogleUserData)
-oauth redirectUri env = do
+oauth :: Object String -> Either EnvError (OAuth GoogleCode GoogleUserData)
+oauth env = do
   config <- loadConfig env
-  pure { redirect: redirect redirectUri config
-       , handleCode: handleCode redirectUri config}
+  pure { redirect: redirect config
+       , handleCode: handleCode config}

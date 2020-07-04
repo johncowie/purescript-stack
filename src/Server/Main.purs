@@ -85,25 +85,26 @@ addSnapshotHandler pool req = runExceptT do
   pure successResponse
   where (json /\ query /\ _) = req.val
 
-oauthLoginHandler :: forall req m oacode oadata.
+oauthLoginHandler :: forall m oacode oadata.
                      (Applicative m)
                   => (OAuth oacode oadata)
-                  -> req
-                  -> m (Response String)
-oauthLoginHandler oauth _ = pure $ redirect oauth.redirect
+                  -> Request ({redirect :: String} /\ Unit)
+                  -> m (Response {redirect :: String})
+oauthLoginHandler oauth req = pure $ response 200 {redirect: oauth.redirect query.redirect}
+  where (query /\ _) = req.val
 
 googleCodeHandler :: OAuth GoogleCode GoogleUserData
                   -> DB.Pool
                   -> JWTGenerator {sub :: UserId}
-                  -> Request ({code :: GoogleCode} /\ Unit)
+                  -> Request ({code :: GoogleCode, redirect :: String} /\ Unit)
                   -> Aff (Either String JSONResponse)
 googleCodeHandler oauth db tokenGen req = runExceptT $ do
-  userData <- ExceptT $ oauth.handleCode code
+  userData <- ExceptT $ oauth.handleCode code redirect
   let newUser = {thirdParty: Google, thirdPartyId: userData.sub, name: userData.name}
   userId <- ExceptT $ map showError $ DB.upsertUser newUser db
   token <- liftEffectRight $ tokenGen.generate {sub: userId}
   pure $ JSON.okJsonResponse {accessToken: token}
-  where ({code} /\ _) = req.val
+  where ({code, redirect} /\ _) = req.val
 
 testAuthHandler :: forall a. AuthM.AuthedRequest {sub :: UserId} a
                 -> Aff JSONResponse
@@ -143,7 +144,6 @@ wrapLogRequest :: forall a res.
 wrapLogRequest router req = do
   liftEffect $ Console.log $ show req.method <> ": " <> show req.path
   router req
-
 ---
 
 successResponse :: JSONResponse
@@ -157,7 +157,10 @@ type Dependencies = {
 
 lookupHandler :: Dependencies -> HP.Method -> Array String -> (Request Unit -> Aff (Response String))
 lookupHandler deps HP.Options _ = const $ pure $ response 200 ""
-lookupHandler deps HP.Get ["login"] = oauthLoginHandler deps.oauth.google
+lookupHandler deps HP.Get ["login"] =
+  wrapParseQueryParams (JSON.wrapJsonResponse jsonBadRequestHandler) $
+  JSON.wrapJsonResponse $
+  oauthLoginHandler deps.oauth.google
 lookupHandler deps _ ["stub"] = JSON.wrapJsonResponse stubUserData
 lookupHandler deps HP.Get ["affjax"] = affjaxHandler
 lookupHandler deps HP.Get ["google"] =
@@ -282,7 +285,7 @@ main = void $ runAff affErrorHandler $ logError $ runExceptT $ do
       backlog = Nothing
       dbUri = fromMaybe "postgres://localhost:5432/events_store" config.databaseUri
   pool <- ExceptT $ showError <$> (liftEffect $ DB.getDB dbUri)
-  googleOAuth <- ExceptT $ pure $ showError $ Google.oauth "https://dumb-waiter.herokuapp.com/google" env
+  googleOAuth <- ExceptT $ pure $ showError $ Google.oauth env
   let deps = {
     db: pool,
     oauth: {google: googleOAuth},

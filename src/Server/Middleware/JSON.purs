@@ -36,10 +36,10 @@ toJsonRequest {headers, httpVersion, method, path, query, body, val} = do
   json <- JSON.jsonParser body
   pure {headers, httpVersion, method, path, query, body, val: Tuple json val}
 
-fromJsonResponse :: Response JSON.Json -> Response String
+fromJsonResponse :: forall a. (JSON.EncodeJson a) => Response a -> Response String
 fromJsonResponse {headers, status, body} =
   addResponseHeader "Content-Type" "application/json" $
-  {headers, status, body: JSON.stringify body}
+  {headers, status, body: JSON.stringify $ JSON.encodeJson body}
 
 wrapJsonRequest :: forall a res. (String -> res) -> (Request (Tuple JSON.Json a) -> res) -> Request a -> res
 wrapJsonRequest parseFail router req = case toJsonRequest req of
@@ -54,7 +54,12 @@ wrapDecodeJson errorHandler router req = case JSON.decodeJson $ get1 req.val of
   (Left err) -> errorHandler err
   (Right updatedVal) -> router $ updateRequestVal (const (updatedVal /\ snd req.val)) req
 
-wrapJsonResponse :: forall req m. (Bind m) => (Applicative m) => (req -> m (Response JSON.Json)) -> req -> m (Response String)
+wrapJsonResponse :: forall a req m. (Bind m)
+                 => (Applicative m)
+                 => (JSON.EncodeJson a)
+                 => (req -> m (Response a))
+                 -> req
+                 -> m (Response String)
 wrapJsonResponse router request = do
   res <- router request
   pure $ fromJsonResponse res
