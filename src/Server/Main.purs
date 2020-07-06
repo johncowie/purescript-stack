@@ -2,52 +2,40 @@ module Server.Main where
 
 import CustomPrelude
 
-import Affjax.RequestBody as RequestBody
-
 import Data.Argonaut.Core (Json)
-import Data.Argonaut.Encode (encodeJson)
 import Data.Argonaut.Decode (decodeJson)
+import Data.Argonaut.Encode (encodeJson)
+import Data.Array (drop)
 import Data.Maybe (fromMaybe)
 import Data.Tuple (Tuple(..))
-import Data.Array (drop)
 import Data.Tuple.Nested (type (/\), (/\))
-
-import Type.Data.Row (RProxy(..))
-
-import Node.Process as NP
-
 import Effect (Effect)
 import Effect.Aff (Aff, runAff)
 import Effect.Class (liftEffect)
 import Effect.Console as Console
-import Effect.Exception (Error)
-
+import Foreign.Object (Object)
 import HTTPure as HP
-
-import TypedEnv (type (<:), fromEnv)
-
+import Node.Process as NP
 import Server.DB as DB
-import Server.Migrations.MigrationData (migrationStore)
-import Server.Migrations.Postgres (executor, intVersionStore)
-import Server.Migrations (migrate, Migrator)
 import Server.Domain (AppName, EventId, OAuthProvider(Google), UserId)
 import Server.Handler (Response, addResponseHeader, response, wrapCustom)
-import Server.Request (class Request, BasicRequest)
-import Server.Request as Req
+import Server.Middleware.Auth as AuthM
 import Server.Middleware.JSON (JSONResponse)
 import Server.Middleware.JSON as JSON
 import Server.Middleware.QueryParams (wrapParseQueryParams)
-import Server.Middleware.Auth as AuthM
-
-import Server.OAuth (OAuth)
-import Server.OAuth.Google (GoogleCode, GoogleUserData)
+import Server.Migrations (migrate, Migrator)
+import Server.Migrations.MigrationData (migrationStore)
+import Server.Migrations.Postgres (executor, intVersionStore)
+import Server.OAuth (OAuth, OAuthCode)
 import Server.OAuth.Google as Google
-
+import Server.OAuth.Stub as StubOAuth
+import Server.Request (class Request, BasicRequest)
+import Server.Request as Req
+import Type.Data.Row (RProxy(..))
+import TypedEnv (type (<:), EnvError, fromEnv)
 import Utils.ExceptT (ExceptT(..), runExceptT, showError, liftEffectRight)
 import Utils.JWT (JWTGenerator, jwtGenerator)
 import Utils.Lens as L
-
-import Utils.HttpClient as Http
 
 type AuthedRequest a = AuthM.AuthedRequest {sub :: UserId} a
 
@@ -88,18 +76,18 @@ addSnapshotHandler pool req = runExceptT do
   pure successResponse
   where (json /\ query /\ _) = L.view Req._val req
 
-oauthLoginHandler :: forall m oacode oadata.
+oauthLoginHandler :: forall m.
                      (Applicative m)
-                  => (OAuth oacode oadata)
+                  => OAuth
                   -> BasicRequest ({redirect :: String} /\ Unit)
                   -> m (Response {redirect :: String})
 oauthLoginHandler oauth req = pure $ response 200 {redirect: oauth.redirect query.redirect}
   where (query /\ _) = L.view Req._val req
 
-googleCodeHandler :: OAuth GoogleCode GoogleUserData
+googleCodeHandler :: OAuth
                   -> DB.Pool
                   -> JWTGenerator {sub :: UserId}
-                  -> BasicRequest ({code :: GoogleCode, redirect :: String} /\ Unit)
+                  -> BasicRequest ({code :: OAuthCode, redirect :: String} /\ Unit)
                   -> Aff (Either String JSONResponse)
 googleCodeHandler oauth db tokenGen req = runExceptT $ do
   userData <- ExceptT $ oauth.handleCode code redirect
@@ -148,7 +136,7 @@ successResponse = JSON.okJsonResponse {message: "Success"}
 
 type Dependencies = {
   db :: DB.Pool
-, oauth :: {google :: OAuth GoogleCode GoogleUserData}
+, oauth :: {google :: OAuth}
 , tokenGen :: JWTGenerator {sub :: UserId}
 }
 
@@ -269,11 +257,11 @@ modeFromArgs _ = Prod
 injectStubVars :: Mode -> Effect Unit
 injectStubVars Prod = pure unit
 injectStubVars Dev = do
-  NP.setEnv "GOOGLE_OAUTH_URL" "blah"
-  NP.setEnv "GOOGLE_API_URL" "blah"
-  NP.setEnv "GOOGLE_CLIENT_ID" "blah"
-  NP.setEnv "GOOGLE_CLIENT_SECRET" "blah"
   NP.setEnv "JWT_SECRET" "devsecret"
+
+oauthForMode :: Mode -> Object String -> Either EnvError OAuth
+oauthForMode Prod env = Google.oauth env
+oauthForMode Dev _ = Right StubOAuth.oauth
 
 -- | Boot up the server
 main :: Effect Unit
@@ -288,7 +276,7 @@ main = void $ runAff affErrorHandler $ logError $ runExceptT $ do
       backlog = Nothing
       dbUri = fromMaybe "postgres://localhost:5432/events_store" config.databaseUri
   pool <- ExceptT $ showError <$> (liftEffect $ DB.getDB dbUri)
-  googleOAuth <- ExceptT $ pure $ showError $ Google.oauth env
+  googleOAuth <- ExceptT $ pure $ showError $ oauthForMode mode env
   let deps = {
     db: pool,
     oauth: {google: googleOAuth},

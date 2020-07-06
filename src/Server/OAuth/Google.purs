@@ -1,7 +1,5 @@
 module Server.OAuth.Google
-( GoogleCode
-, GoogleUserData
-, loadConfig
+( loadConfig
 , oauth )
 where
 
@@ -9,7 +7,7 @@ import CustomPrelude
 
 import Affjax.RequestBody as RequestBody
 
-import Data.Newtype (class Newtype, unwrap)
+import Data.Newtype (unwrap)
 import Data.Either (Either)
 import Data.Tuple (Tuple(..))
 import Data.Maybe (Maybe(..))
@@ -26,24 +24,11 @@ import Type.Data.Row (RProxy(..))
 
 import TypedEnv (type (<:), fromEnv, EnvError)
 
-import Server.OAuth (OAuth)
-import Server.QueryParams (class ParseQueryParam, parseNewtype)
+import Server.OAuth (OAuth, OAuthCode, UserData)
 
 import Utils.HttpClient as Http
 import Utils.ExceptT (ExceptT(..), runExceptT, showError)
 import Utils.JWT (JWT, extractPayload)
-
-newtype GoogleCode = GoogleCode String
-derive instance newtypeGoogleCode :: Newtype GoogleCode _
-
-instance googleCodeParseQueryParam :: ParseQueryParam GoogleCode where
-  parseQueryParam = parseNewtype
-
-type GoogleUserData = {
-  sub :: String
-, email :: String
-, name :: String
-}
 
 -- TODO could surely write something that looks better than this?
 type GoogleConfigProxy = (
@@ -89,7 +74,7 @@ redirect config redirectUri = config.oauthUrl <> query
                 , Tuple "redirect_uri" redirectUri
                 ]
 
-fetchOpenIdData :: GoogleConfig -> String -> GoogleCode -> Aff (Either String {access_token :: JWT, id_token :: JWT})
+fetchOpenIdData :: GoogleConfig -> String -> OAuthCode -> Aff (Either String {access_token :: JWT, id_token :: JWT})
 fetchOpenIdData config redirectUri code = map showError $ Http.postReturnJson url body
   where url = config.apiUrl <> "/oauth2/v4/token"
         body = formData [
@@ -110,12 +95,12 @@ fetchOpenIdData config redirectUri code = map showError $ Http.postReturnJson ur
    id_token: JWT token - inside payload is sub (i.e. ID), name and email }
 
 -}
-handleCode :: GoogleConfig -> GoogleCode -> String -> Aff (Either String GoogleUserData)
+handleCode :: GoogleConfig -> OAuthCode -> String -> Aff (Either String UserData)
 handleCode config code redirectUri = runExceptT do
   tokenData <- ExceptT $ fetchOpenIdData config redirectUri code
   ExceptT $ pure $ extractPayload tokenData.id_token
 
-oauth :: Object String -> Either EnvError (OAuth GoogleCode GoogleUserData)
+oauth :: Object String -> Either EnvError OAuth
 oauth env = do
   config <- loadConfig env
   pure { redirect: redirect config
