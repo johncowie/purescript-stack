@@ -6,7 +6,7 @@ import Affjax as AX
 import Affjax.ResponseFormat as ResponseFormat
 import Affjax.RequestBody as RequestBody
 
-import Data.Argonaut.Core (Json)
+import Data.Argonaut.Core (Json, stringify)
 import Data.Argonaut.Decode (class DecodeJson, decodeJson)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
@@ -20,10 +20,13 @@ import Utils.ExceptT (ExceptT(..), runExceptT, mapError)
 toError :: AX.Error -> Error
 toError = AX.printError >>> error
 
+decodeError :: Json -> String -> Error
+decodeError body errMsg = error $ errMsg <> "\n" <> "Body was: " <> stringify body
+
 jsonRequest_ :: forall a. AX.Request Json -> (Json -> Aff (Either String a)) -> Aff (Either Error a)
 jsonRequest_ req decoder = runExceptT do
   response <- ExceptT $ map (mapError toError) $ AX.request req
-  ExceptT $ map (mapError error) $ decoder (response.body)
+  ExceptT $ map (mapError (decodeError response.body)) $ decoder (response.body)
 
 getJson_ :: forall a. (DecodeJson a) => (AX.Request Json -> AX.Request Json) -> String -> Aff (Either Error a)
 getJson_ requestUpdate url = jsonRequest_ request decoder

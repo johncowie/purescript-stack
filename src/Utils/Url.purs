@@ -3,6 +3,7 @@ module Utils.Url
 , getQueryParams
 , getQueryParam
 , getPath
+, redirect
 )
 where
 
@@ -11,7 +12,7 @@ import Effect (Effect)
 import Effect.Exception.Unsafe (unsafeThrow)
 import Web.HTML (window) as DOM
 import Web.HTML.Window (location) as DOM
-import Web.HTML.Location (href) as DOM
+import Web.HTML.Location (href, replace) as DOM
 import Data.Either (either)
 import Data.Map as Map
 import Data.Map (Map)
@@ -26,6 +27,12 @@ import Data.Array as Array
 import Data.Array.NonEmpty as NonEmpty
 
 type URL = String
+
+redirect :: String -> Effect Unit
+redirect url = do
+  window <- DOM.window
+  location <- DOM.location window
+  DOM.replace url location
 
 getWindowUrl :: Effect URL
 getWindowUrl = do
