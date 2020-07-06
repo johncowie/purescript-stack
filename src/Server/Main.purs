@@ -4,8 +4,6 @@ import CustomPrelude
 
 import Affjax.RequestBody as RequestBody
 
-import Data.Map as M
-import Data.Newtype (wrap, unwrap)
 import Data.Argonaut.Core (Json)
 import Data.Argonaut.Encode (encodeJson)
 import Data.Argonaut.Decode (decodeJson)
@@ -33,7 +31,7 @@ import Server.Migrations.MigrationData (migrationStore)
 import Server.Migrations.Postgres (executor, intVersionStore)
 import Server.Migrations (migrate, Migrator)
 import Server.Domain (AppName, EventId, OAuthProvider(Google), UserId)
-import Server.Handler (Response, addResponseHeader, response, wrapCustom, redirect)
+import Server.Handler (Response, addResponseHeader, response, wrapCustom)
 import Server.Request (class Request, BasicRequest)
 import Server.Request as Req
 import Server.Middleware.JSON (JSONResponse)
@@ -271,10 +269,10 @@ modeFromArgs _ = Prod
 injectStubVars :: Mode -> Effect Unit
 injectStubVars Prod = pure unit
 injectStubVars Dev = do
-  NP.setEnv "GOOGLE_OAUTH_URL" "https://accounts.google.com/o/oauth2/v2/auth"
-  NP.setEnv "GOOGLE_API_URL" "https://www.googleapis.com"
-  NP.setEnv "GOOGLE_CLIENT_ID" "273754204728-frq313b3ktdqtk77lb7jan785gvgh6of.apps.googleusercontent.com"
-  NP.setEnv "GOOGLE_CLIENT_SECRET" "gJcl3qOJeW4_GCb8DVb0NEl2"
+  NP.setEnv "GOOGLE_OAUTH_URL" "blah"
+  NP.setEnv "GOOGLE_API_URL" "blah"
+  NP.setEnv "GOOGLE_CLIENT_ID" "blah"
+  NP.setEnv "GOOGLE_CLIENT_SECRET" "blah"
   NP.setEnv "JWT_SECRET" "devsecret"
 
 -- | Boot up the server

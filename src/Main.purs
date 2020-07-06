@@ -53,7 +53,7 @@ loginPage googleOAuthUrl = do
 
 startLogin :: Config -> Aff Unit
 startLogin config = do
-  redirect <- getGoogleRedirect config.apiRoot (config.frontendRoot <> "/google")
+  redirect <- getGoogleRedirect config.apiRoot (config.frontendRoot)
   liftEffect (loginPage redirect)
 
 setTokenCookie :: String -> String -> Effect Unit
@@ -62,14 +62,10 @@ setTokenCookie key value = Cookie.setCookie (SetCookie {cookie, opts})
         opts = Nothing -- TODO specify maxage etc..?
 
 finishLogin :: Config -> String -> Effect Unit
-finishLogin config url = launchAff_ $ do
-  let codeM = Url.getQueryParam "code" url
-  case codeM of
-    (Just code) -> do
-      token <- getToken config.apiRoot code (config.frontendRoot <> "/google")
-      liftEffect $ setTokenCookie "token" token
-      liftEffect $ Url.redirect config.frontendRoot
-    Nothing -> unsafeThrow "no token"
+finishLogin config code = launchAff_ $ do
+  token <- getToken config.apiRoot code (config.frontendRoot)
+  liftEffect $ setTokenCookie "token" token
+  liftEffect $ Url.redirect config.frontendRoot
 
 routeApp :: ApiConfig -> Array String -> Effect Unit
 routeApp api path = case path of
@@ -85,9 +81,10 @@ main_ :: Config -> Effect Unit
 main_ config = do
   url <- Url.getWindowUrl
   let path = Url.getPath url
-  if path == ["google"]
-    then finishLogin config url
-    else do
+  let codeM = Url.getQueryParam "code" url
+  case codeM of
+    (Just code) -> finishLogin config url
+    Nothing -> do
       cookieM <- Cookie.getCookie "token"
       case cookieM of
         (Just cookie) -> routeApp {url: config.apiRoot, token: wrap (unwrap cookie).value} path
