@@ -1,6 +1,5 @@
 module Server.Middleware.JSON
-( JSONRequest
-, JSONResponse
+( JSONResponse
 , okJsonResponse
 , jsonResponse
 , wrapJsonRequest
@@ -20,9 +19,12 @@ import Data.Either (Either(..))
 import Data.Tuple (Tuple(..), snd)
 import Data.Tuple.Nested (type (/\), (/\), get1)
 
-import Server.Handler (Request, Response, response, addResponseHeader, updateRequestVal)
+import Server.Request (class Request)
+import Server.Request as Req
+import Server.Handler (Response, response, addResponseHeader)
 
-type JSONRequest = Request JSON.Json
+import Utils.Lens as L
+
 type JSONResponse = Response JSON.Json
 
 jsonResponse :: forall a. (JSON.EncodeJson a) => HP.Status -> a -> JSONResponse
@@ -31,28 +33,41 @@ jsonResponse status = response status <<< JSON.encodeJson
 okJsonResponse :: forall a. (JSON.EncodeJson a) => a -> JSONResponse
 okJsonResponse = jsonResponse 200
 
-toJsonRequest :: forall a. Request a -> Either String (Request (Tuple JSON.Json a))
-toJsonRequest {headers, httpVersion, method, path, query, body, val} = do
-  json <- JSON.jsonParser body
-  pure {headers, httpVersion, method, path, query, body, val: Tuple json val}
+toJsonRequest :: forall req a.
+                 (Request req)
+              => (Functor req)
+              => req a
+              -> Either String (req (Tuple JSON.Json a))
+toJsonRequest req = do
+  json <- JSON.jsonParser (L.view Req._body req)
+  pure $ map (Tuple json) req
 
 fromJsonResponse :: forall a. (JSON.EncodeJson a) => Response a -> Response String
 fromJsonResponse {headers, status, body} =
   addResponseHeader "Content-Type" "application/json" $
   {headers, status, body: JSON.stringify $ JSON.encodeJson body}
 
-wrapJsonRequest :: forall a res. (String -> res) -> (Request (Tuple JSON.Json a) -> res) -> Request a -> res
+wrapJsonRequest :: forall a req res.
+                   (Request req)
+                => (Functor req)
+                => (String -> res)
+                -> (req (Tuple JSON.Json a) -> res)
+                -> req a
+                -> res
 wrapJsonRequest parseFail router req = case toJsonRequest req of
   (Left err) -> parseFail err
   (Right jsonRequest) -> router jsonRequest
 
-wrapDecodeJson :: forall a b res. (JSON.DecodeJson a)
-                  => (String -> res)
-                  -> (Request (a /\ b) -> res)
-                  -> Request (JSON.Json /\ b) -> res
-wrapDecodeJson errorHandler router req = case JSON.decodeJson $ get1 req.val of
+wrapDecodeJson :: forall a b req res.
+                  (JSON.DecodeJson a)
+               => (Request req)
+               => (Functor req)
+               => (String -> res)
+               -> (req (a /\ b) -> res)
+               -> req (JSON.Json /\ b) -> res
+wrapDecodeJson errorHandler router req = case JSON.decodeJson $ get1 (L.view Req._val req) of
   (Left err) -> errorHandler err
-  (Right updatedVal) -> router $ updateRequestVal (const (updatedVal /\ snd req.val)) req
+  (Right updatedVal) -> router $ map (\(a /\ b) -> updatedVal /\ b) req
 
 wrapJsonResponse :: forall a req m. (Bind m)
                  => (Applicative m)

@@ -33,7 +33,9 @@ import Server.Migrations.MigrationData (migrationStore)
 import Server.Migrations.Postgres (executor, intVersionStore)
 import Server.Migrations (migrate, Migrator)
 import Server.Domain (AppName, EventId, OAuthProvider(Google), UserId)
-import Server.Handler (Request, Response, addResponseHeader, response, wrapCustom, redirect)
+import Server.Handler (Response, addResponseHeader, response, wrapCustom, redirect)
+import Server.Request (class Request, BasicRequest)
+import Server.Request as Req
 import Server.Middleware.JSON (JSONResponse)
 import Server.Middleware.JSON as JSON
 import Server.Middleware.QueryParams (wrapParseQueryParams)
@@ -45,58 +47,61 @@ import Server.OAuth.Google as Google
 
 import Utils.ExceptT (ExceptT(..), runExceptT, showError, liftEffectRight)
 import Utils.JWT (JWTGenerator, jwtGenerator)
+import Utils.Lens as L
 
 import Utils.HttpClient as Http
 
+type AuthedRequest a = AuthM.AuthedRequest {sub :: UserId} a
+
 retrieveEventsHandler :: DB.Pool
-                      -> Request ({app :: AppName, after :: Maybe EventId} /\ Unit)
+                      -> AuthedRequest ({app :: AppName, after :: Maybe EventId} /\ Unit)
                       -> Aff (Either String JSONResponse)
 retrieveEventsHandler pool req = runExceptT do
   events <- ExceptT $ showError <$> DB.retrieveEvents app after pool
   let eventRecords = map (\(id /\ event) -> {id, event}) events
   pure $ JSON.okJsonResponse eventRecords
-  where ({app, after} /\ _) = req.val
+  where ({app, after} /\ _) = L.view Req._val req
 
 addEventsHandler :: forall a.
                     DB.Pool
-                 -> Request (Json /\ {app :: AppName} /\ a)
+                 -> AuthedRequest (Json /\ {app :: AppName} /\ a)
                  -> Aff (Either String JSONResponse) -- TODO easier to read if you can see what the result type is
 addEventsHandler pool req = runExceptT do
   eventId <- ExceptT $ showError <$> DB.addEvent query.app json pool
   pure $ JSON.okJsonResponse {id: eventId}
-  where (json /\ query /\ _) = req.val
+  where (json /\ query /\ _) = L.view Req._val req
 
 retrieveSnapshotHandler :: DB.Pool
-                        -> Request ({app :: AppName} /\ Unit)
+                        -> AuthedRequest ({app :: AppName} /\ Unit)
                         -> Aff (Either String JSONResponse)
 retrieveSnapshotHandler pool req = runExceptT do
   snapshotM <- ExceptT $ showError <$> DB.retrieveLatestSnapshot query.app pool
   pure $ case snapshotM of
     Just (Tuple state upToEvent) -> JSON.okJsonResponse {state, upToEvent}
     Nothing -> JSON.okJsonResponse {}
-  where (query /\ _) = req.val
+  where (query /\ _) = L.view Req._val req
 
 addSnapshotHandler :: forall a. DB.Pool
-                   -> Request (Json /\ {app :: AppName} /\ a)
+                   -> AuthedRequest (Json /\ {app :: AppName} /\ a)
                    -> Aff (Either String JSONResponse)
 addSnapshotHandler pool req = runExceptT do
   {state, upToEvent} :: {state :: Json, upToEvent :: Int} <- ExceptT $ pure $ decodeJson json
   void $ ExceptT $ showError <$> DB.insertSnapshot query.app state upToEvent pool
   pure successResponse
-  where (json /\ query /\ _) = req.val
+  where (json /\ query /\ _) = L.view Req._val req
 
 oauthLoginHandler :: forall m oacode oadata.
                      (Applicative m)
                   => (OAuth oacode oadata)
-                  -> Request ({redirect :: String} /\ Unit)
+                  -> BasicRequest ({redirect :: String} /\ Unit)
                   -> m (Response {redirect :: String})
 oauthLoginHandler oauth req = pure $ response 200 {redirect: oauth.redirect query.redirect}
-  where (query /\ _) = req.val
+  where (query /\ _) = L.view Req._val req
 
 googleCodeHandler :: OAuth GoogleCode GoogleUserData
                   -> DB.Pool
                   -> JWTGenerator {sub :: UserId}
-                  -> Request ({code :: GoogleCode, redirect :: String} /\ Unit)
+                  -> BasicRequest ({code :: GoogleCode, redirect :: String} /\ Unit)
                   -> Aff (Either String JSONResponse)
 googleCodeHandler oauth db tokenGen req = runExceptT $ do
   userData <- ExceptT $ oauth.handleCode code redirect
@@ -104,22 +109,15 @@ googleCodeHandler oauth db tokenGen req = runExceptT $ do
   userId <- ExceptT $ map showError $ DB.upsertUser newUser db
   token <- liftEffectRight $ tokenGen.generate {sub: userId}
   pure $ JSON.okJsonResponse {accessToken: token}
-  where ({code, redirect} /\ _) = req.val
+  where ({code, redirect} /\ _) = L.view Req._val req
 
-testAuthHandler :: forall a. AuthM.AuthedRequest {sub :: UserId} a
+testAuthHandler :: forall a. AuthedRequest a
                 -> Aff JSONResponse
 testAuthHandler authedReq = pure $ JSON.okJsonResponse {msg: "Successfully authed!", userId: userId}
   where userId = _.sub $ AuthM.tokenPayload authedReq
 
 stubUserData :: forall req. req -> Aff JSONResponse
 stubUserData _ = pure $ JSON.okJsonResponse { sub: "123", name: "Bob", email: "bob@bob.com"}
-
-affjaxHandler :: forall req. req -> Aff (Response String)
-affjaxHandler _ = do
-  (respE :: Either Error {sub :: String, name :: String, email :: String}) <- Http.postReturnJson "http://lvh.me:8080/stub" (RequestBody.string "blah")
-  case respE of
-    (Left err) -> pure $ response 500 $ show err
-    (Right resp) -> pure $ response 200 $ "RESULT: "  <> show resp
 
 -- Some rando bits of middleware
 wrapResponseErrors :: forall req res. (String -> Aff res) -> (req -> Aff (Either String res)) -> req -> Aff res
@@ -137,12 +135,13 @@ wrapCors router req = do
   pure $ addResponseHeader "Access-Control-Allow-Origin" "*" $
          addResponseHeader "Access-Control-Allow-Headers" "*" $ res
 
-wrapLogRequest :: forall a res.
-                 (Request a -> Aff res)
-               -> Request a
+wrapLogRequest :: forall a req res.
+                  (Request req)
+               => (req a -> Aff res)
+               -> req a
                -> Aff res
 wrapLogRequest router req = do
-  liftEffect $ Console.log $ show req.method <> ": " <> show req.path
+  liftEffect $ Console.log $ show (L.view Req._method req) <> ": " <> show (L.view Req._path req)
   router req
 ---
 
@@ -155,14 +154,13 @@ type Dependencies = {
 , tokenGen :: JWTGenerator {sub :: UserId}
 }
 
-lookupHandler :: Dependencies -> HP.Method -> Array String -> (Request Unit -> Aff (Response String))
+lookupHandler :: Dependencies -> HP.Method -> Array String -> (BasicRequest Unit -> Aff (Response String))
 lookupHandler deps HP.Options _ = const $ pure $ response 200 ""
 lookupHandler deps HP.Get ["login"] =
   wrapParseQueryParams (JSON.wrapJsonResponse jsonBadRequestHandler) $
   JSON.wrapJsonResponse $
   oauthLoginHandler deps.oauth.google
 lookupHandler deps _ ["stub"] = JSON.wrapJsonResponse stubUserData
-lookupHandler deps HP.Get ["affjax"] = affjaxHandler
 lookupHandler deps HP.Get ["google"] =
   JSON.wrapJsonResponse $
   wrapParseQueryParams jsonBadRequestHandler $
@@ -170,11 +168,13 @@ lookupHandler deps HP.Get ["google"] =
   googleCodeHandler deps.oauth.google deps.db deps.tokenGen
 lookupHandler deps HP.Get ["snapshots"] =
   JSON.wrapJsonResponse $
+  AuthM.wrapTokenAuth deps.tokenGen.verifyAndExtract jsonAuthErrorHandler $
   wrapParseQueryParams jsonBadRequestHandler $
   wrapResponseErrors jsonErrorHandler $
   retrieveSnapshotHandler deps.db
 lookupHandler deps HP.Post ["snapshots"] =
   JSON.wrapJsonResponse $
+  AuthM.wrapTokenAuth deps.tokenGen.verifyAndExtract jsonAuthErrorHandler $
   wrapParseQueryParams jsonBadRequestHandler $
   JSON.wrapJsonRequest jsonBadRequestHandler $
   wrapResponseErrors jsonErrorHandler $
@@ -185,11 +185,13 @@ lookupHandler deps HP.Get ["test-auth"] =
   testAuthHandler
 lookupHandler deps HP.Get [] =
   JSON.wrapJsonResponse $
+  AuthM.wrapTokenAuth deps.tokenGen.verifyAndExtract jsonAuthErrorHandler $
   wrapParseQueryParams jsonBadRequestHandler $
   wrapResponseErrors jsonErrorHandler $
   retrieveEventsHandler deps.db
 lookupHandler deps HP.Post [] =
   JSON.wrapJsonResponse $
+  AuthM.wrapTokenAuth deps.tokenGen.verifyAndExtract jsonAuthErrorHandler $
   wrapParseQueryParams jsonBadRequestHandler $
   JSON.wrapJsonRequest jsonBadRequestHandler $
   wrapResponseErrors jsonErrorHandler $
@@ -198,8 +200,10 @@ lookupHandler deps _ _ =
   JSON.wrapJsonResponse $
   const (pure $ JSON.jsonResponse 404 {response: "not found"})
 
-baseRouter :: Dependencies -> Request Unit -> Aff (Response String)
-baseRouter deps req = (lookupHandler deps req.method req.path) req
+baseRouter :: Dependencies -> BasicRequest Unit -> Aff (Response String)
+baseRouter deps req = (lookupHandler deps method path) req
+  where method = L.view Req._method req
+        path = L.view Req._path req
 
 plainErrorHandler :: String -> Aff (Response String)
 plainErrorHandler msg = pure $ response 401 msg
@@ -263,13 +267,14 @@ modeFromArgs ["dev"] = Dev
 modeFromArgs _ = Prod
 
 -- TODO this is a bit of a hack, should really replace oauth component with stubbed version instead
+--  or have a dev mode file that isn't checked in
 injectStubVars :: Mode -> Effect Unit
 injectStubVars Prod = pure unit
 injectStubVars Dev = do
-  NP.setEnv "GOOGLE_OAUTH_URL" "blah"
-  NP.setEnv "GOOGLE_API_URL" "blah"
-  NP.setEnv "GOOGLE_CLIENT_ID" "blah"
-  NP.setEnv "GOOGLE_CLIENT_SECRET" "blah"
+  NP.setEnv "GOOGLE_OAUTH_URL" "https://accounts.google.com/o/oauth2/v2/auth"
+  NP.setEnv "GOOGLE_API_URL" "https://www.googleapis.com"
+  NP.setEnv "GOOGLE_CLIENT_ID" "273754204728-frq313b3ktdqtk77lb7jan785gvgh6of.apps.googleusercontent.com"
+  NP.setEnv "GOOGLE_CLIENT_SECRET" "gJcl3qOJeW4_GCb8DVb0NEl2"
   NP.setEnv "JWT_SECRET" "devsecret"
 
 -- | Boot up the server
