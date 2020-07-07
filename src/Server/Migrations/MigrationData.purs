@@ -65,6 +65,44 @@ createTokensTable id = {id, up, down, description}
                """
         description = "Create tokens table"
 
+addUserIdToEvents :: Int -> Migration Int String
+addUserIdToEvents id = {id, up, down, description}
+  where up = """
+             ALTER TABLE events
+             ADD COLUMN user_id INTEGER;
+
+             UPDATE events
+             SET user_id = 1;
+
+             ALTER TABLE events
+             ALTER COLUMN user_id SET NOT NULL,
+             ADD CONSTRAINT user_id_fk FOREIGN KEY (user_id) REFERENCES users(id);
+             """
+        down = """
+               ALTER TABLE events
+               DROP COLUMN user_id;
+               """
+        description = "Add user Id column to events table"
+
+addUserIdToSnapshots :: Int -> Migration Int String
+addUserIdToSnapshots id = {id, up, down, description}
+  where up = """
+             ALTER TABLE snapshots
+             ADD COLUMN user_id INTEGER;
+
+             UPDATE snapshots
+             SET user_id = 1;
+
+             ALTER TABLE snapshots
+             ALTER COLUMN user_id SET NOT NULL,
+             ADD CONSTRAINT snapshots_user_id_fk FOREIGN KEY (user_id) REFERENCES users(id);
+             """
+        down = """
+               ALTER TABLE snapshots
+               DROP COLUMN user_id;
+               """
+        description = "Add user id column to snapshots table"
+
 revert :: Migration Int String -> Int -> Migration Int String
 revert migration id = {id, up, down, description}
   where up = migration.down
@@ -78,6 +116,8 @@ migrationData = [
 , createUsersTable 3
 , createTokensTable 4
 , revert (createTokensTable 4) 5
+, addUserIdToEvents 6
+, addUserIdToSnapshots 7
 ]
 
 validateMigrations :: Array (Migration Int String) -> Either String (Array (Migration Int String))

@@ -43,38 +43,42 @@ retrieveEventsHandler :: DB.Pool
                       -> AuthedRequest ({app :: AppName, after :: Maybe EventId} /\ Unit)
                       -> Aff (Either String JSONResponse)
 retrieveEventsHandler pool req = runExceptT do
-  events <- ExceptT $ showError <$> DB.retrieveEvents app after pool
+  events <- ExceptT $ showError <$> DB.retrieveEvents sub app after pool
   let eventRecords = map (\(id /\ event) -> {id, event}) events
   pure $ JSON.okJsonResponse eventRecords
   where ({app, after} /\ _) = L.view Req._val req
+        {sub} = AuthM.tokenPayload req
 
 addEventsHandler :: forall a.
                     DB.Pool
                  -> AuthedRequest (Json /\ {app :: AppName} /\ a)
                  -> Aff (Either String JSONResponse) -- TODO easier to read if you can see what the result type is
 addEventsHandler pool req = runExceptT do
-  eventId <- ExceptT $ showError <$> DB.addEvent query.app json pool
+  eventId <- ExceptT $ showError <$> DB.addEvent sub query.app json pool
   pure $ JSON.okJsonResponse {id: eventId}
   where (json /\ query /\ _) = L.view Req._val req
+        {sub} = AuthM.tokenPayload req
 
 retrieveSnapshotHandler :: DB.Pool
                         -> AuthedRequest ({app :: AppName} /\ Unit)
                         -> Aff (Either String JSONResponse)
 retrieveSnapshotHandler pool req = runExceptT do
-  snapshotM <- ExceptT $ showError <$> DB.retrieveLatestSnapshot query.app pool
+  snapshotM <- ExceptT $ showError <$> DB.retrieveLatestSnapshot sub query.app pool
   pure $ case snapshotM of
     Just (Tuple state upToEvent) -> JSON.okJsonResponse {state, upToEvent}
     Nothing -> JSON.okJsonResponse {}
   where (query /\ _) = L.view Req._val req
+        {sub} = AuthM.tokenPayload req
 
 addSnapshotHandler :: forall a. DB.Pool
                    -> AuthedRequest (Json /\ {app :: AppName} /\ a)
                    -> Aff (Either String JSONResponse)
 addSnapshotHandler pool req = runExceptT do
   {state, upToEvent} :: {state :: Json, upToEvent :: Int} <- ExceptT $ pure $ decodeJson json
-  void $ ExceptT $ showError <$> DB.insertSnapshot query.app state upToEvent pool
+  void $ ExceptT $ showError <$> DB.insertSnapshot sub query.app state upToEvent pool
   pure successResponse
   where (json /\ query /\ _) = L.view Req._val req
+        {sub} = AuthM.tokenPayload req
 
 oauthLoginHandler :: forall m.
                      (Applicative m)
