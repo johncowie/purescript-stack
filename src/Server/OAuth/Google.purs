@@ -3,7 +3,7 @@ module Server.OAuth.Google
 , oauth )
 where
 
-import CustomPrelude
+import Prelude
 
 import Affjax.RequestBody as RequestBody
 

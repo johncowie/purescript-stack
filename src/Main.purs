@@ -1,11 +1,12 @@
 module Main where
 
-import CustomPrelude
+import Prelude
 
 import Api as Api
 import Browser.Cookie as Cookie
 import Browser.Cookies.Data (SetCookie(..), Cookie(..))
 import Couplit.App as Couplit
+import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
 import Data.Newtype (wrap, unwrap)
 import Dunbar.App as Dunbar

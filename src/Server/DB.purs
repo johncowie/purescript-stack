@@ -1,6 +1,6 @@
 module Server.DB where
 
-import CustomPrelude
+import Prelude
 import Control.Monad.Except.Trans (ExceptT(..), runExceptT)
 import Data.Array (head)
 import Data.Maybe (Maybe(..), fromMaybe, maybe)

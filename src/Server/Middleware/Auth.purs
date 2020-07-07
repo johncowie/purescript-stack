@@ -5,8 +5,10 @@ module Server.Middleware.Auth
 )
 where
 
-import CustomPrelude
+import Prelude
 
+import Data.Either (Either(..))
+import Data.Maybe (Maybe(..))
 import Data.Map as M
 import Data.Newtype (unwrap, wrap)
 
