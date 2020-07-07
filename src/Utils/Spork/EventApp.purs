@@ -128,17 +128,10 @@ saveEvent :: forall st ev.
 saveEvent eventStore snapshotStore reducer state event = do
   eventId <- ExceptT $ mapLeft show <$> eventStore.append event
   let updatedState = reducer event state
-  ExceptT $ mapLeft show <$> snapshotStore.saveSnapshot {state: updatedState, upToEvent: eventId}
+  if eventId `mod` 10 == 0
+    then ExceptT $ mapLeft show <$> snapshotStore.saveSnapshot {state: updatedState, upToEvent: eventId}
+    else pure unit
   pure updatedState
-
-
--- where effect = mapFlipped events $ \event -> do
---         result <- eventStore.append event -- TODO sequence errors
---         case result of
---           (Left err) -> pure $ Internal $ AlertError (show err)
---           _  -> pure $ Internal DoNothing
---       updatedModel = L.over _state (\s -> foldr reducer s events) m
---       allEvents = App.batch [effect]
 
 -- TODO pull event saving out into separate function
 -- TODO whenever saving an event, also save a snapshot
@@ -199,15 +192,6 @@ makeWithSelector eventApp selector =
         app = toApp eventApp
         tickSecs = snd <$> eventApp.tick
 
-
-{- Snapshot stuff
-   [X] Support optional query param in API to retrieve events from a certain point
-   [ ] Store event number in state
-   [ ] Store snapshot periodically
-   [ ] load snapshot when loading events
-   [ ] load events after snapshot and use snapshot as base to layer events on
-
--}
 
 {-
 
