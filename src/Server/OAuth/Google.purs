@@ -22,10 +22,9 @@ import Foreign.Object (Object)
 
 import Type.Data.Row (RProxy(..))
 
-import TypedEnv (type (<:), fromEnv, EnvError)
-
 import Server.OAuth (OAuth, OAuthCode, UserData)
 
+import Utils.Env (type (<:), fromEnv, EnvError, Env)
 import Utils.HttpClient as Http
 import Utils.ExceptT (ExceptT(..), runExceptT, showError)
 import Utils.JWT (JWT, extractPayload)
@@ -45,7 +44,7 @@ type GoogleConfig = {
 , clientSecret :: String
 }
 
-loadConfig :: Object String -> Either EnvError GoogleConfig
+loadConfig :: Env -> Either EnvError GoogleConfig
 loadConfig env = fromEnv (RProxy :: RProxy GoogleConfigProxy) env
 
 -- mkRedirectUri ::  -> RedirectQuery -> String
@@ -100,7 +99,7 @@ handleCode config code redirectUri = runExceptT do
   tokenData <- ExceptT $ fetchOpenIdData config redirectUri code
   ExceptT $ pure $ extractPayload tokenData.id_token
 
-oauth :: Object String -> Either EnvError OAuth
+oauth :: Env -> Either EnvError OAuth
 oauth env = do
   config <- loadConfig env
   pure { redirect: redirect config

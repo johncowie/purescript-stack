@@ -32,7 +32,7 @@ import Server.OAuth.Stub as StubOAuth
 import Server.Request (class Request, BasicRequest)
 import Server.Request as Req
 import Type.Data.Row (RProxy(..))
-import TypedEnv (type (<:), EnvError, fromEnv)
+import Utils.Env (Env, type (<:), EnvError, fromEnv, getEnv)
 import Utils.ExceptT (ExceptT(..), runExceptT, showError, liftEffectRight)
 import Utils.JWT (JWTGenerator, jwtGenerator)
 import Utils.Lens as L
@@ -47,7 +47,7 @@ retrieveEventsHandler pool req = runExceptT do
   let eventRecords = map (\(id /\ event) -> {id, event}) events
   pure $ JSON.okJsonResponse eventRecords
   where ({app, after} /\ _) = L.view Req._val req
-        {sub} = AuthM.tokenPayload req
+        {sub} =   AuthM.tokenPayload req
 
 addEventsHandler :: forall a.
                     DB.Pool
@@ -263,7 +263,7 @@ injectStubVars Prod = pure unit
 injectStubVars Dev = do
   NP.setEnv "JWT_SECRET" "devsecret"
 
-oauthForMode :: Mode -> Object String -> Either EnvError OAuth
+oauthForMode :: Mode -> Env -> Either EnvError OAuth
 oauthForMode Prod env = Google.oauth env
 oauthForMode Dev _ = Right StubOAuth.oauth
 
@@ -273,7 +273,7 @@ main = void $ runAff affErrorHandler $ logError $ runExceptT $ do
   args <- liftEffectRight NP.argv
   let mode = modeFromArgs $ drop 2 args
   liftEffectRight $ injectStubVars mode
-  env <- liftEffectRight NP.getEnv
+  env <- liftEffectRight getEnv
   config <- ExceptT $ pure $ showError $ fromEnv (RProxy :: RProxy Config) env
   let port = fromMaybe 8080 config.port
       hostname = "0.0.0.0"
