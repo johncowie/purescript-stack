@@ -16038,12 +16038,20 @@ var PS = {};
           return $27($28($29($30($31(keys($32))))));
       };
   })();
-  var add = function (v) {
+  var addReturnId = function (v) {
       return function (m) {
-          return Data_Map_Internal.insert(ordId)(createId(m))(v)(m);
+          var id = createId(m);
+          return new Data_Tuple.Tuple(id, Data_Map_Internal.insert(ordId)(id)(v)(m));
+      };
+  };
+  var add = function (v) {
+      var $33 = addReturnId(v);
+      return function ($34) {
+          return Data_Tuple.snd($33($34));
       };
   };
   exports["new"] = $$new;
+  exports["addReturnId"] = addReturnId;
   exports["add"] = add;
   exports["update"] = update;
   exports["get"] = get;
@@ -17601,7 +17609,8 @@ var PS = {};
                       title: title,
                       target: target,
                       amountDone: 0.0,
-                      predecessor: Data_Maybe.Nothing.value
+                      predecessor: Data_Maybe.Nothing.value,
+                      successor: Data_Maybe.Nothing.value
                   };
               };
           };
@@ -17631,10 +17640,20 @@ var PS = {};
           return Data_Ord.lessThanOrEq(Data_DateTime.ordDateTime)(Data_Newtype.unwrap(Utils_JsonDateTime.newtypeJsonDateTime)(v.start))(nowDT) && Data_Ord.greaterThanOrEq(Data_DateTime.ordDateTime)(Data_Newtype.unwrap(Utils_JsonDateTime.newtypeJsonDateTime)(v.end))(nowDT);
       };
   };
-  var encodeJsonGoal = new Data_Argonaut_Encode_Class.EncodeJson(Utils_JsonNewtype.encodeNewtype(Data_Argonaut_Encode_Class.encodeRecord(Data_Argonaut_Encode_Class.gEncodeJsonCons(Data_Argonaut_Encode_Class.encodeJsonJNumber)(Data_Argonaut_Encode_Class.gEncodeJsonCons(Utils_JsonDateTime.encodeJsonDateTime)(Data_Argonaut_Encode_Class.gEncodeJsonCons(Data_Argonaut_Encode_Class.encodeJsonMaybe(Utils_IdMap.encodeJsonId))(Data_Argonaut_Encode_Class.gEncodeJsonCons(Utils_JsonDateTime.encodeJsonDateTime)(Data_Argonaut_Encode_Class.gEncodeJsonCons(Data_Argonaut_Encode_Class.encodeJsonInt)(Data_Argonaut_Encode_Class.gEncodeJsonCons(Data_Argonaut_Encode_Class.encodeJsonJString)(Data_Argonaut_Encode_Class.gEncodeJsonNil)(new Data_Symbol.IsSymbol(function () {
+  var hasSuccessor = (function () {
+      var $27 = Data_Newtype.unwrap(newtypeGoal);
+      return function ($28) {
+          return Data_Maybe.isJust((function (v) {
+              return v.successor;
+          })($27($28)));
+      };
+  })();
+  var encodeJsonGoal = new Data_Argonaut_Encode_Class.EncodeJson(Utils_JsonNewtype.encodeNewtype(Data_Argonaut_Encode_Class.encodeRecord(Data_Argonaut_Encode_Class.gEncodeJsonCons(Data_Argonaut_Encode_Class.encodeJsonJNumber)(Data_Argonaut_Encode_Class.gEncodeJsonCons(Utils_JsonDateTime.encodeJsonDateTime)(Data_Argonaut_Encode_Class.gEncodeJsonCons(Data_Argonaut_Encode_Class.encodeJsonMaybe(Utils_IdMap.encodeJsonId))(Data_Argonaut_Encode_Class.gEncodeJsonCons(Utils_JsonDateTime.encodeJsonDateTime)(Data_Argonaut_Encode_Class.gEncodeJsonCons(Data_Argonaut_Encode_Class.encodeJsonMaybe(Utils_IdMap.encodeJsonId))(Data_Argonaut_Encode_Class.gEncodeJsonCons(Data_Argonaut_Encode_Class.encodeJsonInt)(Data_Argonaut_Encode_Class.gEncodeJsonCons(Data_Argonaut_Encode_Class.encodeJsonJString)(Data_Argonaut_Encode_Class.gEncodeJsonNil)(new Data_Symbol.IsSymbol(function () {
       return "title";
   }))())(new Data_Symbol.IsSymbol(function () {
       return "target";
+  }))())(new Data_Symbol.IsSymbol(function () {
+      return "successor";
   }))())(new Data_Symbol.IsSymbol(function () {
       return "start";
   }))())(new Data_Symbol.IsSymbol(function () {
@@ -17644,10 +17663,12 @@ var PS = {};
   }))())(new Data_Symbol.IsSymbol(function () {
       return "amountDone";
   }))())())(newtypeGoal));
-  var decodeJsonGoal = new Data_Argonaut_Decode_Class.DecodeJson(Utils_JsonNewtype.decodeNewtype(Data_Argonaut_Decode_Class.decodeRecord(Data_Argonaut_Decode_Class.gDecodeJsonCons(Data_Argonaut_Decode_Class.decodeJsonNumber)(Data_Argonaut_Decode_Class.gDecodeJsonCons(Utils_JsonDateTime.decodeJsonDateTime)(Data_Argonaut_Decode_Class.gDecodeJsonCons(Data_Argonaut_Decode_Class.decodeJsonMaybe(Utils_IdMap.decodeJsonId))(Data_Argonaut_Decode_Class.gDecodeJsonCons(Utils_JsonDateTime.decodeJsonDateTime)(Data_Argonaut_Decode_Class.gDecodeJsonCons(Data_Argonaut_Decode_Class.decodeJsonInt)(Data_Argonaut_Decode_Class.gDecodeJsonCons(Data_Argonaut_Decode_Class.decodeJsonString)(Data_Argonaut_Decode_Class.gDecodeJsonNil)(new Data_Symbol.IsSymbol(function () {
+  var decodeJsonGoal = new Data_Argonaut_Decode_Class.DecodeJson(Utils_JsonNewtype.decodeNewtype(Data_Argonaut_Decode_Class.decodeRecord(Data_Argonaut_Decode_Class.gDecodeJsonCons(Data_Argonaut_Decode_Class.decodeJsonNumber)(Data_Argonaut_Decode_Class.gDecodeJsonCons(Utils_JsonDateTime.decodeJsonDateTime)(Data_Argonaut_Decode_Class.gDecodeJsonCons(Data_Argonaut_Decode_Class.decodeJsonMaybe(Utils_IdMap.decodeJsonId))(Data_Argonaut_Decode_Class.gDecodeJsonCons(Utils_JsonDateTime.decodeJsonDateTime)(Data_Argonaut_Decode_Class.gDecodeJsonCons(Data_Argonaut_Decode_Class.decodeJsonMaybe(Utils_IdMap.decodeJsonId))(Data_Argonaut_Decode_Class.gDecodeJsonCons(Data_Argonaut_Decode_Class.decodeJsonInt)(Data_Argonaut_Decode_Class.gDecodeJsonCons(Data_Argonaut_Decode_Class.decodeJsonString)(Data_Argonaut_Decode_Class.gDecodeJsonNil)(new Data_Symbol.IsSymbol(function () {
       return "title";
   }))()())(new Data_Symbol.IsSymbol(function () {
       return "target";
+  }))()())(new Data_Symbol.IsSymbol(function () {
+      return "successor";
   }))()())(new Data_Symbol.IsSymbol(function () {
       return "start";
   }))()())(new Data_Symbol.IsSymbol(function () {
@@ -17662,6 +17683,9 @@ var PS = {};
   }))()(Data_Symbol.SProxy.value));
   var _target = Control_Semigroupoid.composeFlipped(Utils_Lens.lensSemigroupoid)(Utils_Lens["_newtype"](newtypeGoal))(Utils_Lens.prop(new Data_Symbol.IsSymbol(function () {
       return "target";
+  }))()(Data_Symbol.SProxy.value));
+  var _successor = Control_Semigroupoid.composeFlipped(Utils_Lens.lensSemigroupoid)(Utils_Lens["_newtype"](newtypeGoal))(Utils_Lens.prop(new Data_Symbol.IsSymbol(function () {
+      return "successor";
   }))()(Data_Symbol.SProxy.value));
   var _start = Control_Semigroupoid.composeFlipped(Utils_Lens.lensSemigroupoid)(Utils_Lens["_newtype"](newtypeGoal))(Control_Semigroupoid.composeFlipped(Utils_Lens.lensSemigroupoid)(Utils_Lens.prop(new Data_Symbol.IsSymbol(function () {
       return "start";
@@ -17681,10 +17705,12 @@ var PS = {};
   exports["_target"] = _target;
   exports["_amountDone"] = _amountDone;
   exports["_predecessor"] = _predecessor;
+  exports["_successor"] = _successor;
   exports["isInProgress"] = isInProgress;
   exports["isExpired"] = isExpired;
   exports["isFuture"] = isFuture;
   exports["isCurrent"] = isCurrent;
+  exports["hasSuccessor"] = hasSuccessor;
   exports["newGoal"] = newGoal;
   exports["progressPercentage"] = progressPercentage;
   exports["onTrackRequired"] = onTrackRequired;
@@ -17781,6 +17807,8 @@ var PS = {};
   var Data_DateTime_Instant = $PS["Data.DateTime.Instant"];
   var Data_Foldable = $PS["Data.Foldable"];
   var Data_Functor = $PS["Data.Functor"];
+  var Data_HeytingAlgebra = $PS["Data.HeytingAlgebra"];
+  var Data_Map_Internal = $PS["Data.Map.Internal"];
   var Data_Maybe = $PS["Data.Maybe"];
   var Data_Newtype = $PS["Data.Newtype"];
   var Data_Semiring = $PS["Data.Semiring"];
@@ -17820,19 +17848,19 @@ var PS = {};
       return "goals";
   }))()())())("GoalState")(newtypeGoal));
   var allTodos = (function () {
-      var $22 = Data_Newtype.unwrap(newtypeGoal);
-      return function ($23) {
+      var $26 = Data_Newtype.unwrap(newtypeGoal);
+      return function ($27) {
           return (function (v) {
               return v.todos;
-          })($22($23));
+          })($26($27));
       };
   })();
   var allGoals = (function () {
-      var $24 = Data_Newtype.unwrap(newtypeGoal);
-      return function ($25) {
+      var $28 = Data_Newtype.unwrap(newtypeGoal);
+      return function ($29) {
           return (function (v) {
               return v.goals;
-          })($24($25));
+          })($28($29));
       };
   })();
   var hasSuccessor = function (id) {
@@ -17846,8 +17874,8 @@ var PS = {};
           return function (goal) {
               var time = Data_DateTime_Instant.fromDateTime(timeDT);
               var amountToAdd = (function () {
-                  var $7 = Goals_Data_Goal.isCurrent(time)(goal);
-                  if ($7) {
+                  var $8 = Goals_Data_Goal.isCurrent(time)(goal);
+                  if ($8) {
                       return amount;
                   };
                   return 0.0;
@@ -17859,9 +17887,15 @@ var PS = {};
   var _todos = Control_Semigroupoid.composeFlipped(Utils_Lens.lensSemigroupoid)(Utils_Lens["_newtype"](newtypeGoal))(Utils_Lens.prop(new Data_Symbol.IsSymbol(function () {
       return "todos";
   }))()(Data_Symbol.SProxy.value));
+  var addTodo = function (todo) {
+      return Utils_Lens.over(_todos)(Utils_IdMap.add(todo));
+  };
   var _goals = Control_Semigroupoid.composeFlipped(Utils_Lens.lensSemigroupoid)(Utils_Lens["_newtype"](newtypeGoal))(Utils_Lens.prop(new Data_Symbol.IsSymbol(function () {
       return "goals";
   }))()(Data_Symbol.SProxy.value));
+  var addGoal = function (goal) {
+      return Utils_Lens.over(_goals)(Utils_IdMap.add(goal));
+  };
   var addProgress = function (id) {
       return function (time) {
           return function (amount) {
@@ -17888,28 +17922,50 @@ var PS = {};
       if (v instanceof Goals_Data_Event.AddProgress) {
           return addProgress(v.value0.id)(Data_Newtype.unwrap(Utils_JsonDateTime.newtypeJsonDateTime)(v.value0.time))(v.value0.amount * -1.0);
       };
-      throw new Error("Failed pattern match at Goals.Data.State (line 84, column 1 - line 84, column 49): " + [ v.constructor.name ]);
+      throw new Error("Failed pattern match at Goals.Data.State (line 102, column 1 - line 102, column 49): " + [ v.constructor.name ]);
+  };
+  var pruneGoals = Utils_Lens.over(_goals)(Data_Map_Internal.filter(Utils_IdMap.ordId)((function () {
+      var $32 = Data_HeytingAlgebra.not(Data_HeytingAlgebra.heytingAlgebraBoolean);
+      return function ($33) {
+          return $32(Goals_Data_Goal.hasSuccessor($33));
+      };
+  })()));
+  var restartGoal = function (predecessor) {
+      return function (goal) {
+          var successor = Utils_Lens.set(Goals_Data_Goal["_predecessor"])(new Data_Maybe.Just(predecessor))(goal);
+          var addSuccessor = function (goals) {
+              var v = Utils_IdMap.addReturnId(successor)(goals);
+              return Utils_IdMap.update(predecessor)(Utils_Lens.set(Goals_Data_Goal["_successor"])(new Data_Maybe.Just(v.value0)))(v.value1);
+          };
+          return Utils_Lens.over(_goals)(addSuccessor);
+      };
   };
   var processEvent = function (v) {
       if (v instanceof Goals_Data_Event.AddGoal) {
-          return Utils_Lens.over(_goals)(Utils_IdMap.add(goalFromEventRecord(v.value0)));
+          var $34 = addGoal(goalFromEventRecord(v.value0));
+          return function ($35) {
+              return pruneGoals($34($35));
+          };
       };
       if (v instanceof Goals_Data_Event.AddProgress) {
           return addProgress(v.value0.id)(Data_Newtype.unwrap(Utils_JsonDateTime.newtypeJsonDateTime)(v.value0.time))(v.value0.amount);
       };
       if (v instanceof Goals_Data_Event.RestartGoal) {
-          return Utils_Lens.over(_goals)(Utils_IdMap.add(Utils_Lens.set(Goals_Data_Goal["_predecessor"])(new Data_Maybe.Just(v.value0.predecessor))(goalFromEventRecord(v.value0))));
+          var $36 = restartGoal(v.value0.predecessor)(goalFromEventRecord(v.value0));
+          return function ($37) {
+              return pruneGoals($36($37));
+          };
       };
       if (v instanceof Goals_Data_Event.UndoEvent) {
           return rollbackEvent(v.value0.event);
       };
       if (v instanceof Goals_Data_Event.AddTodo) {
-          return Utils_Lens.over(_todos)(Utils_IdMap.add(todoFromEventRecord(v.value0)));
+          return addTodo(todoFromEventRecord(v.value0));
       };
       if (v instanceof Goals_Data_Event.CompletedTodo) {
           return Utils_Lens.over(Control_Semigroupoid.composeFlipped(Utils_Lens.lensSemigroupoid)(_todos)(Utils_Lens["_mapValMaybe"](Utils_IdMap.ordId)(v.value0.id)))(Data_Functor.map(Data_Maybe.functorMaybe)(Goals_Data_Todo.markAsDone(Data_Newtype.unwrap(Utils_JsonDateTime.newtypeJsonDateTime)(v.value0.completedAt))));
       };
-      throw new Error("Failed pattern match at Goals.Data.State (line 76, column 1 - line 76, column 48): " + [ v.constructor.name ]);
+      throw new Error("Failed pattern match at Goals.Data.State (line 94, column 1 - line 94, column 48): " + [ v.constructor.name ]);
   };
   exports["newGoalState"] = newGoalState;
   exports["allGoals"] = allGoals;
