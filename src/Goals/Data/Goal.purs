@@ -5,11 +5,13 @@ module Goals.Data.Goal
 , _target
 , _amountDone
 , _predecessor
+, _successor
 , Goal
 , isInProgress
 , isExpired
 , isFuture
 , isCurrent
+, hasSuccessor
 , newGoal
 , progressPercentage
 , onTrackRequired
@@ -21,11 +23,10 @@ where
 import Prelude
 import Data.DateTime (DateTime)
 import Data.DateTime.Instant (Instant, fromDateTime, unInstant, toDateTime)
-import Utils.Lens (Lens', _newtype, prop)
 
 import Data.Symbol (SProxy(..))
 import Data.Newtype (class Newtype, unwrap, wrap)
-import Data.Maybe (Maybe(..))
+import Data.Maybe (Maybe(..), isJust)
 import Data.Int as Int
 import Data.Argonaut.Decode (class DecodeJson)
 import Data.Argonaut.Encode (class EncodeJson)
@@ -33,15 +34,17 @@ import Utils.JsonNewtype (decodeNewtype, encodeNewtype)
 
 import Utils.IdMap as IdMap
 import Utils.JsonDateTime (JsonDateTime)
+import Utils.Lens (Lens', _newtype, prop)
 
 
 newtype Goal = Goal {
-  start :: JsonDateTime,
-  end :: JsonDateTime,
-  target :: Int,
-  title :: String,
-  amountDone :: Number,
-  predecessor :: Maybe IdMap.Id
+  start :: JsonDateTime
+, end :: JsonDateTime
+, target :: Int
+, title :: String
+, amountDone :: Number
+, predecessor :: Maybe IdMap.Id
+, successor :: Maybe IdMap.Id
 }
 
 derive instance newtypeGoal :: Newtype Goal _
@@ -54,13 +57,14 @@ instance encodeJsonGoal :: EncodeJson Goal where
 
 newGoal :: String -> DateTime -> DateTime -> Int -> Goal
 newGoal title start end target =
-  Goal {start: wrap start,
-        end: wrap end,
-        title: title,
-        target: target,
-        amountDone: 0.0,
-        predecessor: Nothing
-        }
+  Goal { start: wrap start
+       , end: wrap end
+       , title: title
+       , target: target
+       , amountDone: 0.0
+       , predecessor: Nothing
+       , successor: Nothing
+       }
 
 _start :: Lens' Goal DateTime
 _start = _newtype >>> prop (SProxy :: SProxy "start") >>> _newtype
@@ -79,6 +83,12 @@ _amountDone = _newtype >>> prop (SProxy :: SProxy "amountDone")
 
 _predecessor :: Lens' Goal (Maybe IdMap.Id)
 _predecessor = _newtype >>> prop (SProxy :: SProxy "predecessor")
+
+_successor :: Lens' Goal (Maybe IdMap.Id)
+_successor = _newtype >>> prop (SProxy :: SProxy "successor")
+
+hasSuccessor :: Goal -> Boolean
+hasSuccessor = unwrap >>> _.successor >>> isJust
 
 isCurrent :: Instant -> Goal -> Boolean
 isCurrent now (Goal r) = unwrap r.start <= nowDT && unwrap r.end >= nowDT

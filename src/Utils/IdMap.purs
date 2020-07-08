@@ -32,8 +32,12 @@ new = M.empty
 createId :: forall v. IdMap v -> Id
 createId = wrap <<< (+) 1 <<< fromMaybe (-1) <<< maximum <<< (map unwrap) <<< keys
 
+addReturnId :: forall v. v -> IdMap v -> Tuple Id (IdMap v)
+addReturnId v m = Tuple id (M.insert id v m)
+  where id = (createId m)
+
 add :: forall v. v -> IdMap v -> IdMap v
-add v m = M.insert (createId m) v m
+add v = addReturnId v >>> snd
 
 update :: forall v. Id -> (v -> v) -> IdMap v -> IdMap v
 update id f = M.update (Just <<< f) id

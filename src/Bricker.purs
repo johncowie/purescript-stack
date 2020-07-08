@@ -243,7 +243,7 @@ main = launchAff_ $ compileTasks lowercaseId do
   cmd "browserify" "node_modules/browserify/bin/cmd.js frontend-dist/js/frontend.js -o frontend-dist/js/frontend.bundle.js"
   cmd "deploy" "cd frontend-dist && git add . && git commit -m \"New build\" && git push -f origin gh-pages"
   chainTasks "build-js" ["bundle-js", "browserify", "hash-js"]
-  chainTasks "build" ["clean", "build-html", "build-js"]
+  chainTasks "build" ["clean", "build-html", "build-js", "deploy"]
   task "hash-js" $ liftEffect $ runExceptT do
     rewrites <- ExceptT $ cacheBustFileNames contentHash (wrap "frontend-dist/js") (wrap "frontend-dist/js")
     ExceptT $ Right <$> Console.log (show rewrites)

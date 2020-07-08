@@ -3,12 +3,14 @@ module Goals.Data.State where
 import Prelude
 
 import Data.DateTime (DateTime)
-import Data.DateTime.Instant (fromDateTime)
+import Data.DateTime.Instant (Instant, fromDateTime)
 import Data.Maybe (Maybe(..))
 import Data.Foldable (elem)
 import Data.Array (catMaybes)
 import Data.Newtype (class Newtype, wrap, unwrap)
 import Data.Symbol (SProxy(..))
+import Data.Map as M
+import Data.Tuple (Tuple(..))
 import Data.Argonaut.Decode (class DecodeJson)
 import Data.Argonaut.Encode (class EncodeJson)
 
@@ -73,12 +75,28 @@ addProgressToGoal timeDT amount goal = L.over Goal._amountDone ((+) amountToAdd)
 addProgress :: IdMap.Id -> DateTime -> Number -> GoalState -> GoalState
 addProgress id time amount = L.over _goals $ IdMap.update id (addProgressToGoal time amount)
 
+addGoal :: Goal -> GoalState -> GoalState
+addGoal goal = L.over _goals (IdMap.add goal)
+
+restartGoal :: IdMap.Id -> Goal -> GoalState -> GoalState
+restartGoal predecessor goal = L.over _goals addSuccessor
+  where addSuccessor goals =
+          let (Tuple successorId updatedGoals) = IdMap.addReturnId successor goals in
+            IdMap.update predecessor (L.set Goal._successor (Just successorId)) updatedGoals
+        successor = L.set Goal._predecessor (Just predecessor) goal
+
+addTodo :: Todo -> GoalState -> GoalState
+addTodo todo = L.over _todos $ IdMap.add todo
+
+pruneGoals :: GoalState -> GoalState
+pruneGoals = L.over _goals $ M.filter (not <<< Goal.hasSuccessor)
+
 processEvent :: Event -> GoalState -> GoalState
-processEvent (AddGoal r) = L.over _goals $ IdMap.add (goalFromEventRecord r)
+processEvent (AddGoal r) = addGoal (goalFromEventRecord r) >>> pruneGoals
 processEvent (AddProgress r) = addProgress r.id (unwrap r.time) r.amount
-processEvent (RestartGoal r) = L.over _goals $ IdMap.add $ L.set Goal._predecessor (Just r.predecessor) $ goalFromEventRecord r
+processEvent (RestartGoal r) = restartGoal r.predecessor (goalFromEventRecord r) >>> pruneGoals
 processEvent (UndoEvent r) = rollbackEvent r.event
-processEvent (AddTodo r) = L.over _todos $ IdMap.add (todoFromEventRecord r)
+processEvent (AddTodo r) = addTodo (todoFromEventRecord r)
 processEvent (CompletedTodo r) = L.over (_todos >>> L._mapValMaybe r.id) (map (Todo.markAsDone (unwrap r.completedAt)))
 
 rollbackEvent :: Event -> GoalState -> GoalState
