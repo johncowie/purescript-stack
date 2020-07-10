@@ -95,17 +95,19 @@ processEvent :: Event -> GoalState -> GoalState
 processEvent (AddGoal r) = addGoal (goalFromEventRecord r) >>> pruneGoals
 processEvent (AddProgress r) = addProgress r.id (unwrap r.time) r.amount
 processEvent (RestartGoal r) = restartGoal r.predecessor (goalFromEventRecord r) >>> pruneGoals
-processEvent (UndoEvent r) = rollbackEvent r.event
+processEvent (UndoEvent r) = case rollbackEvent r.event of
+  (Just f) -> f
+  Nothing -> unsafeThrow "rollback for this event type is unimplemented"
 processEvent (AddTodo r) = addTodo (todoFromEventRecord r)
 processEvent (CompletedTodo r) = L.over (_todos >>> L._mapValMaybe r.id) (map (Todo.markAsDone (unwrap r.completedAt)))
 
-rollbackEvent :: Event -> GoalState -> GoalState
-rollbackEvent (UndoEvent _) = unsafeThrow "can't undo an undo" -- TODO figure out how to deal with this
-rollbackEvent (AddGoal r) = unsafeThrow "implement me" -- TODO what to do here?
-rollbackEvent (RestartGoal r) = unsafeThrow "implement me" -- TODO what to do here?
-rollbackEvent (AddTodo r) = unsafeThrow "implement me" -- TODO what to do here
-rollbackEvent (CompletedTodo r) = unsafeThrow "implement me" -- TODO
-rollbackEvent (AddProgress r) = addProgress r.id (unwrap r.time) (r.amount * -1.0)
+rollbackEvent :: Event -> Maybe (GoalState -> GoalState)
+rollbackEvent (UndoEvent _) = Nothing
+rollbackEvent (AddGoal r) = Nothing
+rollbackEvent (RestartGoal r) = Nothing
+rollbackEvent (AddTodo r) = Nothing
+rollbackEvent (CompletedTodo r) = Nothing
+rollbackEvent (AddProgress r) = Just $ addProgress r.id (unwrap r.time) (r.amount * -1.0)
 
 hasSuccessor :: IdMap.Id -> GoalState -> Boolean
 hasSuccessor id state = elem id predecessorList
