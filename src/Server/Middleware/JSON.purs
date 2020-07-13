@@ -3,6 +3,7 @@ module Server.Middleware.JSON
 , okJsonResponse
 , jsonResponse
 , wrapJsonRequest
+, wrapDecodeJson
 , wrapJsonResponse
 )
 where
@@ -51,11 +52,11 @@ wrapJsonRequest :: forall a req res.
                    (Request req)
                 => (Functor req)
                 => (String -> res)
-                -> (req (Tuple JSON.Json a) -> res)
+                -> (req (JSON.Json /\ a) -> res)
                 -> req a
                 -> res
 wrapJsonRequest parseFail router req = case toJsonRequest req of
-  (Left err) -> parseFail err
+  (Left err) -> parseFail $ "ERROR: " <> err <> "\nBODY: " <> (L.view Req._body req)
   (Right jsonRequest) -> router jsonRequest
 
 wrapDecodeJson :: forall a b req res.

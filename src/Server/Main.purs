@@ -14,7 +14,6 @@ import Effect (Effect)
 import Effect.Aff (Aff, runAff)
 import Effect.Class (liftEffect)
 import Effect.Console as Console
-import Foreign.Object (Object)
 import HTTPure as HP
 import Node.Process as NP
 import Server.DB as DB
@@ -32,6 +31,9 @@ import Server.OAuth.Google as Google
 import Server.OAuth.Stub as StubOAuth
 import Server.Request (class Request, BasicRequest)
 import Server.Request as Req
+import Twilio.WhatsApp (WhatsAppMessage, WhatsAppNumber)
+import Twilio.WhatsApp as WA
+import Twilio.Twiml as Twiml
 import Type.Data.Row (RProxy(..))
 import Utils.Env (Env, type (<:), EnvError, fromEnv, getEnv)
 import Utils.ExceptT (ExceptT(..), runExceptT, showError, liftEffectRight)
@@ -107,6 +109,17 @@ testAuthHandler :: forall a. AuthedRequest a
 testAuthHandler authedReq = pure $ JSON.okJsonResponse {msg: "Successfully authed!", userId: userId}
   where userId = _.sub $ AuthM.tokenPayload authedReq
 
+messageResponder :: WhatsAppNumber -> String -> String
+messageResponder _ msg = "You said '" <> msg <> "' you crazy bastard."
+
+-- TODO middleware for verifying headers and wrapping with AuthedRequest
+whatsAppMessageHandler :: BasicRequest (WhatsAppMessage /\ Unit)
+                       -> Aff (Response String)
+whatsAppMessageHandler req = do
+  let twiml = Twiml.toString $ WA.toTwiml $ WA.replyToMessage whatsAppMessage messageResponder
+  pure $ response 200 twiml
+  where (whatsAppMessage /\ _) =  L.view Req._val req
+
 stubUserData :: forall req. req -> Aff JSONResponse
 stubUserData _ = pure $ JSON.okJsonResponse { sub: "123", name: "Bob", email: "bob@bob.com"}
 
@@ -170,10 +183,6 @@ lookupHandler deps HP.Post ["snapshots"] =
   JSON.wrapJsonRequest jsonBadRequestHandler $
   wrapResponseErrors jsonErrorHandler $
   addSnapshotHandler deps.db
-lookupHandler deps HP.Get ["test-auth"] =
-  JSON.wrapJsonResponse $
-  AuthM.wrapTokenAuth deps.tokenGen.verifyAndExtract jsonAuthErrorHandler $
-  testAuthHandler
 lookupHandler deps HP.Get [] =
   JSON.wrapJsonResponse $
   AuthM.wrapTokenAuth deps.tokenGen.verifyAndExtract jsonAuthErrorHandler $
@@ -187,6 +196,14 @@ lookupHandler deps HP.Post [] =
   JSON.wrapJsonRequest jsonBadRequestHandler $
   wrapResponseErrors jsonErrorHandler $
   addEventsHandler deps.db
+lookupHandler deps HP.Get ["test-auth"] =
+  JSON.wrapJsonResponse $
+  AuthM.wrapTokenAuth deps.tokenGen.verifyAndExtract jsonAuthErrorHandler $
+  testAuthHandler
+lookupHandler deps HP.Post ["whatsapp"] =
+  JSON.wrapJsonRequest (JSON.wrapJsonResponse jsonBadRequestHandler) $
+  JSON.wrapDecodeJson (JSON.wrapJsonResponse jsonBadRequestHandler) $
+  whatsAppMessageHandler
 lookupHandler deps _ _ =
   JSON.wrapJsonResponse $
   const (pure $ JSON.jsonResponse 404 {response: "not found"})
