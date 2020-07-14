@@ -8,20 +8,15 @@ where
 
 import Prelude
 
-import Affjax.RequestBody (RequestBody(..))
-
 import Data.Either (Either(..))
-import Data.Argonaut.Core (Json)
-import Data.Argonaut.Parser (jsonParser)
-import Data.Argonaut.Decode (class DecodeJson, (.:), decodeJson)
-import Data.Newtype (wrap)
+import Data.Argonaut.Decode (class DecodeJson, decodeJson)
 
 import Effect.Aff (Aff)
-import Type.Data.Row (RProxy(..))
-import Undefined (undefined)
-import Utils.Env (Env, type (<:), EnvError, fromEnv)
 
 import Twilio.Twiml as Twiml
+import Twilio.Config (TwilioConfig)
+
+import Server.Middleware.FormURLEncoded (class DecodeFormData, formDataValue)
 
 {-
 Authentication: need accountId and authToken
@@ -50,25 +45,16 @@ newtype WhatsAppMessage = WhatsAppMessage {
 , message :: String
 }
 
-instance decodeJsonWhatsAppMessage :: DecodeJson WhatsAppMessage where
-  decodeJson json = do
-    obj <- decodeJson json
-    message <- obj .: "Body"
-    to <- obj .: "To"
-    from <- obj .: "From"
+instance decodeFormUrlEncodedWhatsAppMessage :: DecodeFormData WhatsAppMessage where
+  decodeFormData formData = do
+    message <- formDataValue "Body" formData
+    to <- formDataValue "To" formData >>= whatsAppNumber
+    from <- formDataValue "From" formData >>= whatsAppNumber
     pure $ WhatsAppMessage {message, from, to}
 
-type WhatsAppConfigProxy = (
-  accountId :: String <: "TWILIO_ACCOUNT_ID"
-, apiRoot :: String <: "TWILIO_API"
-, authToken :: String <: "TWILIO_AUTH_TOKEN"
-)
+instance decodeJsonWhatsAppMessage :: DecodeJson WhatsAppMessage where
+  decodeJson json = WhatsAppMessage <$> decodeJson json
 
-newtype WhatsAppConfig = WhatsAppConfig {
-  accountId :: String
-, authToken :: String
-, apiRoot :: String
-}
 
 type WhatsAppClient = {
   sendMessage :: WhatsAppMessage -> Aff (Either String SID)
@@ -91,10 +77,7 @@ whatsAppNumber = WhatsAppNumber >>> Right
 -- TODO strip out whatsapp: prefix
 -- TODO return error if phonenumber format is invalid
 
-loadConfig :: Env -> Either EnvError WhatsAppConfig
-loadConfig env = WhatsAppConfig <$> fromEnv (RProxy :: RProxy WhatsAppConfigProxy) env
-
-sendMessage :: WhatsAppConfig -> WhatsAppMessage -> Aff (Either String SID)
+sendMessage :: TwilioConfig -> WhatsAppMessage -> Aff (Either String SID)
 sendMessage config msg = pure (Right (SID "")) -- TODO implement me
 
 toNumber :: WhatsAppNumber -> Twiml.To

@@ -9,12 +9,15 @@ module Server.Request
 , _val
 , BasicRequest
 , toCustomRequest
+, lookupHeader
 )
 where
 
 import Prelude
-import Data.Newtype (class Newtype)
+import Data.Newtype (class Newtype, wrap, unwrap)
 import Data.Symbol (SProxy(..))
+import Data.Map as M
+import Data.Maybe (Maybe)
 import HTTPure as HP
 import HTTPure.Headers as Headers
 import HTTPure.Version (Version)
@@ -55,3 +58,6 @@ instance requestBasicRequest :: Request BasicRequest where
 toCustomRequest :: HP.Request -> BasicRequest Unit
 toCustomRequest {headers, httpVersion, method, path, query, body}
   = BasicRequest {headers, httpVersion, method, path, query, body, val: unit}
+
+lookupHeader :: forall req a. (Request req) => String -> req a -> Maybe String
+lookupHeader k = L.view _headers >>> unwrap >>> M.lookup (wrap k)

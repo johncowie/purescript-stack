@@ -5,6 +5,7 @@ module Server.Handler
 , emptyResponse
 , wrapCustom
 , addResponseHeader
+, setContentType
 )
 where
 
@@ -46,6 +47,9 @@ _headers = L.prop (SProxy :: SProxy "headers")
 
 addResponseHeader :: forall r. String -> String -> {headers :: HP.Headers | r} -> {headers :: HP.Headers | r}
 addResponseHeader k v = L.over (_headers >>> L._newtype) (M.insert (wrap k) v)
+
+setContentType :: forall r. String -> {headers :: HP.Headers | r} -> {headers :: HP.Headers | r}
+setContentType = addResponseHeader "Content-Type"
 
 fromCustomResponse :: Response String -> Aff HP.Response
 fromCustomResponse r = do

@@ -4,6 +4,7 @@ module Utils.ExceptT
 , module Control.Monad.Except.Trans
 , right
 , liftEffectRight
+, booleanToError
 )
 where
 import Prelude
@@ -27,3 +28,6 @@ right vM = ExceptT $ Right <$> vM
 
 liftEffectRight :: forall e m a. (MonadEffect m) => Effect a -> ExceptT e m a
 liftEffectRight vM = ExceptT $ liftEffect $ Right <$> vM
+
+booleanToError :: forall err. err -> Boolean -> Either err Unit
+booleanToError err b = if b then Right unit else Left err

@@ -7,13 +7,13 @@ module Utils.Env
 where
 
 import Prelude
-import Data.Either (Either(..))
+import Data.Either (Either)
 import Effect (Effect)
 import Node.Process as NP
 import Foreign.Object (Object)
 
 import TypedEnv as TE -- (type (<:), EnvError, fromEnv)
-import TypedEnv (type (<:), EnvError, class ReadEnv)
+import TypedEnv (type (<:), EnvError, class ReadEnv, class ParseValue)
 
 data Env = Env (Object String)
 

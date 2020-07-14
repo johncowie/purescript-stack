@@ -14,6 +14,7 @@ You can edit this file as you like.
   , "datetime"
   , "effect"
   , "exceptions"
+  , "form-urlencoded"
   , "formatters"
   , "httpure"
   , "js-timers"

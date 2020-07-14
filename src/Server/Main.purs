@@ -18,11 +18,13 @@ import HTTPure as HP
 import Node.Process as NP
 import Server.DB as DB
 import Server.Domain (AppName, EventId, OAuthProvider(Google), UserId)
-import Server.Handler (Response, addResponseHeader, response, wrapCustom)
+import Server.Handler (Response, addResponseHeader, response, wrapCustom, setContentType)
 import Server.Middleware.Auth as AuthM
+import Server.Middleware.FormURLEncoded as Form
 import Server.Middleware.JSON (JSONResponse)
 import Server.Middleware.JSON as JSON
 import Server.Middleware.QueryParams (wrapParseQueryParams)
+import Server.Middleware.TwilioAuth as TwilioAuth
 import Server.Migrations (migrate, Migrator)
 import Server.Migrations.MigrationData (migrationStore)
 import Server.Migrations.Postgres (executor, intVersionStore)
@@ -31,9 +33,10 @@ import Server.OAuth.Google as Google
 import Server.OAuth.Stub as StubOAuth
 import Server.Request (class Request, BasicRequest)
 import Server.Request as Req
+import Twilio.Config (TwilioConfig, loadTwilioConfig)
+import Twilio.Twiml as Twiml
 import Twilio.WhatsApp (WhatsAppMessage, WhatsAppNumber)
 import Twilio.WhatsApp as WA
-import Twilio.Twiml as Twiml
 import Type.Data.Row (RProxy(..))
 import Utils.Env (Env, type (<:), EnvError, fromEnv, getEnv)
 import Utils.ExceptT (ExceptT(..), runExceptT, showError, liftEffectRight)
@@ -113,11 +116,12 @@ messageResponder :: WhatsAppNumber -> String -> String
 messageResponder _ msg = "You said '" <> msg <> "' you crazy bastard."
 
 -- TODO middleware for verifying headers and wrapping with AuthedRequest
-whatsAppMessageHandler :: BasicRequest (WhatsAppMessage /\ Unit)
+whatsAppMessageHandler :: TwilioAuth.TwilioRequest (WhatsAppMessage /\ Unit)
                        -> Aff (Response String)
 whatsAppMessageHandler req = do
   let twiml = Twiml.toString $ WA.toTwiml $ WA.replyToMessage whatsAppMessage messageResponder
-  pure $ response 200 twiml
+  liftEffect $ Console.log $ "TWIML: " <> twiml
+  pure $ setContentType "text/xml" $ response 200 twiml
   where (whatsAppMessage /\ _) =  L.view Req._val req
 
 stubUserData :: forall req. req -> Aff JSONResponse
@@ -147,6 +151,17 @@ wrapLogRequest :: forall a req res.
 wrapLogRequest router req = do
   liftEffect $ Console.log $ show (L.view Req._method req) <> ": " <> show (L.view Req._path req)
   router req
+
+wrapLogRequestBody :: forall req a res.
+                      (Request req)
+                   => (req a -> Aff res)
+                   -> req a
+                   -> Aff res
+wrapLogRequestBody router req = do
+  liftEffect $ Console.log $ "Request body: " <> body
+  router req
+  where body = L.view Req._body req
+
 ---
 
 successResponse :: JSONResponse
@@ -156,6 +171,7 @@ type Dependencies = {
   db :: DB.Pool
 , oauth :: {google :: OAuth}
 , tokenGen :: JWTGenerator {sub :: UserId}
+, twilioConfig :: TwilioConfig
 }
 
 lookupHandler :: Dependencies -> HP.Method -> Array String -> (BasicRequest Unit -> Aff (Response String))
@@ -201,8 +217,10 @@ lookupHandler deps HP.Get ["test-auth"] =
   AuthM.wrapTokenAuth deps.tokenGen.verifyAndExtract jsonAuthErrorHandler $
   testAuthHandler
 lookupHandler deps HP.Post ["whatsapp"] =
-  JSON.wrapJsonRequest (JSON.wrapJsonResponse jsonBadRequestHandler) $
-  JSON.wrapDecodeJson (JSON.wrapJsonResponse jsonBadRequestHandler) $
+  TwilioAuth.wrapTwilioAuth deps.twilioConfig authErrorHandler $
+  wrapLogRequestBody $
+  Form.wrapFormURLEncoded badRequestHandler $
+  Form.wrapDecodeFormURLEncoded badRequestHandler $
   whatsAppMessageHandler
 lookupHandler deps _ _ =
   JSON.wrapJsonResponse $
@@ -226,10 +244,16 @@ jsonBadRequestHandler error = liftEffect $ do
   Console.log $ "Bad request: " <> error
   pure $ JSON.jsonResponse 400 $ encodeJson {error}
 
+badRequestHandler :: String -> Aff (Response String)
+badRequestHandler = JSON.wrapJsonResponse jsonBadRequestHandler
+
 jsonAuthErrorHandler :: String -> Aff (Response Json)
 jsonAuthErrorHandler error = liftEffect $ do
   Console.log $ "Auth error: " <> error
   pure $ JSON.jsonResponse 401 $ encodeJson {error: "Authorization required"}
+
+authErrorHandler :: String -> Aff (Response String)
+authErrorHandler = JSON.wrapJsonResponse jsonAuthErrorHandler
 
 app :: Dependencies -> HP.Request -> HP.ResponseM
 app deps =
@@ -299,10 +323,12 @@ main = void $ runAff affErrorHandler $ logError $ runExceptT $ do
       dbUri = fromMaybe "postgres://localhost:5432/events_store" config.databaseUri
   pool <- ExceptT $ showError <$> (liftEffect $ DB.getDB dbUri)
   googleOAuth <- ExceptT $ pure $ showError $ oauthForMode mode env
+  twilioConfig <- ExceptT $ pure $ showError $ loadTwilioConfig env
   let deps = {
-    db: pool,
-    oauth: {google: googleOAuth},
-    tokenGen: jwtGenerator config.jwtSecret
+    db: pool
+  , oauth: {google: googleOAuth}
+  , tokenGen: jwtGenerator config.jwtSecret
+  , twilioConfig
   }
   ExceptT $ migrate $ migrator pool
   void $ ExceptT $ liftEffect $ Right <$> (HP.serve' {port, backlog, hostname} (app deps) do

@@ -18,9 +18,8 @@ import Effect.Class (liftEffect)
 
 import Server.Request (class Request)
 import Server.Request as Req
-import Server.Handler (Response)
 
-import Utils.ExceptT (ExceptT(..), runExceptT, liftEffectRight)
+import Utils.ExceptT (ExceptT(..), runExceptT)
 import Utils.JWT (JWT)
 import Utils.Lens as L
 import Utils.Lens (type (:->))
@@ -38,7 +37,7 @@ instance requestAuthedRequest :: Request (AuthedRequest tp) where
 
 derive instance functorAuthedRequest :: Functor (AuthedRequest tp)
 
-_underlyingRequest :: forall req tp a. AuthedRequest tp a :-> Req.BasicRequest a
+_underlyingRequest :: forall tp a. AuthedRequest tp a :-> Req.BasicRequest a
 _underlyingRequest = L.lens getter setter
   where getter (AuthedRequest tp req) = req
         setter (AuthedRequest tp _) req = AuthedRequest tp req
@@ -68,5 +67,5 @@ wrapTokenAuth :: forall res a b.
 wrapTokenAuth tokenVerifier authErrorResponse handler request =
   orErrorResp authErrorResponse do
     token <- ExceptT $ pure $ retrieveToken request
-    tokenPayload <- ExceptT $ liftEffect $ tokenVerifier $ token
-    ExceptT $ map Right $ handler (AuthedRequest tokenPayload request)
+    tp <- ExceptT $ liftEffect $ tokenVerifier $ token
+    ExceptT $ map Right $ handler (AuthedRequest tp request)
