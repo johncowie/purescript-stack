@@ -10,14 +10,14 @@ import Utils.Env (Env, fromEnv, type (<:), EnvError)
 
 type TwilioConfigProxy = (
   accountId :: String <: "TWILIO_ACCOUNT_ID"
-, apiRoot :: String <: "TWILIO_API"
+-- , apiRoot :: String <: "TWILIO_API"
 , authToken :: AuthToken <: "TWILIO_AUTH_TOKEN"
 )
 
 type TwilioConfig = {
   accountId :: String
 , authToken :: AuthToken
-, apiRoot :: String
+-- , apiRoot :: String
 }
 
 loadTwilioConfig :: Env -> Either EnvError TwilioConfig

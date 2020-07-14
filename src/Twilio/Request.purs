@@ -8,6 +8,7 @@ where
 import Prelude
 import Data.Maybe (Maybe(..))
 import Utils.Env (class ParseValue)
+import Foreign.Object (Object)
 
 newtype AuthToken = AuthToken String
 
@@ -18,8 +19,8 @@ newtype Signature = Signature String
 signature :: String -> Signature
 signature = Signature
 
-validateRequest :: AuthToken -> Signature -> String -> String -> Boolean
+validateRequest :: AuthToken -> Signature -> String -> (Object String) -> Boolean
 validateRequest (AuthToken authToken) (Signature sig) url body =
   _validateRequest authToken sig url body
 
-foreign import _validateRequest :: String -> String -> String -> String -> Boolean
+foreign import _validateRequest :: String -> String -> String -> (Object String) -> Boolean

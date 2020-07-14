@@ -217,9 +217,9 @@ lookupHandler deps HP.Get ["test-auth"] =
   AuthM.wrapTokenAuth deps.tokenGen.verifyAndExtract jsonAuthErrorHandler $
   testAuthHandler
 lookupHandler deps HP.Post ["whatsapp"] =
-  TwilioAuth.wrapTwilioAuth deps.twilioConfig authErrorHandler $
   wrapLogRequestBody $
   Form.wrapFormURLEncoded badRequestHandler $
+  TwilioAuth.wrapTwilioAuth deps.twilioConfig authErrorHandler $
   Form.wrapDecodeFormURLEncoded badRequestHandler $
   whatsAppMessageHandler
 lookupHandler deps _ _ =

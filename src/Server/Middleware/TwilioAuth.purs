@@ -6,15 +6,29 @@ where
 import Prelude
 
 import Data.Either (Either(..), note)
-import Data.Maybe (fromMaybe)
+import Data.Maybe (Maybe(..), fromMaybe)
 import Data.String as Str
+import Data.Foldable (foldr)
+import Data.Tuple (Tuple(..), fst)
+import Data.Tuple.Nested (type (/\), (/\))
+import Data.FormURLEncoded (FormURLEncoded, toArray)
+
+import Effect.Aff (Aff)
+import Effect.Class (liftEffect)
+import Effect.Console as Console
+
+import Foreign.Object (Object)
+import Foreign.Object as Object
+
 import Server.Request (class Request)
 import Server.Request as Req
 import Twilio.Config (TwilioConfig)
 import Twilio.Request (validateRequest, signature)
-import Utils.ExceptT (booleanToError)
+import Utils.ExceptT (booleanToError, ExceptT(..), runExceptT, liftEffectRight)
 import Utils.Lens (type (:->))
 import Utils.Lens as L
+
+import Undefined (undefined)
 
 data TwilioRequest a = TwilioRequest (Req.BasicRequest a)
 
@@ -34,22 +48,33 @@ _underlyingRequest = L.lens getter setter
   where getter (TwilioRequest req) = req
         setter (TwilioRequest _) req = TwilioRequest req
 
+-- middleware for adding url to request
 requestedUrl :: forall req a. (Request req) => req a -> String
 requestedUrl req = "https://" <> host <> "/" <> path
   where host = fromMaybe "" $ Req.lookupHeader "Host" req
         path = Str.joinWith "/" $ L.view Req._path req
 
+orErrorResp :: forall res. (String -> Aff res) -> ExceptT String Aff res -> Aff res
+orErrorResp res exceptT  = do
+  e <- runExceptT exceptT
+  case e of
+    (Left err) -> res err
+    (Right v) -> pure v
+
+formToObject :: FormURLEncoded -> Object String
+formToObject formData = foldr insertInObject Object.empty (toArray formData)
+  where insertInObject (Tuple k (Just v)) o = Object.insert k v o
+        insertInObject (Tuple k Nothing) o = o
+
 wrapTwilioAuth :: forall a res. TwilioConfig
-               -> (String -> res)
-               -> (TwilioRequest a -> res)
-               -> (Req.BasicRequest a)
-               -> res
-wrapTwilioAuth config authErrorResponse router req = orError authErrorResponse do
-  sig <- note "Missing twilio auth header" $ Req.lookupHeader "x-twilio-signature" req
-  booleanToError "Unauthorised request" $ validateRequest authToken (signature sig) url body
-  pure $ router (TwilioRequest req)
-  where orError f (Left err) = f err
-        orError f (Right v) = v
-        authToken = config.authToken
-        body = L.view Req._body req
+               -> (String -> Aff res)
+               -> (TwilioRequest (FormURLEncoded /\ a) -> Aff res)
+               -> (Req.BasicRequest (FormURLEncoded /\ a))
+               -> Aff res
+wrapTwilioAuth config authErrorResponse router req = orErrorResp authErrorResponse do
+  sig <- ExceptT $ pure $ note "Missing twilio auth header" $ Req.lookupHeader "x-twilio-signature" req
+  ExceptT $ pure $ booleanToError "Unauthorised request" $ validateRequest authToken (signature sig) url body
+  ExceptT $ map Right $ router (TwilioRequest req)
+  where authToken = config.authToken
+        body = formToObject $ fst $ (L.view Req._val req)
         url = requestedUrl req
