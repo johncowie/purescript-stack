@@ -35,7 +35,7 @@ import Server.Request (class Request, BasicRequest)
 import Server.Request as Req
 import Twilio.Config (TwilioConfig, loadTwilioConfig)
 import Twilio.Twiml as Twiml
-import Twilio.WhatsApp (WhatsAppMessage, WhatsAppNumber)
+import Twilio.WhatsApp (WhatsAppMessage, WhatsAppNumber, WhatsAppDeliveryNotification)
 import Twilio.WhatsApp as WA
 import Type.Data.Row (RProxy(..))
 import Utils.Env (Env, type (<:), EnvError, fromEnv, getEnv)
@@ -115,7 +115,6 @@ testAuthHandler authedReq = pure $ JSON.okJsonResponse {msg: "Successfully authe
 messageResponder :: WhatsAppNumber -> String -> String
 messageResponder _ msg = "You said '" <> msg <> "' you crazy bastard."
 
--- TODO middleware for verifying headers and wrapping with AuthedRequest
 whatsAppMessageHandler :: TwilioAuth.TwilioRequest (WhatsAppMessage /\ Unit)
                        -> Aff (Response String)
 whatsAppMessageHandler req = do
@@ -123,6 +122,13 @@ whatsAppMessageHandler req = do
   liftEffect $ Console.log $ "TWIML: " <> twiml
   pure $ setContentType "text/xml" $ response 200 twiml
   where (whatsAppMessage /\ _) =  L.view Req._val req
+
+whatsAppMessageStatusHandler :: TwilioAuth.TwilioRequest (WhatsAppDeliveryNotification /\ Unit)
+                             -> Aff (Response String)
+whatsAppMessageStatusHandler req = do
+  liftEffect $ Console.log $ "Status: " <> show dn
+  pure $ response 200 "Thanks"
+  where (dn /\ _) = L.view Req._val req
 
 stubUserData :: forall req. req -> Aff JSONResponse
 stubUserData _ = pure $ JSON.okJsonResponse { sub: "123", name: "Bob", email: "bob@bob.com"}
@@ -217,11 +223,16 @@ lookupHandler deps HP.Get ["test-auth"] =
   AuthM.wrapTokenAuth deps.tokenGen.verifyAndExtract jsonAuthErrorHandler $
   testAuthHandler
 lookupHandler deps HP.Post ["whatsapp"] =
-  wrapLogRequestBody $
   Form.wrapFormURLEncoded badRequestHandler $
   TwilioAuth.wrapTwilioAuth deps.twilioConfig authErrorHandler $
   Form.wrapDecodeFormURLEncoded badRequestHandler $
   whatsAppMessageHandler
+lookupHandler deps HP.Post ["whatsapp", "status"] =
+  wrapLogRequestBody $
+  Form.wrapFormURLEncoded badRequestHandler $
+  TwilioAuth.wrapTwilioAuth deps.twilioConfig authErrorHandler $
+  Form.wrapDecodeFormURLEncoded badRequestHandler $
+  whatsAppMessageStatusHandler
 lookupHandler deps _ _ =
   JSON.wrapJsonResponse $
   const (pure $ JSON.jsonResponse 404 {response: "not found"})

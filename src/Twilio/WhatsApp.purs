@@ -1,6 +1,9 @@
 module Twilio.WhatsApp
 ( WhatsAppMessage
 , WhatsAppNumber
+, WhatsAppDeliveryNotification
+, WhatsAppDeliveryStatus
+, SID
 , toTwiml
 , replyToMessage
 )
@@ -10,6 +13,8 @@ import Prelude
 
 import Data.Either (Either(..))
 import Data.Argonaut.Decode (class DecodeJson, decodeJson)
+
+import Data.String as Str
 
 import Effect.Aff (Aff)
 
@@ -45,7 +50,7 @@ newtype WhatsAppMessage = WhatsAppMessage {
 , message :: String
 }
 
-instance decodeFormUrlEncodedWhatsAppMessage :: DecodeFormData WhatsAppMessage where
+instance decodeFormDataWhatsAppMessage :: DecodeFormData WhatsAppMessage where
   decodeFormData formData = do
     message <- formDataValue "Body" formData
     to <- formDataValue "To" formData >>= whatsAppNumber
@@ -55,22 +60,45 @@ instance decodeFormUrlEncodedWhatsAppMessage :: DecodeFormData WhatsAppMessage w
 instance decodeJsonWhatsAppMessage :: DecodeJson WhatsAppMessage where
   decodeJson json = WhatsAppMessage <$> decodeJson json
 
+data WhatsAppDeliveryStatus = Undelivered | Failed | Delivered | Sent | Read | Unsupported String
 
-type WhatsAppClient = {
-  sendMessage :: WhatsAppMessage -> Aff (Either String SID)
-  -- TODO receive message
-  -- TODO receive delivery notification
+instance showWhatsAppDeliveryStatus :: Show WhatsAppDeliveryStatus where
+  show Undelivered = "Undelivered"
+  show Failed = "Failed"
+  show Delivered = "Delivered"
+  show Sent = "Sent"
+  show Read = "Read"
+  show (Unsupported s) = "Unsupported Status: [" <> s <> "]"
+
+newtype WhatsAppDeliveryNotification = WhatsAppDeliveryNotification {
+  status :: WhatsAppDeliveryStatus
+, sid :: SID
+, recipient :: WhatsAppNumber
 }
 
-type WhatsAppParser = {
-  validateMessageSignature :: String -> Either String Unit
-}
+instance showWhatsAppDeliveryNotification :: Show WhatsAppDeliveryNotification where
+  show (WhatsAppDeliveryNotification {status,
+                                      sid: (SID sid),
+                                      recipient: (WhatsAppNumber recipient)}) =
+    show { status: show status
+         , sid
+         , recipient}
 
-type MsgPayload = {
-  body :: String
-, from :: WhatsAppNumber
-, to :: WhatsAppNumber
-}
+instance decodeFormDataWhatsAppDeliveryNotification :: DecodeFormData WhatsAppDeliveryNotification where
+  decodeFormData formData = do
+    sid <- SID <$> formDataValue "MessageSid" formData
+    recipient <- formDataValue "To" formData >>= whatsAppNumber
+    status <- deliveryStatus <$> formDataValue "MessageStatus" formData
+    pure $ WhatsAppDeliveryNotification {sid, recipient, status}
+
+deliveryStatus :: String -> WhatsAppDeliveryStatus
+deliveryStatus s = case (Str.toLower s) of
+  "undelivered" -> Undelivered
+  "delivered" -> Delivered
+  "failed" -> Failed
+  "sent" -> Sent
+  "read" -> Read
+  s -> Unsupported s
 
 whatsAppNumber :: String -> Either String WhatsAppNumber
 whatsAppNumber = WhatsAppNumber >>> Right
