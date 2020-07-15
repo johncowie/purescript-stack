@@ -6,13 +6,16 @@ module Twilio.WhatsApp
 , SID
 , toTwiml
 , replyToMessage
+, replyToMessageM
 )
 where
 
 import Prelude
 
+import Data.Identity (Identity(..))
 import Data.Either (Either(..))
 import Data.Argonaut.Decode (class DecodeJson, decodeJson)
+import Data.Newtype (unwrap)
 
 import Data.String as Str
 
@@ -44,11 +47,20 @@ newtype WhatsAppNumber = WhatsAppNumber String
 instance decodeJsonWhatsAppNumber :: DecodeJson WhatsAppNumber where
   decodeJson json = decodeJson json >>= whatsAppNumber
 
+derive instance ordWhatsAppNumber :: Ord WhatsAppNumber
+derive instance eqWhatsAppNumber :: Eq WhatsAppNumber
+
 newtype WhatsAppMessage = WhatsAppMessage {
   from :: WhatsAppNumber
 , to :: WhatsAppNumber
 , message :: String
 }
+
+messageSender :: WhatsAppMessage -> WhatsAppNumber
+messageSender (WhatsAppMessage {from}) = from
+
+messageBody :: WhatsAppMessage -> String
+messageBody (WhatsAppMessage {message}) = message
 
 instance decodeFormDataWhatsAppMessage :: DecodeFormData WhatsAppMessage where
   decodeFormData formData = do
@@ -118,8 +130,12 @@ toTwiml :: WhatsAppMessage -> Twiml.TwimlString
 toTwiml (WhatsAppMessage {to, from, message}) =
   Twiml.messagingResponse (toNumber to) (fromNumber from) (Twiml.message message)
 
+replyToMessageM :: forall m. (Bind m) => (Applicative m) => WhatsAppMessage -> (WhatsAppNumber -> String -> m String) -> m WhatsAppMessage
+replyToMessageM (WhatsAppMessage {to, from, message}) responseF = do
+  response <- responseF from message
+  pure $ WhatsAppMessage { to: from
+                         , from: to
+                         , message: response}
+
 replyToMessage :: WhatsAppMessage -> (WhatsAppNumber -> String -> String) -> WhatsAppMessage
-replyToMessage (WhatsAppMessage {to, from, message}) responseF =
-  WhatsAppMessage { to: from
-                  , from: to
-                  , message: responseF from message}
+replyToMessage msg f = unwrap $ replyToMessageM msg (\a b -> Identity $ f a b)

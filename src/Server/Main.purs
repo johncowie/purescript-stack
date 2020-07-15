@@ -33,6 +33,9 @@ import Server.OAuth.Google as Google
 import Server.OAuth.Stub as StubOAuth
 import Server.Request (class Request, BasicRequest)
 import Server.Request as Req
+import Server.ChatBot.WhatsApp (WhatsAppBot)
+import Dunbar.ChatBot (dunbarWhatsAppBot)
+
 import Twilio.Config (TwilioConfig, loadTwilioConfig)
 import Twilio.Twiml as Twiml
 import Twilio.WhatsApp (WhatsAppMessage, WhatsAppNumber, WhatsAppDeliveryNotification)
@@ -115,11 +118,13 @@ testAuthHandler authedReq = pure $ JSON.okJsonResponse {msg: "Successfully authe
 messageResponder :: WhatsAppNumber -> String -> String
 messageResponder _ msg = "You said '" <> msg <> "' you crazy bastard."
 
-whatsAppMessageHandler :: TwilioAuth.TwilioRequest (WhatsAppMessage /\ Unit)
-                       -> Aff (Response String)
-whatsAppMessageHandler req = do
-  let twiml = Twiml.toString $ WA.toTwiml $ WA.replyToMessage whatsAppMessage messageResponder
-  liftEffect $ Console.log $ "TWIML: " <> twiml
+whatsAppMessageHandler :: WhatsAppBot Aff
+                       -> TwilioAuth.TwilioRequest (WhatsAppMessage /\ Unit)
+                       -> Aff (Either String (Response String))
+whatsAppMessageHandler bot req = runExceptT do
+  reply <- ExceptT $ bot.handleMessage whatsAppMessage
+  let twiml = Twiml.toString $ WA.toTwiml $ reply
+  liftEffectRight $ Console.log $ "TWIML: " <> twiml
   pure $ setContentType "text/xml" $ response 200 twiml
   where (whatsAppMessage /\ _) =  L.view Req._val req
 
@@ -178,6 +183,7 @@ type Dependencies = {
 , oauth :: {google :: OAuth}
 , tokenGen :: JWTGenerator {sub :: UserId}
 , twilioConfig :: TwilioConfig
+, dunbarBot :: WhatsAppBot Aff
 }
 
 lookupHandler :: Dependencies -> HP.Method -> Array String -> (BasicRequest Unit -> Aff (Response String))
@@ -226,7 +232,8 @@ lookupHandler deps HP.Post ["whatsapp"] =
   Form.wrapFormURLEncoded badRequestHandler $
   TwilioAuth.wrapTwilioAuth deps.twilioConfig authErrorHandler $
   Form.wrapDecodeFormURLEncoded badRequestHandler $
-  whatsAppMessageHandler
+  wrapResponseErrors serverErrorHandler $
+  whatsAppMessageHandler deps.dunbarBot
 lookupHandler deps HP.Post ["whatsapp", "status"] =
   wrapLogRequestBody $
   Form.wrapFormURLEncoded badRequestHandler $
@@ -249,6 +256,9 @@ jsonErrorHandler :: String -> Aff (Response Json)
 jsonErrorHandler error = liftEffect $ do
   Console.error error
   pure $ JSON.jsonResponse 500 $ encodeJson {error: "Server error"}
+
+serverErrorHandler :: String -> Aff (Response String)
+serverErrorHandler = JSON.wrapJsonResponse jsonErrorHandler
 
 jsonBadRequestHandler :: String -> Aff (Response Json)
 jsonBadRequestHandler error = liftEffect $ do
@@ -335,11 +345,13 @@ main = void $ runAff affErrorHandler $ logError $ runExceptT $ do
   pool <- ExceptT $ showError <$> (liftEffect $ DB.getDB dbUri)
   googleOAuth <- ExceptT $ pure $ showError $ oauthForMode mode env
   twilioConfig <- ExceptT $ pure $ showError $ loadTwilioConfig env
+  dunbarBot <- ExceptT $ map Right $ dunbarWhatsAppBot
   let deps = {
     db: pool
   , oauth: {google: googleOAuth}
   , tokenGen: jwtGenerator config.jwtSecret
   , twilioConfig
+  , dunbarBot
   }
   ExceptT $ migrate $ migrator pool
   void $ ExceptT $ liftEffect $ Right <$> (HP.serve' {port, backlog, hostname} (app deps) do
