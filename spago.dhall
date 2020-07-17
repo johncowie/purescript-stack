@@ -10,6 +10,7 @@ You can edit this file as you like.
   , "bigints"
   , "browser-cookies"
   , "console"
+  , "coroutines"
   , "crypto"
   , "datetime"
   , "effect"

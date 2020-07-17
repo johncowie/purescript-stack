@@ -4,7 +4,9 @@ module Twilio.WhatsApp
 , WhatsAppDeliveryNotification
 , WhatsAppDeliveryStatus
 , SID
+, showWhatsAppNumber
 , toTwiml
+, toTwimlMaybe
 , replyToMessage
 , replyToMessageM
 )
@@ -13,6 +15,7 @@ where
 import Prelude
 
 import Data.Identity (Identity(..))
+import Data.Maybe (Maybe(..), maybe)
 import Data.Either (Either(..))
 import Data.Argonaut.Decode (class DecodeJson, decodeJson)
 import Data.Newtype (unwrap)
@@ -55,6 +58,9 @@ newtype WhatsAppMessage = WhatsAppMessage {
 , to :: WhatsAppNumber
 , message :: String
 }
+
+showWhatsAppNumber :: WhatsAppNumber -> String
+showWhatsAppNumber (WhatsAppNumber s) = s
 
 messageSender :: WhatsAppMessage -> WhatsAppNumber
 messageSender (WhatsAppMessage {from}) = from
@@ -130,12 +136,20 @@ toTwiml :: WhatsAppMessage -> Twiml.TwimlString
 toTwiml (WhatsAppMessage {to, from, message}) =
   Twiml.messagingResponse (toNumber to) (fromNumber from) (Twiml.message message)
 
-replyToMessageM :: forall m. (Bind m) => (Applicative m) => WhatsAppMessage -> (WhatsAppNumber -> String -> m String) -> m WhatsAppMessage
-replyToMessageM (WhatsAppMessage {to, from, message}) responseF = do
-  response <- responseF from message
-  pure $ WhatsAppMessage { to: from
-                         , from: to
-                         , message: response}
+toTwimlMaybe :: Maybe WhatsAppMessage -> Twiml.TwimlString
+toTwimlMaybe = maybe Twiml.emptyMessagingResponse toTwiml
 
-replyToMessage :: WhatsAppMessage -> (WhatsAppNumber -> String -> String) -> WhatsAppMessage
+replyToMessageM :: forall m. (Bind m)
+                => (Applicative m)
+                => WhatsAppMessage
+                -> (WhatsAppNumber -> String -> m (Maybe String)) -> m (Maybe WhatsAppMessage)
+replyToMessageM (WhatsAppMessage {to, from, message}) responseF = do
+  responseM <- responseF from message
+  case responseM of
+    (Just response) -> pure $ Just $ WhatsAppMessage { to: from
+                                                     , from: to
+                                                     , message: response}
+    Nothing -> pure $ Nothing
+
+replyToMessage :: WhatsAppMessage -> (WhatsAppNumber -> String -> Maybe String) -> Maybe WhatsAppMessage
 replyToMessage msg f = unwrap $ replyToMessageM msg (\a b -> Identity $ f a b)

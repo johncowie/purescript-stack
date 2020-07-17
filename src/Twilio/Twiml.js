@@ -11,3 +11,5 @@ exports._messagingResponse = function(to) {
     }
   }
 }
+
+exports._emptyMessagingResponse = (new twilio.twiml.MessagingResponse()).toString();

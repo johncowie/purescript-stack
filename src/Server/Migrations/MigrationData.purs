@@ -36,6 +36,22 @@ createSnapshotsTable id = {id, up, down, description}
         """
         description = "Create snapshots table"
 
+createStatesTable :: Int -> Migration Int String
+createStatesTable id = {id, up, down, description}
+  where up = """
+          CREATE TABLE IF NOT EXISTS states (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER NOT NULL REFERENCES users(id),
+            app VARCHAR NOT NULL,
+            state JSONB NOT NULL,
+            created TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+          );
+        """
+        down = """
+          DROP TABLE IF EXISTS states;
+        """
+        description = "Create states table"
+
 createUsersTable :: Int -> Migration Int String
 createUsersTable id = {id, up, down, description}
   where up = """
@@ -118,10 +134,11 @@ migrationData = [
 , revert (createTokensTable 4) 5
 , addUserIdToEvents 6
 , addUserIdToSnapshots 7
+, createStatesTable 8
 ]
 
 validateMigrations :: Array (Migration Int String) -> Either String (Array (Migration Int String))
-validateMigrations = Right
+validateMigrations = Right -- TODO?
 
 migrationStore :: forall m. (Monad m) => MigrationStore m Int String
 migrationStore = {loadMigrations: pure $ validateMigrations migrationData}

@@ -53,7 +53,7 @@ retrieveEventsHandler :: DB.Pool
                       -> Aff (Either String JSONResponse)
 retrieveEventsHandler pool req = runExceptT do
   events <- ExceptT $ showError <$> DB.retrieveEvents sub app after pool
-  let eventRecords = map (\(id /\ event) -> {id, event}) events
+  let eventRecords = map (\(id /\ (event :: Json)) -> {id, event}) events
   pure $ JSON.okJsonResponse eventRecords
   where ({app, after} /\ _) = L.view Req._val req
         {sub} =   AuthM.tokenPayload req
@@ -74,7 +74,7 @@ retrieveSnapshotHandler :: DB.Pool
 retrieveSnapshotHandler pool req = runExceptT do
   snapshotM <- ExceptT $ showError <$> DB.retrieveLatestSnapshot sub query.app pool
   pure $ case snapshotM of
-    Just (Tuple state upToEvent) -> JSON.okJsonResponse {state, upToEvent}
+    Just (Tuple (state :: Json) upToEvent) -> JSON.okJsonResponse {state, upToEvent}
     Nothing -> JSON.okJsonResponse {}
   where (query /\ _) = L.view Req._val req
         {sub} = AuthM.tokenPayload req
@@ -83,7 +83,7 @@ addSnapshotHandler :: forall a. DB.Pool
                    -> AuthedRequest (Json /\ {app :: AppName} /\ a)
                    -> Aff (Either String JSONResponse)
 addSnapshotHandler pool req = runExceptT do
-  {state, upToEvent} :: {state :: Json, upToEvent :: Int} <- ExceptT $ pure $ decodeJson json
+  {state, upToEvent} :: {state :: Json, upToEvent :: EventId} <- ExceptT $ pure $ decodeJson json
   void $ ExceptT $ showError <$> DB.insertSnapshot sub query.app state upToEvent pool
   pure successResponse
   where (json /\ query /\ _) = L.view Req._val req
@@ -123,7 +123,7 @@ whatsAppMessageHandler :: WhatsAppBot Aff
                        -> Aff (Either String (Response String))
 whatsAppMessageHandler bot req = runExceptT do
   reply <- ExceptT $ bot.handleMessage whatsAppMessage
-  let twiml = Twiml.toString $ WA.toTwiml $ reply
+  let twiml = Twiml.toString $ WA.toTwimlMaybe $ reply
   liftEffectRight $ Console.log $ "TWIML: " <> twiml
   pure $ setContentType "text/xml" $ response 200 twiml
   where (whatsAppMessage /\ _) =  L.view Req._val req
@@ -325,6 +325,8 @@ injectStubVars :: Mode -> Effect Unit
 injectStubVars Prod = pure unit
 injectStubVars Dev = do
   NP.setEnv "JWT_SECRET" "devsecret"
+  NP.setEnv "TWILIO_ACCOUNT_ID" "blah"
+  NP.setEnv "TWILIO_AUTH_TOKEN" "blah"
 
 oauthForMode :: Mode -> Env -> Either EnvError OAuth
 oauthForMode Prod env = Google.oauth env
@@ -345,7 +347,7 @@ main = void $ runAff affErrorHandler $ logError $ runExceptT $ do
   pool <- ExceptT $ showError <$> (liftEffect $ DB.getDB dbUri)
   googleOAuth <- ExceptT $ pure $ showError $ oauthForMode mode env
   twilioConfig <- ExceptT $ pure $ showError $ loadTwilioConfig env
-  dunbarBot <- ExceptT $ map Right $ dunbarWhatsAppBot
+  let dunbarBot = dunbarWhatsAppBot pool
   let deps = {
     db: pool
   , oauth: {google: googleOAuth}

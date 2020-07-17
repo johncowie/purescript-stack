@@ -7,6 +7,7 @@ module Twilio.Twiml
 , from
 , message
 , messagingResponse
+, emptyMessagingResponse
 , toString )
 where
 
@@ -35,6 +36,11 @@ message = Message
 messagingResponse :: To -> From -> Message -> TwimlString
 messagingResponse (To to_) (From from_) (Message msg_) = TwimlString $ _messagingResponse to_ from_ msg_
 
+emptyMessagingResponse :: TwimlString
+emptyMessagingResponse = TwimlString _emptyMessagingResponse
+
 -- TODO create type for AuthToken
 -- TODO create type for Signature
 foreign import _messagingResponse :: String -> String -> String -> String
+
+foreign import _emptyMessagingResponse :: String

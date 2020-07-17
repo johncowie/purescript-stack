@@ -1,6 +1,5 @@
 spago bundle-app --main Server.Main --to server-dist/server.js
-cp package.json server-dist/package.json
-cp package-lock.json server-dist/package-lock.json
+node_modules/noderify/bin.js server-dist/server.js -o server-dist/server.bundle.js
 cd server-dist
 git add .
 git commit -m "New build"

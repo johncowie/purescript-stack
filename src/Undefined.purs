@@ -4,5 +4,5 @@ where
 
 import Effect.Exception.Unsafe (unsafeThrow)
 
-undefined :: forall a. a
+undefined :: forall a b. a -> b
 undefined = unsafeThrow "undefined"

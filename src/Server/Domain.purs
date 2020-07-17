@@ -16,6 +16,10 @@ instance parseQueryParamAppName :: ParseQueryParam AppName where
 
 newtype EventId = EventId Int
 derive instance newtypeEventId :: Newtype EventId _
+instance encodeJsonEventId :: EncodeJson EventId where
+  encodeJson = unwrap >>> encodeJson
+instance decodeJsonEventId :: DecodeJson EventId where
+  decodeJson = decodeJson >>> map wrap
 
 instance parseQueryParamEventId :: ParseQueryParam EventId where
   parseQueryParam = parseNewtype
@@ -30,10 +34,11 @@ instance encodeJsonUserId :: EncodeJson UserId where
 instance decodeJsonUserId :: DecodeJson UserId where
   decodeJson = decodeJson >>> map wrap
 
-data OAuthProvider = Google | Stub
+data OAuthProvider = Google | Stub | WhatsApp
 instance showOAuthProvider :: Show OAuthProvider where
   show Google = "Google"
   show Stub = "Stub"
+  show WhatsApp = "WhatsApp"
 
 type NewUser = {
   thirdParty :: OAuthProvider

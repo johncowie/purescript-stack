@@ -1,5 +1,6 @@
 module Dunbar.State
 ( Friendships
+, State
 , Event
 , addFriendEvent
 , justSeenEvent
@@ -35,6 +36,8 @@ import Utils.JsonDateTime (JsonDateTime)
 import Utils.IdMap as IdMap
 
 type Friendships = IdMap.IdMap Friend
+type State = Friendships
+type Id = IdMap.Id
 
 data Event =
   AddFriend {firstName :: String, lastName :: String}

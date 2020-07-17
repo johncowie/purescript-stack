@@ -1,7 +1,9 @@
 module Utils.ExceptT
 ( showError
 , mapError
+, mapErrorT
 , module Control.Monad.Except.Trans
+, module Effect.Exception
 , right
 , liftEffectRight
 , booleanToError
@@ -14,10 +16,14 @@ import Data.Either (Either(..))
 
 import Effect (Effect)
 import Effect.Class (liftEffect, class MonadEffect)
+import Effect.Exception (Error, error)
 
 mapError :: forall a b c. (a -> c) -> Either a b -> Either c b
 mapError f (Left v) = Left (f v)
 mapError f (Right v) = Right v
+
+mapErrorT :: forall a b c m. (Functor m) => (a -> c) -> ExceptT a m b -> ExceptT c m b
+mapErrorT f et = ExceptT $ map (mapError f) $ runExceptT et
 
 showError :: forall e a. (Show e) => Either e a -> Either String a
 showError (Left err) = Left $ show err
