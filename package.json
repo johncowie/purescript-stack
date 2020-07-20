@@ -11,11 +11,9 @@
     "test": "spago run -m Test.Main",
     "server": "spago run -m Server.Main",
     "dev-server": "spago run -m Server.Main --node-args dev",
-    "build-server": "./scripts/build-server.sh",
-    "build-client": "npm run brick -- build",
-    "migrate": "spago run -m Server.DB",
-    "brick": "spago bundle-app --main Bricker --to dist/bricker.js && node dist/bricker.js",
-    "pscid": "pscid"
+    "build-server": "./brick release-server",
+    "build-client": "./brick build",
+    "migrate": "spago run -m Server.DB"
   },
   "author": "",
   "license": "ISC",

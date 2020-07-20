@@ -1,8 +1,10 @@
 module Dunbar.State
 ( Friendships
+, Id
 , State
 , Event
 , addFriendEvent
+, deleteFriendEvent
 , justSeenEvent
 , updateDesiredContactFrequencyEvent
 , updateNotesEvent
@@ -52,6 +54,9 @@ addFriendEvent firstName lastName = AddFriend {firstName, lastName}
 
 justSeenEvent :: IdMap.Id -> Instant -> Event
 justSeenEvent id instant = JustSeen {id, timeSeen: wrap (toDateTime instant)}
+
+deleteFriendEvent :: IdMap.Id -> Event
+deleteFriendEvent id = DeleteFriend {id}
 
 updateNotesEvent :: IdMap.Id -> (Maybe String) -> Event
 updateNotesEvent id notes = UpdateNotes {id, notes}
