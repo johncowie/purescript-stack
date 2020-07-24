@@ -13,6 +13,7 @@ You can edit this file as you like.
   , "coroutines"
   , "crypto"
   , "datetime"
+  , "debug"
   , "effect"
   , "exceptions"
   , "form-urlencoded"

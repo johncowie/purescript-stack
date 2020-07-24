@@ -23,8 +23,14 @@ toEnumUnsafe i = case toEnum i of
 dateToDateTime :: Date -> DateTime
 dateToDateTime d = DateTime d bottom
 
+dateToInstant :: Date -> Instant
+dateToInstant = dateToDateTime >>> fromDateTime
+
 showDate :: Date -> String
 showDate = either unsafeThrow identity <<< F.formatDateTime "DD/MM/YYYY" <<< dateToDateTime
+
+showInstantDate :: Instant -> String
+showInstantDate = either unsafeThrow identity <<< F.formatDateTime "DD/MM/YYYY" <<< toDateTime
 
 showDayMonth :: DateTime -> String
 showDayMonth = either unsafeThrow identity <<< F.formatDateTime "DD/MM"

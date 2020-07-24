@@ -1,4 +1,4 @@
-module Server.DB.Test where
+module Server.DBTest where
 
 import Prelude
 

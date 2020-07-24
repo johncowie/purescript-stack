@@ -12,7 +12,8 @@ import Effect.Exception.Unsafe (unsafeThrow)
 import Test.Spec.Reporter.Console (consoleReporter)
 import Test.Spec.Runner (runSpec)
 
-import Server.DB.Test as DB.Test
+import Server.DBTest as DBTest
+import Dunbar.StateTest as DunbarStateTest
 import Server.DB as DB
 
 import Utils.ExceptT (ExceptT(..), liftEffectRight, runExceptT, showError)
@@ -29,4 +30,5 @@ main :: Effect Unit
 main = throwError $ runExceptT do
   pool <- ExceptT $ (showError <$> DB.getDB "postgres://localhost:5432/events_store")
   liftEffectRight $ launchAff_ $ runSpec [consoleReporter] do
-    DB.Test.main pool
+    DBTest.main pool
+    DunbarStateTest.main

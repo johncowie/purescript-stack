@@ -39,7 +39,7 @@ _comments :: Todo :-> String
 _comments = L.newtypeProp (SProxy :: SProxy "comments")
 
 _completionDate :: Todo :-> Maybe DateTime
-_completionDate = L.newtypeProp (SProxy :: SProxy "completionDate") >>> L.liftLens L._newtype
+_completionDate = L.newtypeProp (SProxy :: SProxy "completionDate") >>> L.isoToLens (L.liftIso L.newtypeIso)
 
 markAsDone :: DateTime -> Todo -> Todo
 markAsDone time = L.set _completionDate (Just time)

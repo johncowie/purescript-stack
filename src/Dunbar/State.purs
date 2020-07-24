@@ -12,6 +12,7 @@ module Dunbar.State
 , processEvent
 , friendList
 , empty
+, overdueContacts
 )
 where
 
@@ -21,14 +22,16 @@ import Dunbar.Friend (Friend)
 import Dunbar.Friend as Friend
 import Dunbar.Data.Birthday (Birthday)
 
+import Data.Array (catMaybes, sortWith, reverse, filter)
 import Data.Maybe (Maybe(..))
-import Data.Tuple (Tuple)
+import Data.Tuple (Tuple(..), snd)
 import Data.Symbol (SProxy(..))
 import Data.Newtype (unwrap, wrap)
 import Data.Argonaut.Decode (class DecodeJson, decodeJson, (.:))
 import Data.Argonaut.Encode (class EncodeJson, encodeJson)
 import Data.Either (Either(..))
 import Data.DateTime.Instant (Instant, toDateTime, fromDateTime)
+import Data.Time.Duration (Days, convertDuration)
 import Data.Int (toNumber)
 
 import Record as Record
@@ -109,6 +112,14 @@ processEvent (UpdateBirthday r) = IdMap.update r.id (L.set Friend._birthday r.bi
 friendList :: Friendships -> Array (Tuple IdMap.Id Friend)
 friendList = IdMap.toArray
 
--- playEvents :: Array StateEvent -> Friendships
-
--- applyEvent :: StateEvent -> Friendships -> Friendships
+overdueContacts :: Instant -> Friendships -> Array (Tuple Friend Days)
+overdueContacts n = friendList
+                    >>> map snd
+                    >>> map (friendWithOverdueDays n)
+                    >>> catMaybes
+                    >>> sortWith snd
+                    >>> filter (snd >>> unwrap >>> (_ > 0.0))
+                    >>> reverse
+  where friendWithOverdueDays inst friend = do
+          dur <- Friend.overdueContact inst friend
+          pure $ Tuple friend (convertDuration dur)

@@ -39,10 +39,10 @@ _birthday :: L.Lens' Friend (Maybe Birthday)
 _birthday = L.prop (SProxy :: SProxy "birthday")
 
 _lastSeen :: L.Lens' Friend (Maybe Instant)
-_lastSeen = L.prop (SProxy :: SProxy "lastSeen") >>> L.liftLens L._newtype
+_lastSeen = L.prop (SProxy :: SProxy "lastSeen") >>> L.isoToLens (L.liftIso L.newtypeIso)
 
 _desiredContactFrequency :: L.Lens' Friend (Maybe Days)
-_desiredContactFrequency = L.prop (SProxy :: SProxy "desiredContactFrequency") >>> L.liftLens L._newtype
+_desiredContactFrequency = L.prop (SProxy :: SProxy "desiredContactFrequency") >>> L.isoToLens (L.liftIso L.newtypeIso)
 
 _notes :: L.Lens' Friend (Maybe String)
 _notes = L.prop (SProxy :: SProxy "notes")
