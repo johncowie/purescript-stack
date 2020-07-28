@@ -20,5 +20,5 @@ data Env = Env (Object String)
 getEnv :: Effect Env
 getEnv = Env <$> NP.getEnv
 
-fromEnv :: forall e r proxy. ReadEnv e r => proxy e -> Env -> Either (Array EnvError) (Record r)
+fromEnv :: forall e r proxy. ReadEnv e r => proxy e -> Env -> Either EnvError (Record r)
 fromEnv proxy (Env env) = TE.fromEnv proxy env

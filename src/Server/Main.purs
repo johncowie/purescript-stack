@@ -335,7 +335,7 @@ injectStubVars Dev = do
   NP.setEnv "TWILIO_ACCOUNT_ID" "blah"
   NP.setEnv "TWILIO_AUTH_TOKEN" "blah"
 
-oauthForMode :: Mode -> Env -> Either (Array EnvError) OAuth
+oauthForMode :: Mode -> Env -> Either EnvError OAuth
 oauthForMode Prod env = Google.oauth env
 oauthForMode Dev _ = Right StubOAuth.oauth
 
