@@ -118,7 +118,7 @@ overdueContacts n = friendList
                     >>> map (friendWithOverdueDays n)
                     >>> catMaybes
                     >>> sortWith snd
-                    >>> filter (snd >>> unwrap >>> (_ > 0.0))
+                    -- >>> filter (snd >>> unwrap >>> (_ > 0.0))
                     >>> reverse
   where friendWithOverdueDays inst friend = do
           dur <- Friend.overdueContact inst friend

@@ -22,12 +22,12 @@ wrapParseQueryParams :: forall a row list req res m.
                      => Applicative m
                      => Functor req
                      => Req.Request req
-                     => (String -> m res)
+                     => (Array String -> m res)
                      -> (req (Record row /\ a)
                      -> m res)
                      -> req a
                      -> m res
 wrapParseQueryParams errorHandler handler req =
   case parseQueryParams (L.view Req._query req) of
-    (Left err) -> errorHandler err
+    (Left errs) -> errorHandler errs
     (Right qp) -> handler $ map (Tuple qp) req

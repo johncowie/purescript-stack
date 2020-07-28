@@ -11,6 +11,7 @@ where
 
 import Prelude
 
+import Data.Tuple (Tuple(..))
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
 import Data.Int as Int
@@ -52,14 +53,14 @@ instance parseQueryParamMaybe :: (ParseQueryParam a) => ParseQueryParam (Maybe a
   parseQueryParam k Nothing = Right Nothing
   parseQueryParam k v = Just <$> parseQueryParam k v
 
-parseQueryParams :: forall row list. GDecodeQueryParams row list => RL.RowToList row list => Object String -> Either String (Record row)
+parseQueryParams :: forall row list. GDecodeQueryParams row list => RL.RowToList row list => Object String -> Either (Array String) (Record row)
 parseQueryParams object = gDecodeQueryParams object (RLProxy :: RLProxy list)
 
 parseNewtype :: forall w u. (Newtype w u) => (ParseQueryParam u) => QueryParamKey -> (Maybe String) -> Either String w
 parseNewtype k = parseQueryParam k >>> map wrap
 
 class GDecodeQueryParams (row :: # Type) (list :: RL.RowList) | list -> row where
-  gDecodeQueryParams :: FO.Object String -> RLProxy list -> Either String (Record row)
+  gDecodeQueryParams :: FO.Object String -> RLProxy list -> Either (Array String) (Record row)
 
 instance gDecodeQueryParamsNil :: GDecodeQueryParams () RL.Nil where
   gDecodeQueryParams _ _ = Right {}
@@ -79,8 +80,10 @@ instance gDecodeQueryParamsCons
         sProxy = SProxy
 
         fieldName = reflectSymbol sProxy
-
-    rest <- gDecodeQueryParams object (RLProxy :: RLProxy tail)
-
-    val <- parseQueryParam (wrap fieldName) (FO.lookup fieldName object)
-    pure $ Record.insert sProxy val rest
+        restResult = gDecodeQueryParams object (RLProxy :: RLProxy tail)
+        valResult = parseQueryParam (wrap fieldName) (FO.lookup fieldName object)
+    case (Tuple valResult restResult) of
+      (Tuple (Left valErr) (Left resErrs)) -> Left ([valErr] <> resErrs)
+      (Tuple (Left valErr) (Right res)) -> Left [valErr]
+      (Tuple (Right val) (Left resErrs)) -> Left resErrs
+      (Tuple (Right val) (Right res))  -> pure $ Record.insert sProxy val res

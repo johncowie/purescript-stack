@@ -44,7 +44,7 @@ type GoogleConfig = {
 , clientSecret :: String
 }
 
-loadConfig :: Env -> Either EnvError GoogleConfig
+loadConfig :: Env -> Either (Array EnvError) GoogleConfig
 loadConfig env = fromEnv (RProxy :: RProxy GoogleConfigProxy) env
 
 -- mkRedirectUri ::  -> RedirectQuery -> String
@@ -99,7 +99,7 @@ handleCode config code redirectUri = runExceptT do
   tokenData <- ExceptT $ fetchOpenIdData config redirectUri code
   ExceptT $ pure $ extractPayload tokenData.id_token
 
-oauth :: Env -> Either EnvError OAuth
+oauth :: Env -> Either (Array EnvError) OAuth
 oauth env = do
   config <- loadConfig env
   pure { redirect: redirect config

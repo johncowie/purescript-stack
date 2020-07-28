@@ -4,7 +4,7 @@ import Prelude
 
 import Data.Argonaut.Core (Json)
 import Data.Argonaut.Decode (decodeJson)
-import Data.Argonaut.Encode (encodeJson)
+import Data.Argonaut.Encode (class EncodeJson, encodeJson)
 import Data.Array (drop)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..), fromMaybe)
@@ -135,6 +135,10 @@ whatsAppMessageStatusHandler req = do
   pure $ response 200 "Thanks"
   where (dn /\ _) = L.view Req._val req
 
+testQueryParamsHandler :: BasicRequest ({a :: Int, b :: String, c :: String} /\ Unit)
+                       -> Aff (Response String)
+testQueryParamsHandler req = pure $ response 200 "Good job"
+
 stubUserData :: forall req. req -> Aff JSONResponse
 stubUserData _ = pure $ JSON.okJsonResponse { sub: "123", name: "Bob", email: "bob@bob.com"}
 
@@ -240,6 +244,9 @@ lookupHandler deps HP.Post ["whatsapp", "status"] =
   TwilioAuth.wrapTwilioAuth deps.twilioConfig authErrorHandler $
   Form.wrapDecodeFormURLEncoded badRequestHandler $
   whatsAppMessageStatusHandler
+lookupHandler deps HP.Get ["query"] =
+  wrapParseQueryParams (JSON.wrapJsonResponse jsonBadRequestHandler) $
+  testQueryParamsHandler
 lookupHandler deps _ _ =
   JSON.wrapJsonResponse $
   const (pure $ JSON.jsonResponse 404 {response: "not found"})
@@ -260,10 +267,10 @@ jsonErrorHandler error = liftEffect $ do
 serverErrorHandler :: String -> Aff (Response String)
 serverErrorHandler = JSON.wrapJsonResponse jsonErrorHandler
 
-jsonBadRequestHandler :: String -> Aff (Response Json)
-jsonBadRequestHandler error = liftEffect $ do
-  Console.log $ "Bad request: " <> error
-  pure $ JSON.jsonResponse 400 $ encodeJson {error}
+jsonBadRequestHandler :: forall err. (Show err) => (EncodeJson err) => err -> Aff (Response Json)
+jsonBadRequestHandler errors = liftEffect $ do
+  Console.log $ "Bad request: " <> show errors
+  pure $ JSON.jsonResponse 400 $ encodeJson {errors}
 
 badRequestHandler :: String -> Aff (Response String)
 badRequestHandler = JSON.wrapJsonResponse jsonBadRequestHandler
@@ -328,7 +335,7 @@ injectStubVars Dev = do
   NP.setEnv "TWILIO_ACCOUNT_ID" "blah"
   NP.setEnv "TWILIO_AUTH_TOKEN" "blah"
 
-oauthForMode :: Mode -> Env -> Either EnvError OAuth
+oauthForMode :: Mode -> Env -> Either (Array EnvError) OAuth
 oauthForMode Prod env = Google.oauth env
 oauthForMode Dev _ = Right StubOAuth.oauth
 

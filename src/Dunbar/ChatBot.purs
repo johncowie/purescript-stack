@@ -237,8 +237,8 @@ listFriends deps number = do
 listNextToSee :: St.State -> ExceptT String Aff BotResult
 listNextToSee st = do
   n <- liftEffectRight now
-  -- let nextToSee = take 10 $ St.overdueContacts n st -- FIXME
-  pure $ Idle /\ [NextToSee []]
+  let nextToSee = take 10 $ St.overdueContacts n st
+  pure $ Idle /\ [NextToSee nextToSee, MainMenu]
 
 markFriendSeenDate :: Deps -> WhatsAppNumber -> St.Id -> Friend.Friend -> (Instant -> Friend.Friend -> BotMessage) -> Instant -> ExceptT String Aff BotResult
 markFriendSeenDate deps number id friend successMsg dt = do

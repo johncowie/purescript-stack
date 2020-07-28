@@ -169,6 +169,25 @@ let additions =
           , repo = "https://github.com/vilu/purescript-browser-cookies.git"
           , version = "v0.0.1"
           }
+      , typedenv =
+          { dependencies =
+            [ "console"
+            , "effect"
+            , "foreign-object"
+            , "generics-rep"
+            , "integers"
+            , "node-process"
+            , "numbers"
+            , "psci-support"
+            , "record"
+            , "spec"
+            , "strings"
+            , "transformers"
+            , "typelevel-prelude"
+            ]
+          , repo = "https://github.com/johncowie/purescript-typedenv.git"
+          , version = "v0.0.2"
+          }
       }
 
 in  upstream // overrides // additions

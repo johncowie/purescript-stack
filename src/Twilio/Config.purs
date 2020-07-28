@@ -20,5 +20,5 @@ type TwilioConfig = {
 -- , apiRoot :: String
 }
 
-loadTwilioConfig :: Env -> Either EnvError TwilioConfig
+loadTwilioConfig :: Env -> Either (Array EnvError) TwilioConfig
 loadTwilioConfig env = fromEnv (RProxy :: RProxy TwilioConfigProxy) env
