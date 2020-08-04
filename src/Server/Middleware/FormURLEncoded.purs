@@ -18,10 +18,12 @@ import Data.Maybe (Maybe(..), fromMaybe)
 import Data.String as Str
 import Data.Tuple (Tuple(..), fst, snd)
 import Data.Tuple.Nested (type (/\), (/\))
+
 import Global (decodeURIComponent)
-import Server.Request (class Request)
-import Server.Request as Req
-import Utils.Lens as L
+
+import JohnCowie.HTTPure (class IsRequest)
+import JohnCowie.HTTPure as Req
+import JohnCowie.Data.Lens as L
 
 fixPluses :: String -> String
 fixPluses = Str.replaceAll (Str.Pattern "+") (Str.Replacement "%20")
@@ -49,7 +51,7 @@ class DecodeFormData a where
   decodeFormData :: FormURLEncoded -> Either String a
 
 wrapFormURLEncoded :: forall a req res.
-                      (Request req)
+                      (IsRequest req)
                    => (Functor req)
                    => (String -> res)
                    -> (req (FormURLEncoded /\ a) -> res)
@@ -61,7 +63,7 @@ wrapFormURLEncoded parseFail router req = case decode (fixPluses body) of
   where body = L.view Req._body req
 
 wrapDecodeFormURLEncoded :: forall a b req res.
-                            (Request req)
+                            (IsRequest req)
                          => (Functor req)
                          => (DecodeFormData b)
                          => (String -> res)

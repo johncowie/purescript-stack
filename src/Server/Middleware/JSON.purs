@@ -17,14 +17,12 @@ import Data.Argonaut.Encode (class EncodeJson, encodeJson) as JSON
 import Data.Argonaut.Decode (class DecodeJson, decodeJson) as JSON
 import Data.Argonaut.Parser (jsonParser) as JSON
 import Data.Either (Either(..))
-import Data.Tuple (Tuple(..), snd)
+import Data.Tuple (Tuple(..))
 import Data.Tuple.Nested (type (/\), (/\), get1)
 
-import Server.Request (class Request)
-import Server.Request as Req
-import Server.Handler (Response, response, addResponseHeader)
-
-import Utils.Lens as L
+import JohnCowie.HTTPure (class IsRequest, Response, response, addResponseHeader)
+import JohnCowie.HTTPure as Req
+import JohnCowie.Data.Lens as L
 
 type JSONResponse = Response JSON.Json
 
@@ -35,7 +33,7 @@ okJsonResponse :: forall a. (JSON.EncodeJson a) => a -> JSONResponse
 okJsonResponse = jsonResponse 200
 
 toJsonRequest :: forall req a.
-                 (Request req)
+                 (IsRequest req)
               => (Functor req)
               => req a
               -> Either String (req (Tuple JSON.Json a))
@@ -49,7 +47,7 @@ fromJsonResponse {headers, status, body} =
   {headers, status, body: JSON.stringify $ JSON.encodeJson body}
 
 wrapJsonRequest :: forall a req res.
-                   (Request req)
+                   (IsRequest req)
                 => (Functor req)
                 => (String -> res)
                 -> (req (JSON.Json /\ a) -> res)
@@ -61,7 +59,7 @@ wrapJsonRequest parseFail router req = case toJsonRequest req of
 
 wrapDecodeJson :: forall a b req res.
                   (JSON.DecodeJson a)
-               => (Request req)
+               => (IsRequest req)
                => (Functor req)
                => (String -> res)
                -> (req (a /\ b) -> res)

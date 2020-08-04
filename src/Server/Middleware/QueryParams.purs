@@ -8,12 +8,12 @@ import Data.Either (Either(..))
 
 import Prim.RowList as RL
 
-import Server.Request as Req
-import Server.QueryParams (class GDecodeQueryParams, parseQueryParams)
+import JohnCowie.HTTPure as Req
+import JohnCowie.HTTPure.QueryParams (class GDecodeQueryParams, parseQueryParams)
+import JohnCowie.Data.Lens as L
 
 import Data.Tuple (Tuple(..))
 import Data.Tuple.Nested (type (/\))
-import Utils.Lens as L
 
 wrapParseQueryParams :: forall a row list req res m.
                         GDecodeQueryParams row list
@@ -21,7 +21,7 @@ wrapParseQueryParams :: forall a row list req res m.
                      => Bind m
                      => Applicative m
                      => Functor req
-                     => Req.Request req
+                     => Req.IsRequest req
                      => (Array String -> m res)
                      -> (req (Record row /\ a)
                      -> m res)

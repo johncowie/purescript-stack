@@ -1,4 +1,4 @@
-module Server.QueryParams
+module JohnCowie.HTTPure.QueryParams
 ( class GDecodeQueryParams
 , class ParseQueryParam
 , QueryParamKey

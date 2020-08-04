@@ -8,7 +8,7 @@ where
 import Effect.Aff
 import Data.Either (Either)
 import Data.Newtype (class Newtype)
-import Server.QueryParams (class ParseQueryParam, parseNewtype)
+import JohnCowie.HTTPure.QueryParams (class ParseQueryParam, parseNewtype)
 
 {- Steps
    1. Client -> Server  Request redirect URI to OAuth Provider

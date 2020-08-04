@@ -18,7 +18,6 @@ import HTTPure as HP
 import Node.Process as NP
 import Server.DB as DB
 import Server.Domain (AppName, EventId, OAuthProvider(Google), UserId)
-import Server.Handler (Response, addResponseHeader, response, wrapCustom, setContentType)
 import Server.Middleware.Auth as AuthM
 import Server.Middleware.FormURLEncoded as Form
 import Server.Middleware.JSON (JSONResponse)
@@ -31,10 +30,12 @@ import Server.Migrations.Postgres (executor, intVersionStore)
 import Server.OAuth (OAuth, OAuthCode)
 import Server.OAuth.Google as Google
 import Server.OAuth.Stub as StubOAuth
-import Server.Request (class Request, BasicRequest)
-import Server.Request as Req
+
 import Server.ChatBot.WhatsApp (WhatsAppBot)
 import Dunbar.ChatBot (dunbarWhatsAppBot)
+
+import JohnCowie.HTTPure (class IsRequest, BasicRequest, Response, addResponseHeader, response, serve', setContentType)
+import JohnCowie.HTTPure as Req
 
 import Twilio.Config (TwilioConfig, loadTwilioConfig)
 import Twilio.Twiml as Twiml
@@ -159,7 +160,7 @@ wrapCors router req = do
          addResponseHeader "Access-Control-Allow-Headers" "*" $ res
 
 wrapLogRequest :: forall a req res.
-                  (Request req)
+                  (IsRequest req)
                => (req a -> Aff res)
                -> req a
                -> Aff res
@@ -168,7 +169,7 @@ wrapLogRequest router req = do
   router req
 
 wrapLogRequestBody :: forall req a res.
-                      (Request req)
+                      (IsRequest req)
                    => (req a -> Aff res)
                    -> req a
                    -> Aff res
@@ -283,9 +284,8 @@ jsonAuthErrorHandler error = liftEffect $ do
 authErrorHandler :: String -> Aff (Response String)
 authErrorHandler = JSON.wrapJsonResponse jsonAuthErrorHandler
 
-app :: Dependencies -> HP.Request -> HP.ResponseM
+app :: Dependencies -> BasicRequest Unit -> Aff (Response String)
 app deps =
-  wrapCustom $
   wrapLogRequest $
   wrapCors $
   baseRouter deps
@@ -363,7 +363,7 @@ main = void $ runAff affErrorHandler $ logError $ runExceptT $ do
   , dunbarBot
   }
   ExceptT $ migrate $ migrator pool
-  void $ ExceptT $ liftEffect $ Right <$> (HP.serve' {port, backlog, hostname} (app deps) do
+  void $ ExceptT $ liftEffect $ Right <$> (serve' {port, backlog, hostname} (app deps) do
     Console.log $ " ┌────────────────────────────────────────────┐"
     Console.log $ " │ Server now up on port " <> show port <> "                 │"
     Console.log $ " └────────────────────────────────────────────┘"

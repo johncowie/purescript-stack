@@ -6,7 +6,7 @@ import Data.Newtype (class Newtype, wrap, unwrap)
 import Data.Argonaut.Encode (class EncodeJson, encodeJson)
 import Data.Argonaut.Decode (class DecodeJson, decodeJson)
 
-import Server.QueryParams (class ParseQueryParam, parseNewtype)
+import JohnCowie.HTTPure.QueryParams (class ParseQueryParam, parseNewtype)
 
 newtype AppName = AppName String
 derive instance newtypeAppName :: Newtype AppName _

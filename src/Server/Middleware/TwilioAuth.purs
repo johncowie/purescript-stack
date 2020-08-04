@@ -10,29 +10,25 @@ import Data.Maybe (Maybe(..), fromMaybe)
 import Data.String as Str
 import Data.Foldable (foldr)
 import Data.Tuple (Tuple(..), fst)
-import Data.Tuple.Nested (type (/\), (/\))
+import Data.Tuple.Nested (type (/\))
 import Data.FormURLEncoded (FormURLEncoded, toArray)
 
 import Effect.Aff (Aff)
-import Effect.Class (liftEffect)
-import Effect.Console as Console
 
 import Foreign.Object (Object)
 import Foreign.Object as Object
 
-import Server.Request (class Request)
-import Server.Request as Req
+import JohnCowie.HTTPure (class IsRequest)
+import JohnCowie.HTTPure as Req
+import JohnCowie.Data.Lens (type (:->))
+import JohnCowie.Data.Lens as L
 import Twilio.Config (TwilioConfig)
 import Twilio.Request (validateRequest, signature)
-import Utils.ExceptT (booleanToError, ExceptT(..), runExceptT, liftEffectRight)
-import Utils.Lens (type (:->))
-import Utils.Lens as L
-
-import Undefined (undefined)
+import Utils.ExceptT (booleanToError, ExceptT(..), runExceptT)
 
 data TwilioRequest a = TwilioRequest (Req.BasicRequest a)
 
-instance requestAuthedRequest :: Request TwilioRequest where
+instance requestAuthedRequest :: IsRequest TwilioRequest where
   _headers = _underlyingRequest >>> Req._headers
   _httpVersion = _underlyingRequest >>> Req._httpVersion
   _method = _underlyingRequest >>> Req._method
@@ -49,7 +45,7 @@ _underlyingRequest = L.lens getter setter
         setter (TwilioRequest _) req = TwilioRequest req
 
 -- middleware for adding url to request
-requestedUrl :: forall req a. (Request req) => req a -> String
+requestedUrl :: forall req a. (IsRequest req) => req a -> String
 requestedUrl req = "https://" <> host <> "/" <> path
   where host = fromMaybe "" $ Req.lookupHeader "Host" req
         path = Str.joinWith "/" $ L.view Req._path req

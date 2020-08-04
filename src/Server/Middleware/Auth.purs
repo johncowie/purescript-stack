@@ -7,6 +7,8 @@ where
 
 import Prelude
 
+import Control.Monad.Except.Trans (ExceptT(..), runExceptT)
+
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
 import Data.Map as M
@@ -16,16 +18,14 @@ import Effect (Effect)
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 
-import Server.Request (class Request)
-import Server.Request as Req
-
-import Utils.ExceptT (ExceptT(..), runExceptT)
-import Utils.Lens as L
-import Utils.Lens (type (:->))
+import JohnCowie.HTTPure (class IsRequest)
+import JohnCowie.HTTPure as Req
+import JohnCowie.Data.Lens as L
+import JohnCowie.Data.Lens (type (:->))
 
 data AuthedRequest tokenPayload a = AuthedRequest tokenPayload (Req.BasicRequest a)
 
-instance requestAuthedRequest :: Request (AuthedRequest tp) where
+instance requestAuthedRequest :: IsRequest (AuthedRequest tp) where
   _headers = _underlyingRequest >>> Req._headers
   _httpVersion = _underlyingRequest >>> Req._httpVersion
   _method = _underlyingRequest >>> Req._method
@@ -44,7 +44,7 @@ _underlyingRequest = L.lens getter setter
 tokenPayload :: forall tp a. AuthedRequest tp a -> tp
 tokenPayload (AuthedRequest payload _) = payload
 
-retrieveToken :: forall req a token. (Request req) => (Newtype token String) => req a -> Either String token
+retrieveToken :: forall req a token. (IsRequest req) => (Newtype token String) => req a -> Either String token
 retrieveToken req = case M.lookup (wrap "AuthToken") headers of
   (Just token) -> Right (wrap token)
   Nothing -> Left "No auth token in header"
