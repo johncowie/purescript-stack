@@ -10,7 +10,7 @@ import Prelude
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
 import Data.Map as M
-import Data.Newtype (unwrap, wrap)
+import Data.Newtype (class Newtype, unwrap, wrap)
 
 import Effect (Effect)
 import Effect.Aff (Aff)
@@ -20,7 +20,6 @@ import Server.Request (class Request)
 import Server.Request as Req
 
 import Utils.ExceptT (ExceptT(..), runExceptT)
-import Utils.JWT (JWT)
 import Utils.Lens as L
 import Utils.Lens (type (:->))
 
@@ -45,7 +44,7 @@ _underlyingRequest = L.lens getter setter
 tokenPayload :: forall tp a. AuthedRequest tp a -> tp
 tokenPayload (AuthedRequest payload _) = payload
 
-retrieveToken :: forall req a. (Request req) => req a -> Either String JWT
+retrieveToken :: forall req a token. (Request req) => (Newtype token String) => req a -> Either String token
 retrieveToken req = case M.lookup (wrap "AuthToken") headers of
   (Just token) -> Right (wrap token)
   Nothing -> Left "No auth token in header"
@@ -58,8 +57,9 @@ orErrorResp res exceptT  = do
     (Left err) -> res err
     (Right v) -> pure v
 
-wrapTokenAuth :: forall res a b.
-                 (JWT -> Effect (Either String a))
+wrapTokenAuth :: forall res a b token.
+                 (Newtype token String)
+              => (token -> Effect (Either String a))
               -> (String -> Aff res)
               -> (AuthedRequest a b -> Aff res)
               -> Req.BasicRequest b

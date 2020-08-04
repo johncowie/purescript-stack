@@ -188,6 +188,18 @@ let additions =
           , repo = "https://github.com/johncowie/purescript-typedenv.git"
           , version = "v0.0.3"
           }
+      , johncowie-simple-lens =
+          { dependencies =
+            [ "maybe"
+            , "newtype"
+            , "ordered-collections"
+            , "prelude"
+            , "psci-support"
+            , "record"
+            ]
+          , repo = "https://github.com/johncowie/purescript-johncowie-simple-lens.git"
+          , version = "v0.0.1"
+          }
       }
 
 in  upstream // overrides // additions

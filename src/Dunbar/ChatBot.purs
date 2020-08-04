@@ -5,16 +5,15 @@ import Prelude
 import Control.Alt (class Alt, (<|>))
 import Data.Argonaut.Decode (class DecodeJson, decodeJson, (.:))
 import Data.Argonaut.Encode (class EncodeJson, encodeJson)
-import Data.Array (sort, filter, head, catMaybes, take, reverse, sortWith)
+import Data.Array (filter, head, sortWith, take)
 import Data.DateTime.Instant (Instant)
 import Data.Either (Either(..))
 import Data.Foldable (foldr, maximum)
-import Data.Int (round)
 import Data.Map as M
 import Data.Maybe (Maybe(..), fromMaybe)
-import Data.Newtype (wrap, unwrap)
+import Data.Newtype (wrap)
 import Data.String as Str
-import Data.Time.Duration (Seconds, Days, convertDuration)
+import Data.Time.Duration (Days)
 import Data.Traversable (class Traversable, for)
 import Data.Tuple (fst, snd)
 import Data.Tuple.Nested (type (/\), (/\))
@@ -32,10 +31,10 @@ import Server.DB (DB)
 import Server.DB as DB
 import Server.Domain (OAuthProvider(WhatsApp), UserId)
 import Twilio.WhatsApp (WhatsAppNumber, showWhatsAppNumber)
-import Utils.DateTime (daysToInt, showInstantDate, timeElapsedStr)
+import Utils.DateTime (daysToInt, showInstantDate)
 import Utils.ExceptT (ExceptT(..), runExceptT, showError, liftEffectRight)
 import Utils.Lens as L
-import Utils.String (words, unwords, unlines, stripPunctuation)
+import Utils.String (stripPunctuation, unlines, words)
 
 data ChatState = New
                | Idle
@@ -53,7 +52,7 @@ data BotMessage = Intro
                 | RequestContactFreq String String
                 | RequestDate
                 | AcknowledgeName String String
-                | FriendsList (Array String)
+                | FriendsList (Array Friend.Friend)
                 | NextToSee (Array (Friend.Friend /\ Days))
                 | JustSeenFriend Friend.Friend
                 | SawFriendOnDate Instant Friend.Friend
@@ -112,8 +111,12 @@ showBotMessage (RequestContactFreq fn ln) = Str.joinWith "\n" $
 showBotMessage Misunderstood = """Sorry, I didn't understand what you said."""
 showBotMessage (AcknowledgeName fn ln) = "Thanks, you added *" <> fn <> " " <> ln <> "*."
 -- TODO show chosen freq
-showBotMessage (FriendsList friendNames) =
-  "*Your friends:* \n\n" <> Str.joinWith "\n" friendNames
+showBotMessage (FriendsList friends) =
+  "*Your friends:* \n\n" <> (Str.joinWith "\n" $ map friendName friends)
+  where friendName f = case L.view Friend._lastSeen f of
+                          Nothing -> "_" <> (show $ L.view Friend._name f) <> "_"
+                          _ -> show $ L.view Friend._name f
+
 showBotMessage (NextToSee []) = unlines [
   "You are not overdue seeing any of your friends."
 , "Make sure you have updated when you last saw them."
@@ -231,7 +234,7 @@ saveFriend deps number firstName lastName freq = do
 listFriends :: Deps -> WhatsAppNumber -> ExceptT String Aff BotResult
 listFriends deps number = do
   state <- ExceptT $ loadState deps.db number
-  let friends = sort $ map (snd >>> L.view Friend._name >>> show) $ St.friendList state
+  let friends = sortWith (L.view Friend._name >>> show) $ map snd $ St.friendList state
   pure $ Idle /\ [FriendsList friends, MainMenu]
 
 listNextToSee :: St.State -> ExceptT String Aff BotResult
@@ -264,6 +267,7 @@ deleteFriend deps number id friend = do
 goBack :: Unit -> BotResult
 goBack _ = Idle /\ [MainMenu]
 
+-- FIXME maybe should pull friend out of state instead of keeping it around with UpdateFriend state
 updateFriendMenu :: (St.Id /\ Friend.Friend) -> BotResult
 updateFriendMenu (id /\ friend) = UpdateFriend {id, friend} /\ [UpdateFriendMenu $ show $ L.view Friend._name friend]
 
