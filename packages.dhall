@@ -246,6 +246,18 @@ let additions =
             , repo = "https://github.com/johncowie/purescript-johncowie-bricker.git"
             , version = "v0.0.1"
           }
+      , johncowie-postgres =
+          { dependencies =
+            [ "console"
+            , "effect"
+            , "parsing"
+            , "postgresql-client"
+            , "psci-support"
+            , "uri" ]
+            , repo = "https://github.com/johncowie/purescript-johncowie-postgres.git"
+            , version = "v0.0.1"
+          }
+
       }
 
 in  upstream // overrides // additions

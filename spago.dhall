@@ -23,6 +23,7 @@ You can edit this file as you like.
   , "johncowie-httpure"
   , "johncowie-jwt"
   , "johncowie-oauth"
+  , "johncowie-postgres"
   , "johncowie-simple-lens"
   , "js-timers"
   , "node-child-process"
