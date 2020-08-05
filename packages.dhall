@@ -218,6 +218,20 @@ let additions =
           , repo = "https://github.com/johncowie/purescript-johncowie-jwt.git"
           , version = "v0.0.1"
           }
+      , johncowie-oauth =
+          { dependencies =
+            [ "affjax"
+            , "console"
+            , "effect"
+            , "johncowie-httpure"
+            , "johncowie-jwt"
+            , "psci-support"
+            , "typedenv"
+            , "uri"
+            ]
+            , repo = "https://github.com/johncowie/purescript-johncowie-oauth.git"
+            , version = "v0.0.1"
+          }
       }
 
 in  upstream // overrides // additions

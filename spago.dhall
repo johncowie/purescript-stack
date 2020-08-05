@@ -21,6 +21,7 @@ You can edit this file as you like.
   , "httpure"
   , "johncowie-httpure"
   , "johncowie-jwt"
+  , "johncowie-oauth"
   , "johncowie-simple-lens"
   , "js-timers"
   , "node-child-process"
