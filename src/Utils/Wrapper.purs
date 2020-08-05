@@ -3,7 +3,7 @@ module Utils.Wrapper where
 import Prelude
 import Data.Newtype (class Newtype, unwrap, wrap)
 
-data Wrapper typ v = Wrapper v
+data Wrapper (sym :: Symbol) v = Wrapper v
 
 instance newtypeWrapper :: Newtype (Wrapper typ v) v where
   wrap v = Wrapper v

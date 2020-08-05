@@ -13,7 +13,6 @@ import Control.Monad.Except.Trans (ExceptT(..), runExceptT)
 import Data.Bifunctor (lmap)
 import Data.Either (Either)
 import Data.Newtype (unwrap, wrap)
-import Data.Symbol (SProxy)
 
 import Effect (Effect)
 import Effect.Exception (try)
@@ -23,9 +22,9 @@ import Node.Encoding (Encoding(UTF8))
 
 import Utils.Wrapper (Wrapper)
 
-type FilePath = Wrapper (SProxy "FilePath") String
-type TextFile = Wrapper (SProxy "TextFile") String
-type RelFilePath = Wrapper (SProxy "RelFilePath") String
+type FilePath = Wrapper "FilePath" String
+type TextFile = Wrapper "TextFile" String
+type RelFilePath = Wrapper "RelFilePath" String
 
 readFile :: FilePath -> Effect (Either String TextFile)
 readFile filePath = do

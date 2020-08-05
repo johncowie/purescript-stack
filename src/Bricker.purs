@@ -104,11 +104,11 @@ compileTasks idReader taskBuilder = logError $ runExceptT do
 
 --- end of library
 
-type FileHash = Wrapper (SProxy "FileHash") String
-type FileName = Wrapper (SProxy "FileName") String
-type DirPath = Wrapper (SProxy "DirPath") String
-type RelFileLink = Wrapper (SProxy "RelFileLink") String
-type CWD = Wrapper (SProxy "CWD") String
+type FileHash = Wrapper "FileHash" String
+type FileName = Wrapper "FileName" String
+type DirPath = Wrapper "DirPath" String
+type RelFileLink = Wrapper "RelFileLink" String
+type CWD = Wrapper "CWD" String
 
 readDir :: DirPath -> Effect (Either String (Array FileName))
 readDir dirPath = (lmap show) <$> runExceptT do
