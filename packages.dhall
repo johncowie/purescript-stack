@@ -211,7 +211,7 @@ let additions =
             , "psci-support"
             ]
             , repo = "https://github.com/johncowie/purescript-johncowie-httpure.git"
-            , version = "v0.0.1"
+            , version = "v0.0.2"
           }
       }
 
