@@ -1,4 +1,6 @@
-module Server.DBConnection (fromURI) where
+module JohnCowie.PostgreSQL.URI (
+  fromURI
+) where
 
 import Prelude
 import Data.Either (Either(..))

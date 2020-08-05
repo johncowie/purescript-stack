@@ -1,9 +1,10 @@
-module Server.Migrations.Postgres where
+module JohnCowie.PostgreSQL.Migrations where
 
 import Prelude
 import Control.Monad.Except.Trans (ExceptT(..), runExceptT)
-import Server.Migrations (Executor, VersionStore, Migration)
-import Server.DB (runQuery, showDBError)
+import JohnCowie.Migrations (Executor, VersionStore, Migration)
+import JohnCowie.PostgreSQL (runQuery)
+import Data.Bifunctor (lmap)
 import Data.Either (Either)
 import Data.Maybe (Maybe)
 import Data.Array (head)
@@ -17,7 +18,7 @@ executeMigration :: forall id. (Show id) => PG.Pool -> id -> String -> Aff (Eith
 executeMigration pool id query =
   runExceptT do
     liftEffect $ Console.log $ "Running migration: " <> show id
-    ExceptT $ showDBError
+    ExceptT $ (lmap show)
       <$> runQuery pool \conn -> do
           PG.execute conn (PG.Query query) Row0
 
@@ -49,11 +50,11 @@ updateVersionQuery =
 currentIntVersion :: PG.Pool -> Aff (Either String (Maybe Int))
 currentIntVersion pool =
   runExceptT do
-    ExceptT $ showDBError
+    ExceptT $ lmap show
       <$> runQuery pool \conn -> do
           PG.execute conn (PG.Query createTableQuery) Row0
     rows <-
-      ExceptT $ showDBError
+      ExceptT $ lmap show
         <$> runQuery pool \conn -> do
             PG.query conn (PG.Query retrieveVersionQuery) Row0
     pure $ (\(Row1 id) -> id) <$> head rows
@@ -61,7 +62,7 @@ currentIntVersion pool =
 updateIntVersion :: forall a. PG.Pool -> Boolean -> Migration Int a -> Aff (Either String Unit)
 updateIntVersion pool isUp migration =
   runExceptT do
-    ExceptT $ showDBError
+    ExceptT $ lmap show
       <$> runQuery pool \conn -> do
           PG.execute conn (PG.Query updateVersionQuery) (Row3 migration.id migration.description migrationType)
   where

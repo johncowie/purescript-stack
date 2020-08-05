@@ -27,7 +27,7 @@ import Effect.Now (now)
 import Effect.Ref as Ref
 import Server.ChatBot (ChatBot, ChatBotStore)
 import Server.ChatBot.WhatsApp (WhatsAppBot, whatsAppBot, class ToWhatsAppMsg)
-import Server.DB (DB)
+import JohnCowie.PostgreSQL (DB)
 import Server.DB as DB
 import Server.Domain (OAuthProvider(WhatsApp), UserId)
 import Twilio.WhatsApp (WhatsAppNumber, showWhatsAppNumber)

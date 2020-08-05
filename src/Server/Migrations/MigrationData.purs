@@ -1,7 +1,7 @@
 module Server.Migrations.MigrationData where
 
 import Prelude
-import Server.Migrations (MigrationStore, Migration)
+import JohnCowie.Migrations (MigrationStore, Migration, revert)
 import Data.Either (Either(..))
 
 createEventsTable :: Int -> Migration Int String
@@ -153,15 +153,6 @@ addUserIdToSnapshots id = { id, up, down, description }
                """
 
   description = "Add user id column to snapshots table"
-
-revert :: Migration Int String -> Int -> Migration Int String
-revert migration id = { id, up, down, description }
-  where
-  up = migration.down
-
-  down = migration.up
-
-  description = "REVERT: " <> show migration.id <> " (" <> migration.description <> ")"
 
 migrationData :: Array (Migration Int String)
 migrationData =

@@ -24,9 +24,10 @@ import JohnCowie.HTTPure.Middleware.JSON (JSONResponse)
 import JohnCowie.HTTPure.Middleware.JSON as JSON
 import JohnCowie.HTTPure.Middleware.QueryParams (wrapParseQueryParams)
 import Server.Middleware.TwilioAuth as TwilioAuth
-import Server.Migrations (migrate, Migrator)
+import JohnCowie.Migrations (migrate, Migrator)
+import JohnCowie.PostgreSQL.Migrations (executor, intVersionStore)
+import JohnCowie.PostgreSQL (DB, getDB)
 import Server.Migrations.MigrationData (migrationStore)
-import Server.Migrations.Postgres (executor, intVersionStore)
 import JohnCowie.OAuth (OAuth, OAuthCode)
 import JohnCowie.OAuth.Google as Google
 import JohnCowie.OAuth.Stub as StubOAuth
@@ -49,7 +50,7 @@ type AuthedRequest a
   = AuthM.AuthedRequest { sub :: UserId } a
 
 retrieveEventsHandler ::
-  DB.Pool ->
+  DB ->
   AuthedRequest ({ app :: AppName, after :: Maybe EventId } /\ Unit) ->
   Aff (Either String JSONResponse)
 retrieveEventsHandler pool req =
@@ -65,7 +66,7 @@ retrieveEventsHandler pool req =
 
 addEventsHandler ::
   forall a.
-  DB.Pool ->
+  DB ->
   AuthedRequest (Json /\ { app :: AppName } /\ a) ->
   Aff (Either String JSONResponse) -- TODO easier to read if you can see what the result type is
 addEventsHandler pool req =
@@ -78,7 +79,7 @@ addEventsHandler pool req =
   { sub } = AuthM.tokenPayload req
 
 retrieveSnapshotHandler ::
-  DB.Pool ->
+  DB ->
   AuthedRequest ({ app :: AppName } /\ Unit) ->
   Aff (Either String JSONResponse)
 retrieveSnapshotHandler pool req =
@@ -95,7 +96,7 @@ retrieveSnapshotHandler pool req =
 
 addSnapshotHandler ::
   forall a.
-  DB.Pool ->
+  DB ->
   AuthedRequest (Json /\ { app :: AppName } /\ a) ->
   Aff (Either String JSONResponse)
 addSnapshotHandler pool req =
@@ -120,7 +121,7 @@ oauthLoginHandler oauth req = pure $ response 200 { redirect: oauth.redirect que
 
 googleCodeHandler ::
   OAuth ->
-  DB.Pool ->
+  DB ->
   JWTGenerator { sub :: UserId } ->
   BasicRequest ({ code :: OAuthCode, redirect :: String } /\ Unit) ->
   Aff (Either String JSONResponse)
@@ -222,7 +223,7 @@ successResponse :: JSONResponse
 successResponse = JSON.okJsonResponse { message: "Success" }
 
 type Dependencies
-  = { db :: DB.Pool
+  = { db :: DB
     , oauth :: { google :: OAuth }
     , tokenGen :: JWTGenerator { sub :: UserId }
     , twilioConfig :: TwilioConfig
@@ -361,7 +362,7 @@ logError e = do
     (Left err) -> liftEffect $ Console.log $ "ERROR: " <> err
     _ -> pure unit
 
-migrator :: DB.Pool -> Migrator Aff Int String
+migrator :: DB -> Migrator Aff Int String
 migrator pool =
   { executor: executor pool
   , migrationStore
@@ -422,7 +423,7 @@ main =
           backlog = Nothing
 
           dbUri = fromMaybe "postgres://localhost:5432/events_store" config.databaseUri
-        pool <- ExceptT $ (lmap show) <$> (liftEffect $ DB.getDB dbUri)
+        pool <- ExceptT $ (lmap show) <$> (liftEffect $ getDB dbUri)
         googleOAuth <- ExceptT $ pure $ lmap show $ oauthForMode mode env
         twilioConfig <- ExceptT $ pure $ lmap show $ loadTwilioConfig env
         let

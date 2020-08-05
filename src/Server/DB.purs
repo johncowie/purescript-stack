@@ -9,46 +9,17 @@ import Data.Tuple.Nested ((/\))
 import Data.Either (Either(..))
 import Data.Newtype (unwrap, wrap)
 import Data.Traversable (for)
-import Effect (Effect)
 import Effect.Aff (Aff)
-import Effect.Console as Console
 import Data.Argonaut.Decode (class DecodeJson, decodeJson)
 import Data.Argonaut.Encode (class EncodeJson, encodeJson)
 import Database.PostgreSQL.PG as PG
 import Database.PostgreSQL.Row (Row0(Row0), Row1(Row1), Row2(Row2))
-import Server.DBConnection (fromURI)
+import JohnCowie.PostgreSQL (runQuery, toPGError)
 import Server.Domain (AppName, EventId, NewUser, User, UserId)
-import Control.Monad.Except.Trans (ExceptT(..), runExceptT)
+import Control.Monad.Except.Trans (ExceptT(..))
 
-type PG a
-  = ExceptT PG.PGError Aff a
-
-type Pool
-  = PG.Pool
-
-type DB
-  = Pool
-
-withConnection :: forall a. PG.Pool -> (PG.Connection -> PG a) -> PG a
-withConnection = PG.withConnection runExceptT
-
-withTransaction :: forall a. PG.Connection -> PG a -> PG a
-withTransaction = PG.withTransaction runExceptT
-
-createConnectionPool :: PG.PoolConfiguration -> Effect PG.Pool
-createConnectionPool poolConfig =
-  PG.newPool
-    (poolConfig { idleTimeoutMillis = Just 1000 })
-
-toPGError :: String -> PG.PGError
-toPGError s = PG.ConversionError s
-
-runQuery :: forall a. PG.Pool -> (PG.Connection -> PG a) -> Aff (Either PG.PGError a)
-runQuery pool query =
-  runExceptT do
-    withConnection pool
-      $ \conn -> do
-          withTransaction conn $ query conn
+-- type PG a
+--   = ExceptT PG.PGError Aff a
 
 addEvent ::
   forall a.
@@ -253,27 +224,3 @@ retrieveUsers pool =
         )
         Row0
     pure $ map (\(Row2 id name) -> { id: wrap id, name }) rows
-
-connectionMsg :: PG.PoolConfiguration -> String
-connectionMsg poolConfig = "Connected to database " <> db <> " at " <> hostAndPort
-  where
-  db = poolConfig.database
-
-  host = fromMaybe "" poolConfig.host
-
-  port = fromMaybe "" $ show <$> poolConfig.port
-
-  hostAndPort = host <> ":" <> port
-
-showDBError :: forall a. Either PG.PGError a -> Either String a
-showDBError (Left err) = Left (show err)
-
-showDBError (Right a) = Right a
-
-getDB :: String -> Effect (Either String PG.Pool)
-getDB dbUri = case fromURI dbUri of
-  (Left err) -> pure (Left err)
-  (Right poolConfig) -> do
-    pool <- createConnectionPool poolConfig
-    Console.log $ connectionMsg poolConfig
-    pure $ Right pool

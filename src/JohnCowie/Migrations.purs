@@ -1,6 +1,5 @@
-module Server.Migrations where
+module JohnCowie.Migrations where
 
--- import Effect.Aff (Aff)
 import Prelude
 import Control.Monad.Except.Trans (ExceptT(..), runExceptT)
 import Data.Either (Either(..))
@@ -79,3 +78,12 @@ rollback migrator@{ versionStore, migrationStore } =
     case (previousMigration currentVersion migrations) of
       Nothing -> pure unit
       (Just migration) -> ExceptT $ runMigration migrator migration
+
+revert :: forall a b. (Show a) => Migration a b -> a -> Migration a b
+revert migration id = { id, up, down, description }
+  where
+  up = migration.down
+
+  down = migration.up
+
+  description = "REVERT: " <> show migration.id <> " (" <> migration.description <> ")"

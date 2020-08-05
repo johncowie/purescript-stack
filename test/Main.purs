@@ -10,7 +10,7 @@ import Test.Spec.Reporter.Console (consoleReporter)
 import Test.Spec.Runner (runSpec)
 import Server.DBTest as DBTest
 import Dunbar.StateTest as DunbarStateTest
-import Server.DB as DB
+import JohnCowie.PostgreSQL as DB
 import Utils.ExceptT (ExceptT(..), liftEffectRight, runExceptT)
 
 throwError :: Effect (Either String Unit) -> Effect Unit
