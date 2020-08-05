@@ -27,7 +27,7 @@ import Effect.Aff (Aff)
 import Twilio.Twiml as Twiml
 import Twilio.Config (TwilioConfig)
 
-import Server.Middleware.FormURLEncoded (class DecodeFormData, formDataValue)
+import JohnCowie.HTTPure.Middleware.FormURLEncoded (class DecodeFormData, formDataValue)
 
 {-
 Authentication: need accountId and authToken

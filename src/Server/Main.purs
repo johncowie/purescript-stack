@@ -18,11 +18,10 @@ import HTTPure as HP
 import Node.Process as NP
 import Server.DB as DB
 import Server.Domain (AppName, EventId, OAuthProvider(Google), UserId)
-import Server.Middleware.Auth as AuthM
-import Server.Middleware.FormURLEncoded as Form
-import Server.Middleware.JSON (JSONResponse)
-import Server.Middleware.JSON as JSON
-import Server.Middleware.QueryParams (wrapParseQueryParams)
+import JohnCowie.HTTPure.Middleware.FormURLEncoded as Form
+import JohnCowie.HTTPure.Middleware.JSON (JSONResponse)
+import JohnCowie.HTTPure.Middleware.JSON as JSON
+import JohnCowie.HTTPure.Middleware.QueryParams (wrapParseQueryParams)
 import Server.Middleware.TwilioAuth as TwilioAuth
 import Server.Migrations (migrate, Migrator)
 import Server.Migrations.MigrationData (migrationStore)
@@ -34,6 +33,7 @@ import Server.OAuth.Stub as StubOAuth
 import Server.ChatBot.WhatsApp (WhatsAppBot)
 import Dunbar.ChatBot (dunbarWhatsAppBot)
 
+import JohnCowie.HTTPure.Middleware.Auth as AuthM
 import JohnCowie.HTTPure (class IsRequest, BasicRequest, Response, addResponseHeader, response, serve', setContentType)
 import JohnCowie.HTTPure as Req
 

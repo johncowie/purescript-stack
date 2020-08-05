@@ -200,6 +200,19 @@ let additions =
           , repo = "https://github.com/johncowie/purescript-johncowie-simple-lens.git"
           , version = "v0.0.1"
           }
+      , johncowie-httpure =
+          { dependencies =
+            [ "argonaut"
+            , "console"
+            , "effect"
+            , "form-urlencoded"
+            , "httpure"
+            , "johncowie-simple-lens"
+            , "psci-support"
+            ]
+            , repo = "https://github.com/johncowie/purescript-johncowie-httpure.git"
+            , version = "v0.0.1"
+          }
       }
 
 in  upstream // overrides // additions

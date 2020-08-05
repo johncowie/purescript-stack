@@ -19,6 +19,7 @@ You can edit this file as you like.
   , "form-urlencoded"
   , "formatters"
   , "httpure"
+  , "johncowie-httpure"
   , "johncowie-simple-lens"
   , "js-timers"
   , "node-child-process"
