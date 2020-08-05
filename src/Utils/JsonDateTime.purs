@@ -1,7 +1,6 @@
 module Utils.JsonDateTime where
 
 import Prelude
-
 import Data.DateTime as DT
 import Data.DateTime.Instant (Instant)
 import Data.DateTime.Instant as DI
@@ -13,7 +12,8 @@ import Data.Formatter.DateTime as F
 import Data.Newtype (class Newtype, unwrap, wrap)
 import Data.Either (either)
 
-newtype JsonDateTime = JsonDateTime DT.DateTime
+newtype JsonDateTime
+  = JsonDateTime DT.DateTime
 
 derive instance newtypeJsonDateTime :: Newtype JsonDateTime _
 
@@ -28,10 +28,12 @@ instance decodeJsonDateTime :: DecodeJson JsonDateTime where
 
 instance encodeJsonDateTime :: EncodeJson JsonDateTime where
   encodeJson jdt = either (const jsonNull) encodeJson dateStrE
-    where dateStrE = F.formatDateTime dateStrFormat (unwrap jdt)
----
+    where
+    dateStrE = F.formatDateTime dateStrFormat (unwrap jdt)
 
-newtype JsonInstant = JsonInstant Instant
+---
+newtype JsonInstant
+  = JsonInstant Instant
 
 derive instance newtypeJsonInstant :: Newtype JsonInstant _
 
@@ -45,9 +47,10 @@ instance decodeJsonInstant :: DecodeJson JsonInstant where
   decodeJson json = fromDateTime <$> decodeJson json
 
 instance encodeJsonInstant :: EncodeJson JsonInstant where
-  encodeJson = toDateTime >>> encodeJson 
+  encodeJson = toDateTime >>> encodeJson
 
-newtype JsonDays = JsonDays Days
+newtype JsonDays
+  = JsonDays Days
 
 derive instance newtypeJsonDays :: Newtype JsonDays _
 

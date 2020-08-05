@@ -1,25 +1,24 @@
 module Goals.Data.Todo where
 
 import Prelude
-
 import Data.Newtype (class Newtype, wrap)
 import Data.DateTime (DateTime)
 import Data.Symbol (SProxy(..))
 import Data.Maybe (Maybe(..), isJust)
 import Data.Argonaut.Decode (class DecodeJson)
 import Data.Argonaut.Encode (class EncodeJson)
-
 import Utils.JsonDateTime (JsonDateTime)
 import Utils.JsonNewtype (encodeNewtype, decodeNewtype)
 import Utils.Lens (type (:->))
 import Utils.Lens as L
 
-newtype Todo = Todo {
-  name :: String
-, due :: JsonDateTime
-, comments :: String
-, completionDate :: Maybe (JsonDateTime)
-}
+newtype Todo
+  = Todo
+  { name :: String
+  , due :: JsonDateTime
+  , comments :: String
+  , completionDate :: Maybe (JsonDateTime)
+  }
 
 derive instance newtypeGoal :: Newtype Todo _
 
@@ -48,4 +47,4 @@ isDone :: Todo -> Boolean
 isDone = L.view _completionDate >>> isJust
 
 newTodo :: String -> DateTime -> String -> Todo
-newTodo name due comments = wrap {name, due: wrap due, comments, completionDate: Nothing}
+newTodo name due comments = wrap { name, due: wrap due, comments, completionDate: Nothing }

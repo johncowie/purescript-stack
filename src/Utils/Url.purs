@@ -1,11 +1,10 @@
 module Utils.Url
-( getWindowUrl
-, getQueryParams
-, getQueryParam
-, getPath
-, redirect
-)
-where
+  ( getWindowUrl
+  , getQueryParams
+  , getQueryParam
+  , getPath
+  , redirect
+  ) where
 
 import Prelude
 import Effect (Effect)
@@ -26,7 +25,8 @@ import Data.String.Regex.Flags as Flags
 import Data.Array as Array
 import Data.Array.NonEmpty as NonEmpty
 
-type URL = String
+type URL
+  = String
 
 redirect :: String -> Effect Unit
 redirect url = do
@@ -42,15 +42,19 @@ getWindowUrl = do
 
 queryTuple :: String -> Maybe (Tuple String String)
 queryTuple s = case String.split (Pattern "=") s of
-  [k, v] -> Just (Tuple k v)
+  [ k, v ] -> Just (Tuple k v)
   otherwise -> Nothing
 
 getQueryParams :: URL -> Map String String
-getQueryParams s = Maybe.fromMaybe Map.empty $ do
-  queryStr <- Array.last $ String.split (Pattern "?") s
-  let queries = String.split (Pattern "&") queryStr
-      queryTuples = Array.catMaybes $ map queryTuple queries
-  pure $ Map.fromFoldable queryTuples
+getQueryParams s =
+  Maybe.fromMaybe Map.empty
+    $ do
+        queryStr <- Array.last $ String.split (Pattern "?") s
+        let
+          queries = String.split (Pattern "&") queryStr
+
+          queryTuples = Array.catMaybes $ map queryTuple queries
+        pure $ Map.fromFoldable queryTuples
 
 getQueryParam :: String -> URL -> Maybe String
 getQueryParam k url = Map.lookup k $ getQueryParams url
@@ -66,4 +70,5 @@ regexUnsafe s flags = either unsafeThrow identity $ Regex.regex s flags
 
 getPath :: String -> Array String
 getPath s = map (remove "/") $ Maybe.maybe [] NonEmpty.catMaybes $ Regex.match r $ stripScheme s
-  where r = regexUnsafe "\\/([^\\/\\?]+)" Flags.global
+  where
+  r = regexUnsafe "\\/([^\\/\\?]+)" Flags.global

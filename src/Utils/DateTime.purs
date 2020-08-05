@@ -1,7 +1,6 @@
 module Utils.DateTime where
 
 import Prelude
-
 import Data.Enum (class BoundedEnum, toEnum)
 import Data.Date (canonicalDate, Date)
 import Data.Formatter.DateTime as F
@@ -55,24 +54,38 @@ daysToInt = unwrap >>> round
 
 timeElapsedStr :: Seconds -> String
 timeElapsedStr secs = case round $ unwrap secs of
-  s | s < secondsLimit -> show s <> " seconds"
-  s | s < minutesLimit -> show (mins s) <> " minutes"
-  s | s < hoursLimit -> show (hours s) <> " hours"
+  s
+    | s < secondsLimit -> show s <> " seconds"
+  s
+    | s < minutesLimit -> show (mins s) <> " minutes"
+  s
+    | s < hoursLimit -> show (hours s) <> " hours"
   s -> "Some time has elapsed"
-  where secondsLimit = 120
-        minutesLimit = minSecs * 120
-        hoursLimit = hourSecs * 24
-        daysHoursLimit = daySecs * 3
-        mins s = round (toNumber s / toNumber minSecs)
-        hours s = round (toNumber s / toNumber hourSecs)
-        days s = round (toNumber s / toNumber daySecs)
-        minSecs = 60
-        hourSecs = minSecs * 60
-        daySecs = hourSecs * 24
+  where
+  secondsLimit = 120
+
+  minutesLimit = minSecs * 120
+
+  hoursLimit = hourSecs * 24
+
+  daysHoursLimit = daySecs * 3
+
+  mins s = round (toNumber s / toNumber minSecs)
+
+  hours s = round (toNumber s / toNumber hourSecs)
+
+  days s = round (toNumber s / toNumber daySecs)
+
+  minSecs = 60
+
+  hourSecs = minSecs * 60
+
+  daySecs = hourSecs * 24
 
 nextDateTime :: DateTime -> DateTime -> DateTime
 nextDateTime start end = fromMaybe end $ adjust d end
-  where (d :: Seconds) = diff end start
+  where
+  (d :: Seconds) = diff end start
 
 -- newDateTime :: Int -> Int -> Int -> DateTime
 -- newDateTime y m d = DateTime (newDate y m d) midnight

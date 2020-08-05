@@ -1,6 +1,4 @@
-module Utils.NumberFormat
-( toDP )
-where
+module Utils.NumberFormat (toDP) where
 
 import Data.Number.Format as NF
 

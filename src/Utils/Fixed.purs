@@ -1,7 +1,6 @@
 -- | This module defines a numeric type `Fixed` for working with
 -- | fixed point numbers in base 10. The precision is tracked in
 -- | the types.
-
 -- COPY of https://raw.githubusercontent.com/lumihq/purescript-fixed-precision/master/src/Data/Fixed.purs
 module Utils.Fixed
   ( Fixed
@@ -37,7 +36,6 @@ module Utils.Fixed
   ) where
 
 import Prelude
-
 import Control.MonadZero (guard)
 import Data.Array (replicate)
 import Data.BigInt (BigInt)
@@ -61,28 +59,36 @@ foreign import data One :: Precision
 -- | One more decimal place
 foreign import data TenTimes :: Precision -> Precision
 
-type P1 = One
+type P1
+  = One
 
 -- | One decimal place
-type P10 = TenTimes P1
+type P10
+  = TenTimes P1
 
 -- | Two decimal places
-type P100 = TenTimes P10
+type P100
+  = TenTimes P10
 
 -- | Three decimal places
-type P1000 = TenTimes P100
+type P1000
+  = TenTimes P100
 
 -- | Four decimal places
-type P10000 = TenTimes P1000
+type P10000
+  = TenTimes P1000
 
 -- | Five decimal places
-type P100000 = TenTimes P10000
+type P100000
+  = TenTimes P10000
 
 -- | Six decimal places
-type P1000000 = TenTimes P100000
+type P1000000
+  = TenTimes P100000
 
 -- | A value-level proxy for a type-level precision.
-data PProxy (precision :: Precision) = PProxy
+data PProxy (precision :: Precision)
+  = PProxy
 
 -- | Precision which is known, i.e. it can be reflected to a
 -- | value at runtime, given a `PProxy`.
@@ -110,11 +116,11 @@ instance knownPrecisionTenTimes :: KnownPrecision p => KnownPrecision (TenTimes 
 -- | > reflectPrecisionDecimalPlaces (PProxy :: PProxy P1000)
 -- | 3
 -- | ```
-reflectPrecisionDecimalPlaces
-  :: forall precision
-   . KnownPrecision precision
-  => PProxy precision
-  -> Int
+reflectPrecisionDecimalPlaces ::
+  forall precision.
+  KnownPrecision precision =>
+  PProxy precision ->
+  Int
 reflectPrecisionDecimalPlaces _ =
   let
     p = reflectPrecision (PProxy :: PProxy precision)
@@ -136,9 +142,13 @@ reflectPrecisionDecimalPlaces _ =
 -- | Nothing
 -- | ```
 reifyPrecision :: forall r. Int -> (forall precision. KnownPrecision precision => PProxy precision -> r) -> Maybe r
-reifyPrecision n _ | n < 0 = Nothing
+reifyPrecision n _
+  | n < 0 = Nothing
+
 reifyPrecision 0 f = Just (f (PProxy :: PProxy One))
-reifyPrecision n f = reifyPrecision (n - 1) (f <<< liftTenTimes) where
+
+reifyPrecision n f = reifyPrecision (n - 1) (f <<< liftTenTimes)
+  where
   liftTenTimes :: forall precision. PProxy precision -> PProxy (TenTimes precision)
   liftTenTimes _ = PProxy
 
@@ -153,7 +163,8 @@ reifyPrecision n f = reifyPrecision (n - 1) (f <<< liftTenTimes) where
 -- | associativity law, but like `Number`, most of the other laws of the
 -- | numeric hierarchy classes are not satisfied due to rounding errors.
 -- |
-newtype Fixed (precision :: Precision) = Fixed BigInt.BigInt
+newtype Fixed (precision :: Precision)
+  = Fixed BigInt.BigInt
 
 -- | Extract the numerator from the representation of the number as a fraction.
 -- |
@@ -171,19 +182,19 @@ denominator :: forall precision. KnownPrecision precision => Fixed precision -> 
 denominator _ = reflectPrecision (PProxy :: PProxy precision)
 
 -- | Create a `Fixed` representation of an `Int`.
-fromInt
-  :: forall precision
-   . KnownPrecision precision
-  => Int
-  -> Fixed precision
+fromInt ::
+  forall precision.
+  KnownPrecision precision =>
+  Int ->
+  Fixed precision
 fromInt = fromBigInt <<< BigInt.fromInt
 
 -- | Create a `Fixed` representation of a `BigInt`.
-fromBigInt
-  :: forall precision
-   . KnownPrecision precision
-  => BigInt
-  -> Fixed precision
+fromBigInt ::
+  forall precision.
+  KnownPrecision precision =>
+  BigInt ->
+  Fixed precision
 fromBigInt i = Fixed (i * reflectPrecision (PProxy :: PProxy precision))
 
 -- | Approximate a `Number` as a `Fixed` value with the specified precision.
@@ -205,22 +216,22 @@ fromBigInt i = Fixed (i * reflectPrecision (PProxy :: PProxy precision))
 -- | > fromNumber (1.0 / 0.0) :: Maybe (Fixed P100)
 -- | Nothing
 -- | ```
-fromNumber
-  :: forall precision
-   . KnownPrecision precision
-  => Number
-  -> Maybe (Fixed precision)
+fromNumber ::
+  forall precision.
+  KnownPrecision precision =>
+  Number ->
+  Maybe (Fixed precision)
 fromNumber n = map Fixed (BigInt.fromNumber (Math.round (n * BigInt.toNumber (reflectPrecision (PProxy :: PProxy precision)))))
 
 -- | Convert a `Fixed` value to a `Number`.
 -- |
 -- | _Note_: Overflow is possible here if the numerator is sufficiently large.
 -- | Consider using `toString` instead.
-toNumber
-  :: forall precision
-   . KnownPrecision precision
-  => Fixed precision
-  -> Number
+toNumber ::
+  forall precision.
+  KnownPrecision precision =>
+  Fixed precision ->
+  Number
 toNumber f = BigInt.toNumber (numerator f) / BigInt.toNumber (denominator f)
 
 -- | Calculate the largest whole number smaller than or equal to the provided
@@ -236,15 +247,19 @@ toNumber f = BigInt.toNumber (numerator f) / BigInt.toNumber (denominator f)
 -- | > floor $ fromNumber (-0.1) :: Maybe (Fixed P10)
 -- | (Just (fromNumber (-1.0) :: P10))
 -- | ```
-floor
-  :: forall precision
-   . KnownPrecision precision
-  => Fixed precision
-  -> Fixed precision
-floor n = Fixed (numerator n - x) where
+floor ::
+  forall precision.
+  KnownPrecision precision =>
+  Fixed precision ->
+  Fixed precision
+floor n = Fixed (numerator n - x)
+  where
   d = denominator n
+
   m = numerator n `mod` d
-  x | m < zero = m + d
+
+  x
+    | m < zero = m + d
     | otherwise = m
 
 -- | Calculate the smallest whole number greater than or equal to the provided
@@ -260,15 +275,19 @@ floor n = Fixed (numerator n - x) where
 -- | > map ceil $ fromNumber (-0.1) :: Maybe (Fixed P10)
 -- | (Just (fromNumber 0.0 :: P10))
 -- | ```
-ceil
-  :: forall precision
-   . KnownPrecision precision
-  => Fixed precision
-  -> Fixed precision
-ceil n = Fixed (numerator n + x) where
+ceil ::
+  forall precision.
+  KnownPrecision precision =>
+  Fixed precision ->
+  Fixed precision
+ceil n = Fixed (numerator n + x)
+  where
   d = denominator n
+
   m = numerator n `mod` d
-  x | m == zero = zero
+
+  x
+    | m == zero = zero
     | m < zero = -m
     | otherwise = d - m
 
@@ -287,38 +306,41 @@ ceil n = Fixed (numerator n + x) where
 -- | > map round $ fromNumber (-0.1) :: Maybe (Fixed P10)
 -- | (Just (fromNumber 0.0 :: P10))
 -- | ```
-round
-  :: forall precision
-   . KnownPrecision precision
-  => Fixed precision
-  -> Fixed precision
-round n = Fixed (numerator n + x) where
+round ::
+  forall precision.
+  KnownPrecision precision =>
+  Fixed precision ->
+  Fixed precision
+round n = Fixed (numerator n + x)
+  where
   d = denominator n
+
   m = numerator n `mod` d
-  x | m < zero && (m + d) * BigInt.fromInt 2 >= d = -m
+
+  x
+    | m < zero && (m + d) * BigInt.fromInt 2 >= d = -m
     | m * BigInt.fromInt 2 >= d = d - m
     | otherwise = -m
 
 -- | Change the precision of a fixed-point number. If the new precision is
 -- | less than the old precision, extra decimal places will be lost.
-rescale
-  :: forall precision1 precision2
-   . KnownPrecision precision1
-  => KnownPrecision precision2
-  => Fixed precision1
-  -> Fixed precision2
-rescale =
-  unsafePartial (fromJust <<< fromString <<< toString)
+rescale ::
+  forall precision1 precision2.
+  KnownPrecision precision1 =>
+  KnownPrecision precision2 =>
+  Fixed precision1 ->
+  Fixed precision2
+rescale = unsafePartial (fromJust <<< fromString <<< toString)
 
 -- | Division of fixed-precision numbers. This function is deprecated; you
 -- | should use `/` from the `EuclideanRing` instance instead.
-approxDiv
-  :: forall precision
-   . Warn (Text "This function is deprecated, please use `/` instead")
-  => KnownPrecision precision
-  => Fixed precision
-  -> Fixed precision
-  -> Fixed precision
+approxDiv ::
+  forall precision.
+  Warn (Text "This function is deprecated, please use `/` instead") =>
+  KnownPrecision precision =>
+  Fixed precision ->
+  Fixed precision ->
+  Fixed precision
 approxDiv = div
 
 -- | Parse a fixed-precision number from a string. Any decimal digits which are
@@ -341,40 +363,40 @@ approxDiv = div
 -- | (Just (fromString "9007199254740992.0" :: P10))
 -- | ```
 -- |
-fromString
-  :: forall precision
-   . KnownPrecision precision
-  => String
-  -> Maybe (Fixed precision)
+fromString ::
+  forall precision.
+  KnownPrecision precision =>
+  String ->
+  Maybe (Fixed precision)
 fromString str' =
   let
     numDigits = reflectPrecisionDecimalPlaces (PProxy :: PProxy precision)
+
     denom = reflectPrecision (PProxy :: PProxy precision)
 
     isDigit = between '0' '9'
 
-    { sign, str } =
-      case String.stripPrefix (String.Pattern "-") str' of
-        Just str ->
-          { sign: negate one, str }
-        Nothing ->
-          { sign: one, str: str' }
-    wholeDigits = StringCU.countPrefix isDigit str
-    { before, after } = StringCU.splitAt wholeDigits str
+    { sign, str } = case String.stripPrefix (String.Pattern "-") str' of
+      Just str -> { sign: negate one, str }
+      Nothing -> { sign: one, str: str' }
 
-  in do
-    guard (not (String.null str))
-    wholePart <-
-      BigInt.fromString before
-    fractionPart <-
-      case after of
+    wholeDigits = StringCU.countPrefix isDigit str
+
+    { before, after } = StringCU.splitAt wholeDigits str
+  in
+    do
+      guard (not (String.null str))
+      wholePart <-
+        BigInt.fromString before
+      fractionPart <- case after of
         "" -> pure zero
         "." -> pure zero
         _ -> do
           guard (StringCU.charAt 0 after == Just '.')
-          let raw = StringCU.drop 1 after
+          let
+            raw = StringCU.drop 1 after
           BigInt.fromString (rightJustify numDigits '0' raw)
-    pure (Fixed (sign * (wholePart * denom + fractionPart)))
+      pure (Fixed (sign * (wholePart * denom + fractionPart)))
 
 -- | Represent a `Fixed` value as a string, with the given number of decimal
 -- | places.
@@ -391,27 +413,32 @@ fromString str' =
 -- | > map (toStringWithPrecision 3) (fromString "1234.5" :: Maybe (Fixed P10))
 -- | (Just "1234.500")
 -- | ```
-toStringWithPrecision
-  :: forall precision
-   . KnownPrecision precision
-  => Int
-  -> Fixed precision
-  -> String
+toStringWithPrecision ::
+  forall precision.
+  KnownPrecision precision =>
+  Int ->
+  Fixed precision ->
+  String
 toStringWithPrecision requestedDigits fixed@(Fixed n) =
   let
     denom = denominator fixed
+
     denomDigits = reflectPrecisionDecimalPlaces (PProxy :: PProxy precision)
+
     absNum = abs n
+
     -- Use 'quot' and 'rem' because we need to round towards zero
     wholePart = BigInt.quot absNum denom
+
     fractionalPart = BigInt.rem absNum denom
   in
     (if n < zero then "-" else "")
-    <> BigInt.toString wholePart
-    <> Monoid.guard (requestedDigits > 0)
-        ("." <>
-          rightJustify requestedDigits '0'
-            (leftJustify denomDigits '0' (BigInt.toString fractionalPart)))
+      <> BigInt.toString wholePart
+      <> Monoid.guard (requestedDigits > 0)
+          ( "."
+              <> rightJustify requestedDigits '0'
+                  (leftJustify denomDigits '0' (BigInt.toString fractionalPart))
+          )
 
 -- | Represent a `Fixed` value as a string, using all of the decimal places it
 -- | can represent (based on its precision).
@@ -423,11 +450,11 @@ toStringWithPrecision requestedDigits fixed@(Fixed n) =
 -- | > map toString (fromString "100.5" :: Maybe (Fixed P100))
 -- | (Just "100.50")
 -- | ```
-toString
-  :: forall precision
-   . KnownPrecision precision
-  => Fixed precision
-  -> String
+toString ::
+  forall precision.
+  KnownPrecision precision =>
+  Fixed precision ->
+  String
 toString =
   toStringWithPrecision
     (reflectPrecisionDecimalPlaces (PProxy :: PProxy precision))
@@ -440,9 +467,10 @@ rightJustify desiredLength padding str =
   let
     actualLength = StringCU.length str
   in
-    if actualLength >= desiredLength
-      then StringCU.take desiredLength str
-      else str <> StringCU.fromCharArray (replicate (desiredLength - actualLength) padding)
+    if actualLength >= desiredLength then
+      StringCU.take desiredLength str
+    else
+      str <> StringCU.fromCharArray (replicate (desiredLength - actualLength) padding)
 
 -- | If a string has less than the given number of characters (measured in code
 -- | units), prepend it with the given character until it reaches that length.
@@ -452,9 +480,10 @@ leftJustify desiredLength padding str =
   let
     actualLength = StringCU.length str
   in
-    if actualLength >= desiredLength
-      then StringCU.takeRight desiredLength str
-      else StringCU.fromCharArray (replicate (desiredLength - actualLength) padding) <> str
+    if actualLength >= desiredLength then
+      StringCU.takeRight desiredLength str
+    else
+      StringCU.fromCharArray (replicate (desiredLength - actualLength) padding) <> str
 
 instance showFixed :: KnownPrecision precision => Show (Fixed precision) where
   show n =
@@ -484,12 +513,13 @@ instance commutativeRingFixed :: KnownPrecision precision => CommutativeRing (Fi
 instance euclideanRingFixed :: KnownPrecision precision => EuclideanRing (Fixed precision) where
   degree = const 1
   mod _ _ = zero
-  div a b =
-    Fixed (x * n / y)
+  div a b = Fixed (x * n / y)
     where
-      x = numerator a
-      y = numerator b
-      n = denominator a
+    x = numerator a
+
+    y = numerator b
+
+    n = denominator a
 
 instance divisionRingFixed :: KnownPrecision precision => DivisionRing (Fixed precision) where
   recip x = one / x

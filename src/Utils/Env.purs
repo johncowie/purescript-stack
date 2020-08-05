@@ -1,10 +1,9 @@
 module Utils.Env
-( module TypedEnv
-, getEnv
-, fromEnv
-, Env
-)
-where
+  ( module TypedEnv
+  , getEnv
+  , fromEnv
+  , Env
+  ) where
 
 import Prelude
 import Data.Either (Either)
@@ -12,11 +11,12 @@ import Data.Newtype (class Newtype)
 import Effect (Effect)
 import Node.Process as NP
 import Foreign.Object (Object)
-
-import TypedEnv as TE -- (type (<:), EnvError, fromEnv)
+import TypedEnv as TE  -- (type (<:), EnvError, fromEnv)
 import TypedEnv (type (<:), EnvError, class ReadEnv, class ParseValue)
 
-newtype Env = Env (Object String)
+newtype Env
+  = Env (Object String)
+
 derive instance newtypeEnv :: Newtype Env _
 
 getEnv :: Effect Env

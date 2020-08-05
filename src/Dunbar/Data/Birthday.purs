@@ -1,13 +1,9 @@
 module Dunbar.Data.Birthday
-( Birthday
-)
-where
-
+  ( Birthday
+  ) where
 
 import Prelude
-
 import Control.Alt ((<|>))
-
 import Data.Newtype (class Newtype)
 import Data.Symbol (SProxy(..))
 import Data.Maybe (Maybe(..), fromMaybe)
@@ -18,18 +14,17 @@ import Data.Formatter.DateTime as F
 import Data.Enum (toEnum)
 import Data.Argonaut.Decode (class DecodeJson, decodeJson)
 import Data.Argonaut.Encode (class EncodeJson, encodeJson)
-
-
 import Utils.Lens (Lens')
 import Utils.Lens as L
 import Utils.Components.Input (class InputType, showInput, parseInput)
 import Utils.DateTime (dateToDateTime)
 
-newtype Birthday = Birthday {
-  month :: Month
-, day :: Day
-, year :: Maybe Year
-}
+newtype Birthday
+  = Birthday
+  { month :: Month
+  , day :: Day
+  , year :: Maybe Year
+  }
 
 derive instance newTypeBirthday :: Newtype Birthday _
 
@@ -59,24 +54,30 @@ toDate (Birthday b) = do
 parseDayMonth :: String -> Either String Birthday
 parseDayMonth s = do
   datetime <- F.unformatDateTime "DD/MM" s
-  let d = DT.date datetime
-  pure $ Birthday {day: day d, month: month d, year: Nothing}
+  let
+    d = DT.date datetime
+  pure $ Birthday { day: day d, month: month d, year: Nothing }
 
 showDayMonth :: Birthday -> String
-showDayMonth birthday = fromMaybe "01/01" $ do
-  d <- toDate birthday
-  hush $ F.formatDateTime "DD/MM" $ dateToDateTime d
+showDayMonth birthday =
+  fromMaybe "01/01"
+    $ do
+        d <- toDate birthday
+        hush $ F.formatDateTime "DD/MM" $ dateToDateTime d
 
 parseDate :: String -> Either String Birthday
 parseDate s = do
   datetime <- F.unformatDateTime "DD/MM/YYYY" s
-  let d = DT.date datetime
-  pure $ Birthday {day: day d, month: month d, year: Just (year d)}
+  let
+    d = DT.date datetime
+  pure $ Birthday { day: day d, month: month d, year: Just (year d) }
 
 showDate :: Birthday -> String
-showDate birthday = fromMaybe "01/01/1970" $ do
-  d <- toDate birthday
-  hush $ F.formatDateTime "DD/MM/YYYY" $ dateToDateTime d
+showDate birthday =
+  fromMaybe "01/01/1970"
+    $ do
+        d <- toDate birthday
+        hush $ F.formatDateTime "DD/MM/YYYY" $ dateToDateTime d
 
 monthField :: Lens' Birthday Month
 monthField = L.newtypeProp (SProxy :: SProxy "month")

@@ -13,7 +13,8 @@
     "dev-server": "spago run -m Server.Main --node-args dev",
     "build-server": "./brick release-server",
     "build-client": "./brick build",
-    "migrate": "spago run -m Server.DB"
+    "migrate": "spago run -m Server.DB",
+    "purty": "./node_modules/purty/bin/purty.js format --write src && ./node_modules/purty/bin/purty.js format --write test"
   },
   "author": "",
   "license": "ISC",
@@ -25,6 +26,7 @@
     "pg": "8.2.0",
     "pg-native": "3.0.0",
     "purescript": "0.13.8",
+    "purty": "6.2.0",
     "spago": "0.15.2",
     "twilio": "3.48.0",
     "xhr2": "0.2.0"

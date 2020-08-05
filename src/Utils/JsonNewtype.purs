@@ -2,7 +2,7 @@ module Utils.JsonNewtype where
 
 import Prelude
 import Data.Either (Either(..))
-import Data.Newtype(class Newtype, wrap, unwrap)
+import Data.Newtype (class Newtype, wrap, unwrap)
 import Data.Argonaut.Core (Json)
 import Data.Argonaut.Decode (class DecodeJson, decodeJson)
 import Data.Argonaut.Encode (class EncodeJson, encodeJson)

@@ -10,11 +10,16 @@ import Data.Tuple (Tuple(..), fst, snd)
 import Data.Argonaut.Decode (class DecodeJson, decodeJson)
 import Data.Argonaut.Encode (class EncodeJson, encodeJson)
 
-type IdMap v = Map Id v
+type IdMap v
+  = Map Id v
 
-newtype Id = Id Int
+newtype Id
+  = Id Int
+
 derive instance newtypeId :: Newtype Id _
+
 derive instance eqId :: Eq Id
+
 derive instance ordId :: Ord Id
 
 instance showId :: Show Id where
@@ -34,7 +39,8 @@ createId = wrap <<< (+) 1 <<< fromMaybe (-1) <<< maximum <<< (map unwrap) <<< ke
 
 addReturnId :: forall v. v -> IdMap v -> Tuple Id (IdMap v)
 addReturnId v m = Tuple id (M.insert id v m)
-  where id = (createId m)
+  where
+  id = (createId m)
 
 add :: forall v. v -> IdMap v -> IdMap v
 add v = addReturnId v >>> snd
@@ -61,4 +67,4 @@ values :: forall v. IdMap v -> Array v
 values = (map snd) <<< toArray
 
 rightJoinMap :: forall k v w. (Ord k) => Map k v -> Map k w -> Map k (Tuple v (Maybe w))
-rightJoinMap m1 m2 = M.mapMaybeWithKey (\k v -> Just(Tuple v (M.lookup k m2))) m1
+rightJoinMap m1 m2 = M.mapMaybeWithKey (\k v -> Just (Tuple v (M.lookup k m2))) m1

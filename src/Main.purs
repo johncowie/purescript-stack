@@ -1,7 +1,6 @@
 module Main where
 
 import Prelude
-
 import Api as Api
 import Browser.Cookie as Cookie
 import Browser.Cookies.Data (SetCookie(..), Cookie(..))
@@ -40,17 +39,22 @@ getGoogleRedirect apiRoot redirect = do
     (Left err) -> unsafeThrow (show err)
 
 loginButton :: String -> H.Html Unit
-loginButton googleOAuthUrl = H.div [] [H.a [P.href googleOAuthUrl] [H.text "Login"]]
+loginButton googleOAuthUrl = H.div [] [ H.a [ P.href googleOAuthUrl ] [ H.text "Login" ] ]
 
 loginPage :: String -> Effect Unit
 loginPage googleOAuthUrl = do
   a <- SPA.makeWithSelector app "#app"
   a.run
-  where app = {init: unit,
-               update,
-               render}
-        update m a = m
-        render m = loginButton googleOAuthUrl
+  where
+  app =
+    { init: unit
+    , update
+    , render
+    }
+
+  update m a = m
+
+  render m = loginButton googleOAuthUrl
 
 startLogin :: Config -> Aff Unit
 startLogin config = do
@@ -58,37 +62,44 @@ startLogin config = do
   liftEffect (loginPage redirect)
 
 setTokenCookie :: String -> String -> Effect Unit
-setTokenCookie key value = Cookie.setCookie (SetCookie {cookie, opts})
-  where cookie = Cookie {key, value}
-        opts = Nothing -- TODO specify maxage etc..?
+setTokenCookie key value = Cookie.setCookie (SetCookie { cookie, opts })
+  where
+  cookie = Cookie { key, value }
+
+  opts = Nothing -- TODO specify maxage etc..?
 
 finishLogin :: Config -> String -> Effect Unit
-finishLogin config code = launchAff_ $ do
-  token <- getToken config.apiRoot code (config.frontendRoot)
-  liftEffect $ setTokenCookie "token" token
-  liftEffect $ Url.redirect config.frontendRoot
+finishLogin config code =
+  launchAff_
+    $ do
+        token <- getToken config.apiRoot code (config.frontendRoot)
+        liftEffect $ setTokenCookie "token" token
+        liftEffect $ Url.redirect config.frontendRoot
 
 routeApp :: ApiConfig -> Array String -> Effect Unit
 routeApp api path = case path of
-  ["couplit"] -> Couplit.runApp
-  ["dunbar"] -> Dunbar.runApp (Dunbar.mkConfig api)
-  ["exp"] ->  Exp.main
-  ["lib"] -> ComponentLib.main
+  [ "couplit" ] -> Couplit.runApp
+  [ "dunbar" ] -> Dunbar.runApp (Dunbar.mkConfig api)
+  [ "exp" ] -> Exp.main
+  [ "lib" ] -> ComponentLib.main
   _ -> Goals.runApp (Goals.mkConfig api)
 
-type FrontEndRoot = String
+type FrontEndRoot
+  = String
 
 main_ :: Config -> Effect Unit
 main_ config = do
   url <- Url.getWindowUrl
-  let path = Url.getPath url
-  let codeM = Url.getQueryParam "code" url
+  let
+    path = Url.getPath url
+  let
+    codeM = Url.getQueryParam "code" url
   case codeM of
     (Just code) -> finishLogin config url
     Nothing -> do
       cookieM <- Cookie.getCookie "token"
       case cookieM of
-        (Just cookie) -> routeApp {url: config.apiRoot, token: wrap (unwrap cookie).value} path
+        (Just cookie) -> routeApp { url: config.apiRoot, token: wrap (unwrap cookie).value } path
         Nothing -> launchAff_ $ startLogin config
 
 {-
@@ -98,19 +109,24 @@ Login App
 Code Handler
 - if path has google in it, then use code to get token from oauth, and store token in cookie
 -}
-  -- pass token and login url to event apps, through config
-  --  future TODO if API returns a 401 at any point, then user should be booted back to login
-  --  future TODO redirect to where you were trying to get to before
-
-type Config = {
-  apiRoot :: ApiRoot
-, frontendRoot :: String
-}
+-- pass token and login url to event apps, through config
+--  future TODO if API returns a 401 at any point, then user should be booted back to login
+--  future TODO redirect to where you were trying to get to before
+type Config
+  = { apiRoot :: ApiRoot
+    , frontendRoot :: String
+    }
 
 dev :: Effect Unit
-dev = main_ { apiRoot: wrap "http://lvh.me:8080"
-            , frontendRoot: "http://lvh.me:1234" }
+dev =
+  main_
+    { apiRoot: wrap "http://lvh.me:8080"
+    , frontendRoot: "http://lvh.me:1234"
+    }
 
 main :: Effect Unit
-main = main_ { apiRoot: wrap "https://dumb-waiter.herokuapp.com"
-             , frontendRoot: "https://johncowie.github.io/purescript-stack"}
+main =
+  main_
+    { apiRoot: wrap "https://dumb-waiter.herokuapp.com"
+    , frontendRoot: "https://johncowie.github.io/purescript-stack"
+    }

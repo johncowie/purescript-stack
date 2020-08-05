@@ -1,18 +1,16 @@
 module Utils.ExceptT
-( mapErrorT
-, module Control.Monad.Except.Trans
-, module Effect.Exception
-, right
-, liftEffectRight
-, booleanToError
-)
-where
+  ( mapErrorT
+  , module Control.Monad.Except.Trans
+  , module Effect.Exception
+  , right
+  , liftEffectRight
+  , booleanToError
+  ) where
+
 import Prelude
 import Control.Monad.Except.Trans (ExceptT(..), runExceptT)
-
 import Data.Bifunctor (lmap)
 import Data.Either (Either(..))
-
 import Effect (Effect)
 import Effect.Class (liftEffect, class MonadEffect)
 import Effect.Exception (Error, error)

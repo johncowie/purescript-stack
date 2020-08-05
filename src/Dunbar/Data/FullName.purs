@@ -7,24 +7,25 @@ import Data.Argonaut.Decode (class DecodeJson)
 import Data.Argonaut.Encode (class EncodeJson)
 import Utils.JsonNewtype (encodeNewtype, decodeNewtype)
 
-newtype FullName = FullName {
-  firstName :: String,
-  lastName :: String
-}
+newtype FullName
+  = FullName
+  { firstName :: String
+  , lastName :: String
+  }
 
 fullName :: String -> String -> FullName
-fullName firstName lastName = FullName {firstName: firstName, lastName: lastName}
+fullName firstName lastName = FullName { firstName: firstName, lastName: lastName }
 
 _firstName :: L.Lens' FullName String
-_firstName = L._newtype >>> L.lens _.firstName (_ {firstName = _})
+_firstName = L._newtype >>> L.lens _.firstName (_ { firstName = _ })
 
 _lastName :: L.Lens' FullName String
-_lastName = L._newtype >>> L.lens _.lastName (_ {lastName = _})
+_lastName = L._newtype >>> L.lens _.lastName (_ { lastName = _ })
 
 derive instance newTypeFullName :: Newtype FullName _
 
 instance showFullName :: Show FullName where
-  show (FullName {firstName, lastName}) = firstName <> " " <> lastName
+  show (FullName { firstName, lastName }) = firstName <> " " <> lastName
 
 instance ordFullName :: Ord FullName where
   compare a b = compare (show a) (show b)

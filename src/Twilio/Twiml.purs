@@ -1,34 +1,38 @@
 module Twilio.Twiml
-( TwimlString
-, To
-, From
-, Message
-, to
-, from
-, message
-, messagingResponse
-, emptyMessagingResponse
-, toString )
-where
+  ( TwimlString
+  , To
+  , From
+  , Message
+  , to
+  , from
+  , message
+  , messagingResponse
+  , emptyMessagingResponse
+  , toString
+  ) where
 
 import Prelude (($))
 
-newtype TwimlString = TwimlString String
+newtype TwimlString
+  = TwimlString String
 
 toString :: TwimlString -> String
 toString (TwimlString s) = s
 
-newtype To = To String
+newtype To
+  = To String
 
 to :: String -> To
 to = To
 
-newtype From = From String
+newtype From
+  = From String
 
 from :: String -> From
 from = From
 
-newtype Message = Message String
+newtype Message
+  = Message String
 
 message :: String -> Message
 message = Message

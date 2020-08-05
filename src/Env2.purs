@@ -1,13 +1,14 @@
 module Env2 where
 
-import Data.Maybe(Maybe(..))
+import Data.Maybe (Maybe(..))
 import Data.Either (Either(..))
 
-type EnvVarParser a = { description :: String
-                      , var :: String
-                      , default :: Maybe a
-                      , parser :: String -> Either String a}
-
+type EnvVarParser a
+  = { description :: String
+    , var :: String
+    , default :: Maybe a
+    , parser :: String -> Either String a
+    }
 
 {-
 Some kind of setup where

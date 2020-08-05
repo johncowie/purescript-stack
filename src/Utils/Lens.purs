@@ -1,5 +1,3 @@
-module Utils.Lens
-( module JohnCowie.Data.Lens )
-where
+module Utils.Lens (module JohnCowie.Data.Lens) where
 
 import JohnCowie.Data.Lens

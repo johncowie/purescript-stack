@@ -1,29 +1,27 @@
 module Goals.Data.Goal
-( _start
-, _end
-, _title
-, _target
-, _amountDone
-, _predecessor
-, _successor
-, Goal
-, isInProgress
-, isExpired
-, isFuture
-, isCurrent
-, hasSuccessor
-, newGoal
-, progressPercentage
-, onTrackRequired
-, timeElapsedPercentage
-, requiredPercentage
-)
-where
+  ( _start
+  , _end
+  , _title
+  , _target
+  , _amountDone
+  , _predecessor
+  , _successor
+  , Goal
+  , isInProgress
+  , isExpired
+  , isFuture
+  , isCurrent
+  , hasSuccessor
+  , newGoal
+  , progressPercentage
+  , onTrackRequired
+  , timeElapsedPercentage
+  , requiredPercentage
+  ) where
 
 import Prelude
 import Data.DateTime (DateTime)
 import Data.DateTime.Instant (Instant, fromDateTime, unInstant, toDateTime)
-
 import Data.Symbol (SProxy(..))
 import Data.Newtype (class Newtype, unwrap, wrap)
 import Data.Maybe (Maybe(..), isJust)
@@ -31,21 +29,20 @@ import Data.Int as Int
 import Data.Argonaut.Decode (class DecodeJson)
 import Data.Argonaut.Encode (class EncodeJson)
 import Utils.JsonNewtype (decodeNewtype, encodeNewtype)
-
 import Utils.IdMap as IdMap
 import Utils.JsonDateTime (JsonDateTime)
 import Utils.Lens (Lens', _newtype, prop)
 
-
-newtype Goal = Goal {
-  start :: JsonDateTime
-, end :: JsonDateTime
-, target :: Int
-, title :: String
-, amountDone :: Number
-, predecessor :: Maybe IdMap.Id
-, successor :: Maybe IdMap.Id
-}
+newtype Goal
+  = Goal
+  { start :: JsonDateTime
+  , end :: JsonDateTime
+  , target :: Int
+  , title :: String
+  , amountDone :: Number
+  , predecessor :: Maybe IdMap.Id
+  , successor :: Maybe IdMap.Id
+  }
 
 derive instance newtypeGoal :: Newtype Goal _
 
@@ -57,14 +54,15 @@ instance encodeJsonGoal :: EncodeJson Goal where
 
 newGoal :: String -> DateTime -> DateTime -> Int -> Goal
 newGoal title start end target =
-  Goal { start: wrap start
-       , end: wrap end
-       , title: title
-       , target: target
-       , amountDone: 0.0
-       , predecessor: Nothing
-       , successor: Nothing
-       }
+  Goal
+    { start: wrap start
+    , end: wrap end
+    , title: title
+    , target: target
+    , amountDone: 0.0
+    , predecessor: Nothing
+    , successor: Nothing
+    }
 
 _start :: Lens' Goal DateTime
 _start = _newtype >>> prop (SProxy :: SProxy "start") >>> _newtype
@@ -92,37 +90,45 @@ hasSuccessor = unwrap >>> _.successor >>> isJust
 
 isCurrent :: Instant -> Goal -> Boolean
 isCurrent now (Goal r) = unwrap r.start <= nowDT && unwrap r.end >= nowDT
-  where nowDT = toDateTime now
+  where
+  nowDT = toDateTime now
 
 isInProgress :: Instant -> Goal -> Boolean
 isInProgress now (Goal r) = unwrap r.start <= nowDT && unwrap r.end >= nowDT && r.amountDone < Int.toNumber r.target
-  where nowDT = toDateTime now
+  where
+  nowDT = toDateTime now
 
 isExpired :: Instant -> Goal -> Boolean
 isExpired now (Goal r) = unwrap r.end < nowDT || r.amountDone >= Int.toNumber r.target
-  where nowDT = toDateTime now
+  where
+  nowDT = toDateTime now
 
 isFuture :: Instant -> Goal -> Boolean
 isFuture now (Goal r) = unwrap r.start > nowDT
-  where nowDT = toDateTime now
-
+  where
+  nowDT = toDateTime now
 
 -- stats
-
 progressPercentage :: Goal -> Number
 progressPercentage (Goal goal) = min 100.0 $ (goal.amountDone / Int.toNumber goal.target) * 100.0
 
 timeElapsedPercentage :: Instant -> Goal -> Number
 timeElapsedPercentage now (Goal goal) = ((nowMillis - startMillis) / (endMillis - startMillis)) * 100.0
-  where startMillis = instantMillis $ fromDateTime $ unwrap goal.start
-        endMillis = instantMillis $ fromDateTime $ unwrap goal.end
-        nowMillis = instantMillis now
-        instantMillis instant = unwrap $ unInstant instant
+  where
+  startMillis = instantMillis $ fromDateTime $ unwrap goal.start
+
+  endMillis = instantMillis $ fromDateTime $ unwrap goal.end
+
+  nowMillis = instantMillis now
+
+  instantMillis instant = unwrap $ unInstant instant
 
 onTrackRequired :: Instant -> Goal -> Number
 onTrackRequired now (Goal goal) = requiredToDate - goal.amountDone
-  where requiredToDate = (Int.toNumber goal.target * elapsedPC / 100.0)
-        elapsedPC = timeElapsedPercentage now (Goal goal)
+  where
+  requiredToDate = (Int.toNumber goal.target * elapsedPC / 100.0)
+
+  elapsedPC = timeElapsedPercentage now (Goal goal)
 
 requiredPercentage :: Instant -> Goal -> Number
 requiredPercentage now (Goal goal) = onTrackRequired now (Goal goal) / (Int.toNumber goal.target) * 100.0

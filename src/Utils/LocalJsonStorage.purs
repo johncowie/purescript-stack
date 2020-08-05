@@ -1,7 +1,7 @@
 module Utils.LocalJsonStorage
-( load
-, store)
-where
+  ( load
+  , store
+  ) where
 
 import Prelude
 import Effect (Effect)
@@ -18,22 +18,27 @@ import Web.HTML.Window (localStorage) as DOM
 
 wrapError :: forall a. Either String a -> Either Error a
 wrapError (Left s) = Left (error s)
+
 wrapError (Right s) = (Right s)
 
 load :: forall a. (JSON.DecodeJson a) => String -> Effect (Either Error (Maybe a))
-load storageKey = wrapError <$> do
-  window <- DOM.window
-  localStorage <- DOM.localStorage window
-  jsonM <- Storage.getItem storageKey localStorage
-  pure $ case jsonM of
-    (Just jsonStr) -> do
-      json <- JSON.jsonParser jsonStr
-      JSON.decodeJson json
-    (Nothing) -> Right Nothing
+load storageKey =
+  wrapError
+    <$> do
+        window <- DOM.window
+        localStorage <- DOM.localStorage window
+        jsonM <- Storage.getItem storageKey localStorage
+        pure
+          $ case jsonM of
+              (Just jsonStr) -> do
+                json <- JSON.jsonParser jsonStr
+                JSON.decodeJson json
+              (Nothing) -> Right Nothing
 
 store :: forall a. (JSON.EncodeJson a) => String -> a -> Effect Unit
 store storageKey val = do
   window <- DOM.window
   localStorage <- DOM.localStorage window
-  let json = JSON.stringify $ JSON.encodeJson val
+  let
+    json = JSON.stringify $ JSON.encodeJson val
   Storage.setItem storageKey json localStorage

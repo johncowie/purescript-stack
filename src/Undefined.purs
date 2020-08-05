@@ -1,6 +1,4 @@
-module Undefined
-( undefined )
-where
+module Undefined (undefined) where
 
 import Effect.Exception.Unsafe (unsafeThrow)
 

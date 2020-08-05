@@ -1,6 +1,4 @@
-module Utils.Alert
-( alert )
-where
+module Utils.Alert (alert) where
 
 import Prelude
 import Effect (Effect)

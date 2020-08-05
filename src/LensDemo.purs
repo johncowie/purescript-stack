@@ -4,13 +4,13 @@ import Prelude
 import Utils.Lens as L
 import Data.Symbol (SProxy(..))
 
-type Bedroom = {
-  bed :: String
-}
+type Bedroom
+  = { bed :: String
+    }
 
-type House = {
-  bedroom :: Bedroom
-}
+type House
+  = { bedroom :: Bedroom
+    }
 
 bedroomL :: L.Lens' House Bedroom
 bedroomL = L.prop (SProxy :: SProxy "bedroom")

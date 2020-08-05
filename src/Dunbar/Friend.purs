@@ -1,15 +1,14 @@
 module Dunbar.Friend
-( Friend
-, newFriend
-, timeSinceLastSeen
-, overdueContact
-, _lastSeen
-, _name
-, _birthday
-, _desiredContactFrequency
-, _notes
-)
-where
+  ( Friend
+  , newFriend
+  , timeSinceLastSeen
+  , overdueContact
+  , _lastSeen
+  , _name
+  , _birthday
+  , _desiredContactFrequency
+  , _notes
+  ) where
 
 import Prelude
 import Dunbar.Data.Birthday (Birthday)
@@ -22,15 +21,15 @@ import Data.Newtype (unwrap, wrap)
 import Utils.Lens as L
 import Utils.DateTime as UDT
 import Utils.JsonDateTime (JsonInstant, JsonDays)
--- import Effect.Exception.Unsafe (unsafeThrow)
 
-type Friend = {
-  name :: FullName,
-  birthday :: Maybe Birthday,
-  lastSeen :: Maybe JsonInstant,
-  desiredContactFrequency :: Maybe JsonDays,
-  notes :: Maybe String
-}
+-- import Effect.Exception.Unsafe (unsafeThrow)
+type Friend
+  = { name :: FullName
+    , birthday :: Maybe Birthday
+    , lastSeen :: Maybe JsonInstant
+    , desiredContactFrequency :: Maybe JsonDays
+    , notes :: Maybe String
+    }
 
 _name :: L.Lens' Friend FullName
 _name = L.prop (SProxy :: SProxy "name")
@@ -48,13 +47,13 @@ _notes :: L.Lens' Friend (Maybe String)
 _notes = L.prop (SProxy :: SProxy "notes")
 
 newFriend :: String -> String -> Friend
-newFriend firstName lastName = {
-  name: fullName firstName lastName,
-  birthday: Nothing,
-  lastSeen: Nothing,
-  desiredContactFrequency: Nothing,
-  notes: Nothing
-}
+newFriend firstName lastName =
+  { name: fullName firstName lastName
+  , birthday: Nothing
+  , lastSeen: Nothing
+  , desiredContactFrequency: Nothing
+  , notes: Nothing
+  }
 
 timeSinceLastSeen :: Instant -> Friend -> Maybe Seconds
 timeSinceLastSeen i f = (UDT.diffSecs i) <$> L.view _lastSeen f

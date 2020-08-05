@@ -5,8 +5,10 @@ import Server.Migrations (MigrationStore, Migration)
 import Data.Either (Either(..))
 
 createEventsTable :: Int -> Migration Int String
-createEventsTable id = {id, up, down, description}
-  where up = """
+createEventsTable id = { id, up, down, description }
+  where
+  up =
+    """
           CREATE TABLE IF NOT EXISTS events (
             id SERIAL PRIMARY KEY,
             app TEXT NOT NULL,
@@ -14,14 +16,19 @@ createEventsTable id = {id, up, down, description}
             created TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
           );
         """
-        down = """
+
+  down =
+    """
           DROP TABLE IF EXISTS events;
         """
-        description = "Create events table"
+
+  description = "Create events table"
 
 createSnapshotsTable :: Int -> Migration Int String
-createSnapshotsTable id = {id, up, down, description}
-  where up = """
+createSnapshotsTable id = { id, up, down, description }
+  where
+  up =
+    """
           CREATE TABLE IF NOT EXISTS snapshots (
             id INTEGER PRIMARY KEY,
             app TEXT NOT NULL,
@@ -31,14 +38,19 @@ createSnapshotsTable id = {id, up, down, description}
             FOREIGN KEY (up_to_event) REFERENCES events (id)
           );
         """
-        down = """
+
+  down =
+    """
           DROP TABLE IF EXISTS snapshots;
         """
-        description = "Create snapshots table"
+
+  description = "Create snapshots table"
 
 createStatesTable :: Int -> Migration Int String
-createStatesTable id = {id, up, down, description}
-  where up = """
+createStatesTable id = { id, up, down, description }
+  where
+  up =
+    """
           CREATE TABLE IF NOT EXISTS states (
             id SERIAL PRIMARY KEY,
             user_id INTEGER NOT NULL REFERENCES users(id),
@@ -47,14 +59,19 @@ createStatesTable id = {id, up, down, description}
             created TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
           );
         """
-        down = """
+
+  down =
+    """
           DROP TABLE IF EXISTS states;
         """
-        description = "Create states table"
+
+  description = "Create states table"
 
 createUsersTable :: Int -> Migration Int String
-createUsersTable id = {id, up, down, description}
-  where up = """
+createUsersTable id = { id, up, down, description }
+  where
+  up =
+    """
               CREATE TABLE IF NOT EXISTS users (
                 id SERIAL PRIMARY KEY
               , third_party VARCHAR NOT NULL
@@ -63,27 +80,37 @@ createUsersTable id = {id, up, down, description}
               , UNIQUE(third_party, third_party_id)
               );
              """
-        down = """
+
+  down =
+    """
           DROP TABLE IF EXISTS users;
         """
-        description = """Create users table"""
+
+  description = """Create users table"""
 
 createTokensTable :: Int -> Migration Int String
-createTokensTable id = {id, up, down, description}
-  where up = """
+createTokensTable id = { id, up, down, description }
+  where
+  up =
+    """
              CREATE TABLE IF NOT EXISTS tokens (
                user_id INTEGER PRIMARY KEY REFERENCES users(id)
              , token VARCHAR NOT NULL
              );
              """
-        down = """
+
+  down =
+    """
                  DROP TABLE IF EXISTS tokens;
                """
-        description = "Create tokens table"
+
+  description = "Create tokens table"
 
 addUserIdToEvents :: Int -> Migration Int String
-addUserIdToEvents id = {id, up, down, description}
-  where up = """
+addUserIdToEvents id = { id, up, down, description }
+  where
+  up =
+    """
              ALTER TABLE events
              ADD COLUMN user_id INTEGER;
 
@@ -94,15 +121,20 @@ addUserIdToEvents id = {id, up, down, description}
              ALTER COLUMN user_id SET NOT NULL,
              ADD CONSTRAINT user_id_fk FOREIGN KEY (user_id) REFERENCES users(id);
              """
-        down = """
+
+  down =
+    """
                ALTER TABLE events
                DROP COLUMN user_id;
                """
-        description = "Add user Id column to events table"
+
+  description = "Add user Id column to events table"
 
 addUserIdToSnapshots :: Int -> Migration Int String
-addUserIdToSnapshots id = {id, up, down, description}
-  where up = """
+addUserIdToSnapshots id = { id, up, down, description }
+  where
+  up =
+    """
              ALTER TABLE snapshots
              ADD COLUMN user_id INTEGER;
 
@@ -113,32 +145,38 @@ addUserIdToSnapshots id = {id, up, down, description}
              ALTER COLUMN user_id SET NOT NULL,
              ADD CONSTRAINT snapshots_user_id_fk FOREIGN KEY (user_id) REFERENCES users(id);
              """
-        down = """
+
+  down =
+    """
                ALTER TABLE snapshots
                DROP COLUMN user_id;
                """
-        description = "Add user id column to snapshots table"
+
+  description = "Add user id column to snapshots table"
 
 revert :: Migration Int String -> Int -> Migration Int String
-revert migration id = {id, up, down, description}
-  where up = migration.down
-        down = migration.up
-        description = "REVERT: " <> show migration.id <> " (" <> migration.description <> ")"
+revert migration id = { id, up, down, description }
+  where
+  up = migration.down
+
+  down = migration.up
+
+  description = "REVERT: " <> show migration.id <> " (" <> migration.description <> ")"
 
 migrationData :: Array (Migration Int String)
-migrationData = [
-  createEventsTable 1
-, createSnapshotsTable 2
-, createUsersTable 3
-, createTokensTable 4
-, revert (createTokensTable 4) 5
-, addUserIdToEvents 6
-, addUserIdToSnapshots 7
-, createStatesTable 8
-]
+migrationData =
+  [ createEventsTable 1
+  , createSnapshotsTable 2
+  , createUsersTable 3
+  , createTokensTable 4
+  , revert (createTokensTable 4) 5
+  , addUserIdToEvents 6
+  , addUserIdToSnapshots 7
+  , createStatesTable 8
+  ]
 
 validateMigrations :: Array (Migration Int String) -> Either String (Array (Migration Int String))
 validateMigrations = Right -- TODO?
 
 migrationStore :: forall m. (Monad m) => MigrationStore m Int String
-migrationStore = {loadMigrations: pure $ validateMigrations migrationData}
+migrationStore = { loadMigrations: pure $ validateMigrations migrationData }
