@@ -5,6 +5,7 @@ import Prelude
 import Data.Argonaut.Core (Json)
 import Data.Argonaut.Decode (decodeJson)
 import Data.Argonaut.Encode (class EncodeJson, encodeJson)
+import Data.Bifunctor (lmap)
 import Data.Array (drop)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..), fromMaybe)
@@ -44,7 +45,7 @@ import Twilio.WhatsApp (WhatsAppMessage, WhatsAppNumber, WhatsAppDeliveryNotific
 import Twilio.WhatsApp as WA
 import Type.Data.Row (RProxy(..))
 import Utils.Env (Env, type (<:), EnvError, fromEnv, getEnv)
-import Utils.ExceptT (ExceptT(..), runExceptT, showError, liftEffectRight)
+import Utils.ExceptT (ExceptT(..), runExceptT, liftEffectRight)
 import JohnCowie.JWT (JWTGenerator, jwtGenerator)
 import Utils.Lens as L
 
@@ -54,7 +55,7 @@ retrieveEventsHandler :: DB.Pool
                       -> AuthedRequest ({app :: AppName, after :: Maybe EventId} /\ Unit)
                       -> Aff (Either String JSONResponse)
 retrieveEventsHandler pool req = runExceptT do
-  events <- ExceptT $ showError <$> DB.retrieveEvents sub app after pool
+  events <- ExceptT $ (lmap show) <$> DB.retrieveEvents sub app after pool
   let eventRecords = map (\(id /\ (event :: Json)) -> {id, event}) events
   pure $ JSON.okJsonResponse eventRecords
   where ({app, after} /\ _) = L.view Req._val req
@@ -65,7 +66,7 @@ addEventsHandler :: forall a.
                  -> AuthedRequest (Json /\ {app :: AppName} /\ a)
                  -> Aff (Either String JSONResponse) -- TODO easier to read if you can see what the result type is
 addEventsHandler pool req = runExceptT do
-  eventId <- ExceptT $ showError <$> DB.addEvent sub query.app json pool
+  eventId <- ExceptT $ (lmap show) <$> DB.addEvent sub query.app json pool
   pure $ JSON.okJsonResponse {id: eventId}
   where (json /\ query /\ _) = L.view Req._val req
         {sub} = AuthM.tokenPayload req
@@ -74,7 +75,7 @@ retrieveSnapshotHandler :: DB.Pool
                         -> AuthedRequest ({app :: AppName} /\ Unit)
                         -> Aff (Either String JSONResponse)
 retrieveSnapshotHandler pool req = runExceptT do
-  snapshotM <- ExceptT $ showError <$> DB.retrieveLatestSnapshot sub query.app pool
+  snapshotM <- ExceptT $ (lmap show) <$> DB.retrieveLatestSnapshot sub query.app pool
   pure $ case snapshotM of
     Just (Tuple (state :: Json) upToEvent) -> JSON.okJsonResponse {state, upToEvent}
     Nothing -> JSON.okJsonResponse {}
@@ -86,7 +87,7 @@ addSnapshotHandler :: forall a. DB.Pool
                    -> Aff (Either String JSONResponse)
 addSnapshotHandler pool req = runExceptT do
   {state, upToEvent} :: {state :: Json, upToEvent :: EventId} <- ExceptT $ pure $ decodeJson json
-  void $ ExceptT $ showError <$> DB.insertSnapshot sub query.app state upToEvent pool
+  void $ ExceptT $ (lmap show) <$> DB.insertSnapshot sub query.app state upToEvent pool
   pure successResponse
   where (json /\ query /\ _) = L.view Req._val req
         {sub} = AuthM.tokenPayload req
@@ -107,7 +108,7 @@ googleCodeHandler :: OAuth
 googleCodeHandler oauth db tokenGen req = runExceptT $ do
   userData <- ExceptT $ oauth.handleCode code redirect
   let newUser = {thirdParty: Google, thirdPartyId: userData.sub, name: userData.name}
-  userId <- ExceptT $ map showError $ DB.upsertUser newUser db
+  userId <- ExceptT $ map (lmap show) $ DB.upsertUser newUser db
   token <- liftEffectRight $ tokenGen.generate {sub: userId}
   pure $ JSON.okJsonResponse {accessToken: token}
   where ({code, redirect} /\ _) = L.view Req._val req
@@ -347,14 +348,14 @@ main = void $ runAff affErrorHandler $ logError $ runExceptT $ do
   let mode = modeFromArgs $ drop 2 args
   liftEffectRight $ injectStubVars mode
   env <- liftEffectRight getEnv
-  config <- ExceptT $ pure $ showError $ fromEnv (RProxy :: RProxy Config) env
+  config <- ExceptT $ pure $ (lmap show) $ fromEnv (RProxy :: RProxy Config) env
   let port = fromMaybe 8080 config.port
       hostname = "0.0.0.0"
       backlog = Nothing
       dbUri = fromMaybe "postgres://localhost:5432/events_store" config.databaseUri
-  pool <- ExceptT $ showError <$> (liftEffect $ DB.getDB dbUri)
-  googleOAuth <- ExceptT $ pure $ showError $ oauthForMode mode env
-  twilioConfig <- ExceptT $ pure $ showError $ loadTwilioConfig env
+  pool <- ExceptT $ (lmap show) <$> (liftEffect $ DB.getDB dbUri)
+  googleOAuth <- ExceptT $ pure $ lmap show $ oauthForMode mode env
+  twilioConfig <- ExceptT $ pure $ lmap show $ loadTwilioConfig env
   let dunbarBot = dunbarWhatsAppBot pool
   let deps = {
     db: pool

@@ -2,20 +2,21 @@ module Utils.HttpClient where
 
 import Prelude
 
+import Control.Monad.Except.Trans (ExceptT(..), runExceptT)
+
 import Affjax as AX
 import Affjax.ResponseFormat as ResponseFormat
 import Affjax.RequestBody as RequestBody
 
 import Data.Argonaut.Core (Json, stringify)
 import Data.Argonaut.Decode (class DecodeJson, decodeJson)
+import Data.Bifunctor (lmap)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
 import Data.HTTP.Method (Method(GET, POST))
 
 import Effect.Aff (Aff)
 import Effect.Exception (Error, error)
-
-import Utils.ExceptT (ExceptT(..), runExceptT, mapError)
 
 toError :: AX.Error -> Error
 toError = AX.printError >>> error
@@ -25,8 +26,8 @@ decodeError body errMsg = error $ errMsg <> "\n" <> "Body was: " <> stringify bo
 
 jsonRequest_ :: forall a. AX.Request Json -> (Json -> Aff (Either String a)) -> Aff (Either Error a)
 jsonRequest_ req decoder = runExceptT do
-  response <- ExceptT $ map (mapError toError) $ AX.request req
-  ExceptT $ map (mapError (decodeError response.body)) $ decoder (response.body)
+  response <- ExceptT $ map (lmap toError) $ AX.request req
+  ExceptT $ map (lmap (decodeError response.body)) $ decoder (response.body)
 
 getJson_ :: forall a. (DecodeJson a) => (AX.Request Json -> AX.Request Json) -> String -> Aff (Either Error a)
 getJson_ requestUpdate url = jsonRequest_ request decoder

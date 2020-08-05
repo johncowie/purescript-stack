@@ -2,6 +2,7 @@ module Server.DB where
 
 import Prelude
 import Data.Array (head)
+import Data.Bifunctor (lmap)
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Tuple (Tuple)
 import Data.Tuple.Nested ((/\))
@@ -11,7 +12,6 @@ import Data.Traversable (for)
 import Effect (Effect)
 import Effect.Aff (Aff)
 import Effect.Console as Console
-import Data.Argonaut.Core (Json)
 import Data.Argonaut.Decode (class DecodeJson, decodeJson)
 import Data.Argonaut.Encode (class EncodeJson, encodeJson)
 
@@ -21,7 +21,7 @@ import Database.PostgreSQL.Row (Row0(Row0), Row1(Row1), Row2(Row2))
 import Server.DBConnection (fromURI)
 import Server.Domain (AppName, EventId, NewUser, User, UserId)
 
-import Utils.ExceptT (ExceptT(..), runExceptT, error, Error, mapError, mapErrorT)
+import Control.Monad.Except.Trans (ExceptT(..), runExceptT)
 
 type PG a = ExceptT PG.PGError Aff a
 type Pool = PG.Pool
@@ -79,7 +79,7 @@ retrieveEvents userId app eventIdM pool = runQuery pool \conn -> do
     ORDER BY id desc;
     """) (unwrap app /\ unwrap userId /\ maybe 0 unwrap eventIdM)
   ExceptT $ pure $ for rows $ \(Row2 id eventJson) -> do
-     event <- mapError toPGError $ decodeJson eventJson
+     event <- lmap toPGError $ decodeJson eventJson
      pure $ (wrap id /\ event)
 
 retrieveLatestSnapshot :: forall a. (DecodeJson a)
@@ -97,7 +97,7 @@ retrieveLatestSnapshot userId app pool = runQuery pool \conn -> do
     LIMIT 1;
   """) (unwrap app /\ unwrap userId)
   parsedRows <- ExceptT $ pure $ for rows $ \(Row2 snapshotJson upToEvent) -> do
-                  snapshot <- mapError toPGError $ decodeJson snapshotJson
+                  snapshot <- lmap toPGError $ decodeJson snapshotJson
                   pure $ (snapshot /\ wrap upToEvent)
   pure $ head $ parsedRows
 
@@ -158,7 +158,7 @@ retrieveState userId app db = runQuery db \conn -> do
     LIMIT 1;
   """) (unwrap app /\ unwrap userId)
   case vM of
-    (Just json) -> ExceptT $ pure $ mapError toPGError $ decodeJson json
+    (Just json) -> ExceptT $ pure $ lmap toPGError $ decodeJson json
     Nothing -> pure Nothing
 
 upsertUser :: NewUser -> PG.Pool -> Aff (Either PG.PGError UserId)

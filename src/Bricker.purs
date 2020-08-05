@@ -7,6 +7,7 @@ import Bricker.File as F
 import Control.Monad.State as S
 import Control.Monad.Except.Trans (ExceptT(..), runExceptT)
 
+import Data.Bifunctor (lmap)
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Either (Either(..))
 import Data.Map as M
@@ -38,7 +39,6 @@ import Node.Crypto.Hash (Algorithm(MD5), hex) as Hash
 
 import Utils.Exec (execAff')
 import Utils.Wrapper (Wrapper(..), rewrap)
-import Utils.ExceptT (showError)
 
 data Task id = Action (ExceptT String Aff Unit)
              | Chain (Array id)
@@ -111,7 +111,7 @@ type RelFileLink = Wrapper (SProxy "RelFileLink") String
 type CWD = Wrapper (SProxy "CWD") String
 
 readDir :: DirPath -> Effect (Either String (Array FileName))
-readDir dirPath = showError <$> runExceptT do
+readDir dirPath = (lmap show) <$> runExceptT do
   files <- ExceptT $ try $ FS.readdir (unwrap dirPath)
   pure (map wrap files)
 
@@ -142,7 +142,7 @@ readFiles dir = runExceptT $ do
     pure (Tuple f text)
 
 writeFile :: F.FilePath -> F.TextFile -> Effect (Either String Unit)
-writeFile fp content = showError <$> (try $ FS.writeTextFile UTF8 (unwrap fp) (unwrap content))
+writeFile fp content = (lmap show) <$> (try $ FS.writeTextFile UTF8 (unwrap fp) (unwrap content))
 
 writeFiles :: Array (Tuple F.FilePath F.TextFile) -> Effect Unit
 writeFiles files = void $ for files \(Tuple fp content) -> do

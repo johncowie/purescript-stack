@@ -5,6 +5,7 @@ import Prelude
 import Control.Alt (class Alt, (<|>))
 import Data.Argonaut.Decode (class DecodeJson, decodeJson, (.:))
 import Data.Argonaut.Encode (class EncodeJson, encodeJson)
+import Data.Bifunctor (lmap)
 import Data.Array (filter, head, sortWith, take)
 import Data.DateTime.Instant (Instant)
 import Data.Either (Either(..))
@@ -32,7 +33,7 @@ import Server.DB as DB
 import Server.Domain (OAuthProvider(WhatsApp), UserId)
 import Twilio.WhatsApp (WhatsAppNumber, showWhatsAppNumber)
 import Utils.DateTime (daysToInt, showInstantDate)
-import Utils.ExceptT (ExceptT(..), runExceptT, showError, liftEffectRight)
+import Utils.ExceptT (ExceptT(..), runExceptT, liftEffectRight)
 import Utils.Lens as L
 import Utils.String (stripPunctuation, unlines, words)
 
@@ -147,19 +148,19 @@ storeEvents :: DB -> WhatsAppNumber -> Array St.Event ->  Aff (Either String Uni
 storeEvents db waNumber events = runExceptT do
   uid <- ExceptT $ getUserId db waNumber
   void $ for events $ \event -> do
-    ExceptT $ map showError $ DB.addEvent uid (wrap "Dunbar") event db
+    ExceptT $ map (lmap show) $ DB.addEvent uid (wrap "Dunbar") event db
   -- TODO store snapshot
 
 loadState :: DB -> WhatsAppNumber -> Aff (Either String St.State)
 loadState db waNumber = runExceptT do
   uid <- ExceptT $ getUserId db waNumber
-  snapshotTupleM <- ExceptT $ map showError $ DB.retrieveLatestSnapshot uid (wrap "Dunbar") db
+  snapshotTupleM <- ExceptT $ map (lmap show) $ DB.retrieveLatestSnapshot uid (wrap "Dunbar") db
   case snapshotTupleM  of
       Just (snapshot /\ upToEvent) -> do
-        eventsAndIds <- ExceptT $ map showError $ DB.retrieveEvents uid (wrap "Dunbar") (Just upToEvent) db
+        eventsAndIds <- ExceptT $ map (lmap show) $ DB.retrieveEvents uid (wrap "Dunbar") (Just upToEvent) db
         pure $ foldr St.processEvent snapshot (map snd eventsAndIds)
       Nothing -> do
-        eventsAndIds <- ExceptT $ map showError $ DB.retrieveEvents uid (wrap "Dunbar") Nothing db
+        eventsAndIds <- ExceptT $ map (lmap show) $ DB.retrieveEvents uid (wrap "Dunbar") Nothing db
         pure $ foldr St.processEvent St.empty (map snd eventsAndIds)
 
 
@@ -322,17 +323,17 @@ getUserId db waNumber = do
                 , thirdPartyId: showWhatsAppNumber waNumber
                 , name: "UNKNOWN"
                 }
-  map showError $ DB.upsertUser newUser db
+  map (lmap show) $ DB.upsertUser newUser db
 
 storeState :: DB -> WhatsAppNumber -> ChatState -> Aff (Either String Unit)
 storeState db waNumber state = runExceptT do
   uid <- ExceptT $ getUserId db waNumber
-  ExceptT $ map showError $ DB.insertState uid (wrap "DunbarChatBot") (encodeJson state) db
+  ExceptT $ map (lmap show) $ DB.insertState uid (wrap "DunbarChatBot") (encodeJson state) db
 
 retrieveState :: DB -> WhatsAppNumber -> Aff (Either String ChatState)
 retrieveState db waNumber = runExceptT do
   uid <- ExceptT $ getUserId db waNumber
-  jsonM <- ExceptT $ map showError $ DB.retrieveState uid (wrap "DunbarChatBot") db
+  jsonM <- ExceptT $ map (lmap show) $ DB.retrieveState uid (wrap "DunbarChatBot") db
   case jsonM of
     (Just json) -> ExceptT $ pure $ decodeJson json
     Nothing -> pure New

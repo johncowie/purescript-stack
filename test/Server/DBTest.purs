@@ -3,8 +3,10 @@ module Server.DBTest where
 import Prelude
 
 import Control.Monad.Error.Class (class MonadThrow)
+import Control.Monad.Except.Trans (ExceptT(..), runExceptT)
 
 import Data.Argonaut.Encode (encodeJson)
+import Data.Bifunctor (lmap)
 import Data.Newtype (wrap)
 import Data.Tuple (fst)
 import Data.Maybe (Maybe(..))
@@ -20,8 +22,6 @@ import Server.Domain (OAuthProvider(Stub))
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (shouldEqual, shouldNotEqual, fail)
 
-import Utils.ExceptT (ExceptT(..), mapError, runExceptT)
-
 shouldBeRight :: forall a b m. (Show a) => (MonadThrow Error m) => Either a b -> m Unit
 shouldBeRight (Left v) = fail $ "Expected Right but was Left: " <> show v
 shouldBeRight (Right _) = pure unit
@@ -34,7 +34,7 @@ failOnError eff = do
     (Right _) -> pure unit
 
 convertPGError :: forall a. Either PG.PGError a -> Either Error a
-convertPGError = mapError (show >>> error)
+convertPGError = lmap (show >>> error)
 
 pgExceptT :: forall a. Aff (Either PG.PGError a) -> ExceptT Error Aff a
 pgExceptT = map convertPGError >>> ExceptT
