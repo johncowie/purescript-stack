@@ -20,6 +20,7 @@ You can edit this file as you like.
   , "formatters"
   , "httpure"
   , "johncowie-httpure"
+  , "johncowie-jwt"
   , "johncowie-simple-lens"
   , "js-timers"
   , "node-child-process"

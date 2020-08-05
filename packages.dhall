@@ -213,6 +213,11 @@ let additions =
             , repo = "https://github.com/johncowie/purescript-johncowie-httpure.git"
             , version = "v0.0.2"
           }
+      , johncowie-jwt =
+          { dependencies = [ "argonaut", "b64", "console", "crypto", "effect", "psci-support" ]
+          , repo = "https://github.com/johncowie/purescript-johncowie-jwt.git"
+          , version = "v0.0.1"
+          }
       }
 
 in  upstream // overrides // additions
