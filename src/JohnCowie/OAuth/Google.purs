@@ -1,4 +1,4 @@
-module Server.OAuth.Google
+module JohnCowie.OAuth.Google
 ( loadConfig
 , oauth )
 where
@@ -7,6 +7,9 @@ import Prelude
 
 import Affjax.RequestBody as RequestBody
 
+import Control.Monad.Except.Trans (ExceptT(..), runExceptT)
+
+import Data.Bifunctor (lmap)
 import Data.Newtype (unwrap)
 import Data.Either (Either)
 import Data.Tuple (Tuple(..))
@@ -22,12 +25,11 @@ import Foreign.Object (Object)
 
 import Type.Data.Row (RProxy(..))
 
-import Server.OAuth (OAuth, OAuthCode, UserData)
+import JohnCowie.OAuth (OAuth, OAuthCode, UserData)
 
-import Utils.Env (type (<:), fromEnv, EnvError, Env)
-import Utils.HttpClient as Http
-import Utils.ExceptT (ExceptT(..), runExceptT, showError)
-import Utils.JWT (JWT, extractPayload)
+import TypedEnv (type (<:), fromEnv, EnvError)
+import Utils.HttpClient as Http -- TODO remove dependency on this
+import JohnCowie.JWT (JWT, extractPayload)
 
 -- TODO could surely write something that looks better than this?
 type GoogleConfigProxy = (
@@ -44,7 +46,7 @@ type GoogleConfig = {
 , clientSecret :: String
 }
 
-loadConfig :: Env -> Either EnvError GoogleConfig
+loadConfig :: Object String -> Either EnvError GoogleConfig
 loadConfig env = fromEnv (RProxy :: RProxy GoogleConfigProxy) env
 
 -- mkRedirectUri ::  -> RedirectQuery -> String
@@ -74,7 +76,7 @@ redirect config redirectUri = config.oauthUrl <> query
                 ]
 
 fetchOpenIdData :: GoogleConfig -> String -> OAuthCode -> Aff (Either String {access_token :: JWT, id_token :: JWT})
-fetchOpenIdData config redirectUri code = map showError $ Http.postReturnJson url body
+fetchOpenIdData config redirectUri code = map (lmap show) $ Http.postReturnJson url body
   where url = config.apiUrl <> "/oauth2/v4/token"
         body = formData [
           Tuple "code" (unwrap code)
@@ -99,7 +101,7 @@ handleCode config code redirectUri = runExceptT do
   tokenData <- ExceptT $ fetchOpenIdData config redirectUri code
   ExceptT $ pure $ extractPayload tokenData.id_token
 
-oauth :: Env -> Either EnvError OAuth
+oauth :: Object String -> Either EnvError OAuth
 oauth env = do
   config <- loadConfig env
   pure { redirect: redirect config

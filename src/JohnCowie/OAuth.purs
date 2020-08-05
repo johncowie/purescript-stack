@@ -1,4 +1,4 @@
-module Server.OAuth
+module JohnCowie.OAuth
 ( OAuth
 , OAuthCode
 , UserData

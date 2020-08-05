@@ -8,6 +8,7 @@ import Data.Argonaut.Encode (class EncodeJson, encodeJson)
 import Data.Array (drop)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..), fromMaybe)
+import Data.Newtype (unwrap)
 import Data.Tuple (Tuple(..))
 import Data.Tuple.Nested (type (/\), (/\))
 import Effect (Effect)
@@ -26,9 +27,9 @@ import Server.Middleware.TwilioAuth as TwilioAuth
 import Server.Migrations (migrate, Migrator)
 import Server.Migrations.MigrationData (migrationStore)
 import Server.Migrations.Postgres (executor, intVersionStore)
-import Server.OAuth (OAuth, OAuthCode)
-import Server.OAuth.Google as Google
-import Server.OAuth.Stub as StubOAuth
+import JohnCowie.OAuth (OAuth, OAuthCode)
+import JohnCowie.OAuth.Google as Google
+import JohnCowie.OAuth.Stub as StubOAuth
 
 import Server.ChatBot.WhatsApp (WhatsAppBot)
 import Dunbar.ChatBot (dunbarWhatsAppBot)
@@ -44,7 +45,7 @@ import Twilio.WhatsApp as WA
 import Type.Data.Row (RProxy(..))
 import Utils.Env (Env, type (<:), EnvError, fromEnv, getEnv)
 import Utils.ExceptT (ExceptT(..), runExceptT, showError, liftEffectRight)
-import Utils.JWT (JWTGenerator, jwtGenerator)
+import JohnCowie.JWT (JWTGenerator, jwtGenerator)
 import Utils.Lens as L
 
 type AuthedRequest a = AuthM.AuthedRequest {sub :: UserId} a
@@ -336,7 +337,7 @@ injectStubVars Dev = do
   NP.setEnv "TWILIO_AUTH_TOKEN" "blah"
 
 oauthForMode :: Mode -> Env -> Either EnvError OAuth
-oauthForMode Prod env = Google.oauth env
+oauthForMode Prod env = Google.oauth (unwrap env)
 oauthForMode Dev _ = Right StubOAuth.oauth
 
 -- | Boot up the server

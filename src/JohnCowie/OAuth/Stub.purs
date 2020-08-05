@@ -1,8 +1,8 @@
-module Server.OAuth.Stub where
+module JohnCowie.OAuth.Stub where
 
 import Prelude
 import Data.Either (Either(..))
-import Server.OAuth (OAuth)
+import JohnCowie.OAuth (OAuth)
 
 data StubCode = StubCode String
 

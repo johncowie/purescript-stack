@@ -1,10 +1,9 @@
-module Utils.JWT
+module JohnCowie.JWT
 ( JWT
 , TokenGenerator
 , JWTGenerator
 , extractPayload
 , jwtGenerator
-, main
 )
 where
 
@@ -14,6 +13,7 @@ import Data.Argonaut.Core as J
 import Data.Argonaut.Decode (class DecodeJson, decodeJson)
 import Data.Argonaut.Encode (class EncodeJson, encodeJson)
 import Data.Argonaut.Parser (jsonParser)
+import Data.Bifunctor (lmap)
 import Data.Either (Either(..))
 import Data.Newtype (class Newtype, wrap, unwrap)
 import Data.Array ((!!))
@@ -25,12 +25,9 @@ import Data.String.Regex.Flags as F
 import Data.String.Base64 as Base64
 
 import Effect (Effect)
-import Effect.Console as Console
 
 import Node.Crypto.Hmac as Hmac
 import Node.Crypto.Hash (Algorithm(SHA256))
-
-import Utils.ExceptT (showError)
 
 newtype JWT = JWT String
 
@@ -42,6 +39,7 @@ instance decodeJsonJWT :: DecodeJson JWT where
 instance encodeJsonJWT :: EncodeJson JWT where
   encodeJson = unwrap >>> encodeJson
 
+-- TODO maybe this should be a typeclass?
 type TokenGenerator token m payload = {
   generate :: payload -> m token
 , verify :: token -> m Boolean
@@ -88,7 +86,7 @@ extractPayload :: forall a. (DecodeJson a) => JWT -> Either String a
 extractPayload (JWT jwtStr) = do
   let parts = Str.split (Str.Pattern ".") jwtStr
   part <- maybe (Left "No second part of token") Right $ parts !! 1
-  jsonStr <- showError $ Base64.decode part
+  jsonStr <- lmap show $ Base64.decode part
   json <- jsonParser jsonStr
   decodeJson json
 
@@ -98,9 +96,3 @@ verifyAndExtractPayload secret jwt = do
   if isVerified
     then pure $ extractPayload jwt
     else pure (Left "invalid token signature")
-
-
-main :: Effect Unit
-main = do
-  token <- generateToken "secret" {fuck: "you dickwad"}
-  Console.log (unwrap token)
