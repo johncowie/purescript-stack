@@ -232,6 +232,20 @@ let additions =
             , repo = "https://github.com/johncowie/purescript-johncowie-oauth.git"
             , version = "v0.0.1"
           }
+      , johncowie-bricker =
+          { dependencies =
+            [ "aff"
+            , "console"
+            , "crypto"
+            , "effect"
+            , "node-child-process"
+            , "node-fs"
+            , "node-process"
+            , "psci-support"
+            ]
+            , repo = "https://github.com/johncowie/purescript-johncowie-bricker.git"
+            , version = "v0.0.1"
+          }
       }
 
 in  upstream // overrides // additions

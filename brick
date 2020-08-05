@@ -1,1 +1,1 @@
-spago bundle-app --main Bricker --to bricker-dist/bricker.js && node bricker-dist/bricker.js "$@"
+spago bundle-app -p Bricks.purs --main Bricks --to bricker-dist/bricker.js && node bricker-dist/bricker.js "$@"

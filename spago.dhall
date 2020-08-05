@@ -19,6 +19,7 @@ You can edit this file as you like.
   , "form-urlencoded"
   , "formatters"
   , "httpure"
+  , "johncowie-bricker"
   , "johncowie-httpure"
   , "johncowie-jwt"
   , "johncowie-oauth"
