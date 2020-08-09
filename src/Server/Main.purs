@@ -7,8 +7,7 @@ import Data.Argonaut.Encode (class EncodeJson, encodeJson)
 import Data.Bifunctor (lmap)
 import Data.Array (drop)
 import Data.Either (Either(..))
-import Data.Maybe (Maybe(..), fromMaybe)
-import Data.Newtype (unwrap)
+import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..))
 import Data.Tuple.Nested (type (/\), (/\))
 import Effect (Effect)
@@ -43,7 +42,7 @@ import Twilio.WhatsApp as WA
 import Utils.ExceptT (ExceptT(..), runExceptT, liftEffectRight)
 import JohnCowie.JWT (JWTGenerator, jwtGenerator)
 import Utils.Lens as L
-import Envisage (Var, describe, defaultTo, readEnv)
+import Envisage (describe, defaultTo, readEnv, showParsed)
 import Envisage.Var (var)
 import Envisage.Console (printErrorsForConsole)
 
@@ -416,9 +415,9 @@ main =
         config <- ExceptT $ pure $ (lmap printErrorsForConsole) $ readEnv
                     { google: Google.googleEnvVars
                     , twilio: twilioEnvVars
-                    , port: var "PORT" # defaultTo 8080 # describe "Port that app handles HTTP requests on"
-                    , databaseUri: var "DATABASE_URI" # describe "Postgres connnection URI" # defaultTo "postgres://localhost:5432/events_store"
-                    , jwtSecret: var "JWT_SECRET" # describe "Secret used for issuing JWT tokens"
+                    , port: var "PORT" # defaultTo 8080 # showParsed # describe "Port that app handles HTTP requests on"
+                    , databaseUri: var "DATABASE_URI" # showParsed # describe "Postgres connnection URI" # defaultTo "postgres://localhost:5432/events_store"
+                    , jwtSecret: var "JWT_SECRET" # showParsed # describe "Secret used for issuing JWT tokens"
                     }
                     env
         let

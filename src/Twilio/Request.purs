@@ -6,7 +6,6 @@ module Twilio.Request
   ) where
 
 import Prelude
-import Data.Maybe (Maybe(..))
 import Envisage.Var (class ParseValue)
 import Foreign.Object (Object)
 
@@ -15,8 +14,6 @@ newtype AuthToken
 
 instance parseValueAuthToken :: ParseValue AuthToken where
   parseValue s = pure (AuthToken s)
-instance showAuthToken :: Show AuthToken where
-  show t = "*****"
 
 newtype Signature
   = Signature String

@@ -4,16 +4,14 @@ module Twilio.Config
   ) where
 
 import Prelude
-import Data.Newtype (wrap, unwrap)
-import Data.Either (Either(..))
 import Twilio.Request (AuthToken)
-import Envisage (Var, describe, withShow)
-import Envisage.Var (var, newVar)
+import Envisage (Var, describe, showParsed)
+import Envisage.Var (var)
 
 twilioEnvVars :: { accountId :: Var String
                  , authToken :: Var AuthToken}
-twilioEnvVars = { accountId: var "TWILIO_ACCOUNT_ID"
-                , authToken: var "TWILIO_AUTH_TOKEN"}
+twilioEnvVars = { accountId: var "TWILIO_ACCOUNT_ID" # showParsed # describe "Twillio account Id"
+                , authToken: var "TWILIO_AUTH_TOKEN" # describe "Twilio auth token"}
 
 type TwilioConfig
   = { accountId :: String

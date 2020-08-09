@@ -125,7 +125,7 @@ deliveryStatus s = case (Str.toLower s) of
   "failed" -> Failed
   "sent" -> Sent
   "read" -> Read
-  s -> Unsupported s
+  other -> Unsupported other
 
 whatsAppNumber :: String -> Either String WhatsAppNumber
 whatsAppNumber = WhatsAppNumber >>> Right

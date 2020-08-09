@@ -183,7 +183,7 @@ let additions =
             , "transformers"
             ]
           , repo = "https://github.com/johncowie/purescript-envisage.git"
-          , version = "v0.0.1"
+          , version = "v0.0.2"
           }
       , johncowie-simple-lens =
           { dependencies =
