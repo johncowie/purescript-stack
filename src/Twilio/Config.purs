@@ -1,24 +1,22 @@
 module Twilio.Config
   ( TwilioConfig
-  , loadTwilioConfig
+  , twilioEnvVars
   ) where
 
-import Data.Either (Either)
-import Type.Data.Row (RProxy(..))
+import Prelude
+import Data.Newtype (wrap, unwrap)
+import Data.Either (Either(..))
 import Twilio.Request (AuthToken)
-import Utils.Env (Env, fromEnv, type (<:), EnvError)
+import Envisage (Var, describe, withShow)
+import Envisage.Var (var, newVar)
 
-type TwilioConfigProxy
-  = ( accountId :: String <: "TWILIO_ACCOUNT_ID"
-    -- , apiRoot :: String <: "TWILIO_API"
-    , authToken :: AuthToken <: "TWILIO_AUTH_TOKEN"
-    )
+twilioEnvVars :: { accountId :: Var String
+                 , authToken :: Var AuthToken}
+twilioEnvVars = { accountId: var "TWILIO_ACCOUNT_ID"
+                , authToken: var "TWILIO_AUTH_TOKEN"}
 
 type TwilioConfig
   = { accountId :: String
     , authToken :: AuthToken
     -- , apiRoot :: String
     }
-
-loadTwilioConfig :: Env -> Either EnvError TwilioConfig
-loadTwilioConfig env = fromEnv (RProxy :: RProxy TwilioConfigProxy) env

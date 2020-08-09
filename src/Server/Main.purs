@@ -36,15 +36,16 @@ import Dunbar.ChatBot (dunbarWhatsAppBot)
 import JohnCowie.HTTPure.Middleware.Auth as AuthM
 import JohnCowie.HTTPure (class IsRequest, BasicRequest, Response, addResponseHeader, response, serve', setContentType)
 import JohnCowie.HTTPure as Req
-import Twilio.Config (TwilioConfig, loadTwilioConfig)
+import Twilio.Config (TwilioConfig, twilioEnvVars)
 import Twilio.Twiml as Twiml
 import Twilio.WhatsApp (WhatsAppMessage, WhatsAppNumber, WhatsAppDeliveryNotification)
 import Twilio.WhatsApp as WA
-import Type.Data.Row (RProxy(..))
-import Utils.Env (Env, type (<:), EnvError, fromEnv, getEnv)
 import Utils.ExceptT (ExceptT(..), runExceptT, liftEffectRight)
 import JohnCowie.JWT (JWTGenerator, jwtGenerator)
 import Utils.Lens as L
+import Envisage (Var, describe, defaultTo, readEnv)
+import Envisage.Var (var)
+import Envisage.Console (printErrorsForConsole)
 
 type AuthedRequest a
   = AuthM.AuthedRequest { sub :: UserId } a
@@ -226,7 +227,7 @@ type Dependencies
   = { db :: DB
     , oauth :: { google :: OAuth }
     , tokenGen :: JWTGenerator { sub :: UserId }
-    , twilioConfig :: TwilioConfig
+    , twilioConfig :: TwilioConfig -- close over into object (a la oauth)
     , dunbarBot :: WhatsAppBot Aff
     }
 
@@ -349,17 +350,11 @@ app deps =
     $ wrapCors
     $ baseRouter deps
 
-type Config
-  = ( port :: Maybe Int <: "PORT"
-    , databaseUri :: Maybe String <: "DATABASE_URI"
-    , jwtSecret :: String <: "JWT_SECRET"
-    )
-
 logError :: Aff (Either String Unit) -> Aff Unit
 logError e = do
   r <- e
   case r of
-    (Left err) -> liftEffect $ Console.log $ "ERROR: " <> err
+    (Left err) -> liftEffect $ Console.error $ "Startup error:\n" <> err
     _ -> pure unit
 
 migrator :: DB -> Migrator Aff Int String
@@ -399,10 +394,9 @@ injectStubVars Dev = do
   NP.setEnv "TWILIO_ACCOUNT_ID" "blah"
   NP.setEnv "TWILIO_AUTH_TOKEN" "blah"
 
-oauthForMode :: Mode -> Env -> Either EnvError OAuth
-oauthForMode Prod env = Google.oauth (unwrap env)
-
-oauthForMode Dev _ = Right StubOAuth.oauth
+oauthForMode :: Mode -> OAuth -> OAuth
+oauthForMode Prod oauth = oauth
+oauthForMode Dev _ = StubOAuth.oauth
 
 -- | Boot up the server
 main :: Effect Unit
@@ -413,27 +407,33 @@ main =
         let
           mode = modeFromArgs $ drop 2 args
         liftEffectRight $ injectStubVars mode
-        env <- liftEffectRight getEnv
-        config <- ExceptT $ pure $ (lmap show) $ fromEnv (RProxy :: RProxy Config) env
+        env <- liftEffectRight NP.getEnv
+        -- type configEnvVars
+        --   = ( port :: Maybe Int <: "PORT"
+        --     , databaseUri :: Maybe String <: "DATABASE_URI"
+        --     , jwtSecret :: String <: "JWT_SECRET"
+        --     )
+        config <- ExceptT $ pure $ (lmap printErrorsForConsole) $ readEnv
+                    { google: Google.googleEnvVars
+                    , twilio: twilioEnvVars
+                    , port: var "PORT" # defaultTo 8080 # describe "Port that app handles HTTP requests on"
+                    , databaseUri: var "DATABASE_URI" # describe "Postgres connnection URI" # defaultTo "postgres://localhost:5432/events_store"
+                    , jwtSecret: var "JWT_SECRET" # describe "Secret used for issuing JWT tokens"
+                    }
+                    env
         let
-          port = fromMaybe 8080 config.port
-
+          port = config.port
           hostname = "0.0.0.0"
-
           backlog = Nothing
-
-          dbUri = fromMaybe "postgres://localhost:5432/events_store" config.databaseUri
-        pool <- ExceptT $ (lmap show) <$> (liftEffect $ getDB dbUri)
-        googleOAuth <- ExceptT $ pure $ lmap show $ oauthForMode mode env
-        twilioConfig <- ExceptT $ pure $ lmap show $ loadTwilioConfig env
+        pool <- ExceptT $ (lmap show) <$> (liftEffect $ getDB config.databaseUri)
         let
           dunbarBot = dunbarWhatsAppBot pool
         let
           deps =
             { db: pool
-            , oauth: { google: googleOAuth }
+            , oauth: { google: oauthForMode mode (Google.oauth config.google) }
             , tokenGen: jwtGenerator config.jwtSecret
-            , twilioConfig
+            , twilioConfig: config.twilio
             , dunbarBot
             }
         ExceptT $ migrate $ migrator pool

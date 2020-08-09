@@ -169,24 +169,21 @@ let additions =
           , repo = "https://github.com/vilu/purescript-browser-cookies.git"
           , version = "v0.0.1"
           }
-      , typedenv =
+      , envisage =
           { dependencies =
             [ "console"
             , "effect"
-            , "foreign-object"
-            , "generics-rep"
             , "integers"
             , "node-process"
             , "numbers"
+            , "prelude"
             , "psci-support"
             , "record"
-            , "spec"
             , "strings"
             , "transformers"
-            , "typelevel-prelude"
             ]
-          , repo = "https://github.com/johncowie/purescript-typedenv.git"
-          , version = "v0.0.3"
+          , repo = "https://github.com/johncowie/purescript-envisage.git"
+          , version = "v0.0.1"
           }
       , johncowie-simple-lens =
           { dependencies =
@@ -225,12 +222,11 @@ let additions =
             , "effect"
             , "johncowie-httpure"
             , "johncowie-jwt"
-            , "psci-support"
-            , "typedenv"
+            , "envisage"
             , "uri"
             ]
             , repo = "https://github.com/johncowie/purescript-johncowie-oauth.git"
-            , version = "v0.0.1"
+            , version = "v0.0.2"
           }
       , johncowie-bricker =
           { dependencies =
